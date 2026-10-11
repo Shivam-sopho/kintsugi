@@ -115,7 +115,7 @@ function GoogleMapView({ state, layers, selectedSiteId, onSelectSite, onSelectPr
             </AdvancedMarker>
           ))}
         {layers.destinations &&
-          state.participants.map((p) => (
+          state.participants.filter((p) => p.role !== "homeowner").map((p) => (
             <AdvancedMarker key={p.id} position={p.location} title={`${p.name} (${p.role})`}>
               <span className="dest-pin" />
             </AdvancedMarker>
@@ -204,7 +204,7 @@ function SchematicMap({ state, layers, selectedSiteId, onSelectSite, onSelectPre
             </g>
           ))}
         {layers.destinations &&
-          state.participants.map((p) => (
+          state.participants.filter((p) => p.role !== "homeowner").map((p) => (
             <g key={p.id} className="dest">
               <rect x={x(p.location) - 5} y={y(p.location) - 5} width={10} height={10} rx={2} />
               <title>{`${p.name} (${p.role})`}</title>

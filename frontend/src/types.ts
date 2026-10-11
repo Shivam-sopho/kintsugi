@@ -49,6 +49,10 @@ export interface Item {
   status: "available" | "in_deal" | "sold" | "routed";
   seller_id: string | null;
   synthetic: boolean;
+  verified: boolean;
+  has_floor_price: boolean;
+  evidence: string[];
+  take_apart: Record<string, string[]>;
 }
 
 export interface Site {
@@ -166,4 +170,11 @@ export interface DesignResult {
   total_inr: number;
   render_png_b64: string | null;
   render_prompt: string;
+}
+
+export interface Transcript {
+  text: string;
+  language: string;
+  english: string;
+  amount_inr?: number;
 }

@@ -10,11 +10,14 @@ interface Props {
   onSelectItem: (id: string | null) => void;
   onRunDemo: () => void;
   demoRunning: boolean;
+  onChanged: () => void;
+  onOffer: (itemId: string) => Promise<void>;
 }
 
-export default function MapPanel({ state, siteId, predictionId, itemId, onSelectItem, onRunDemo, demoRunning }: Props) {
+export default function MapPanel({ state, siteId, predictionId, itemId, onSelectItem, onRunDemo, demoRunning, onChanged, onOffer }: Props) {
   const item = itemId ? state.items.find((i) => i.id === itemId) : undefined;
-  if (item) return <Passport item={item} state={state} onBack={() => onSelectItem(null)} />;
+  if (item)
+    return <Passport key={item.id} item={item} state={state} onBack={() => onSelectItem(null)} onChanged={onChanged} onOffer={onOffer} />;
 
   const prediction = predictionId ? state.predictions.find((p) => p.id === predictionId) : undefined;
   if (prediction) return <PredictionCard p={prediction} />;
@@ -25,7 +28,7 @@ export default function MapPanel({ state, siteId, predictionId, itemId, onSelect
     return (
       <section>
         <h2>{site.name}</h2>
-        <p className="muted">{items.length} kinds of item. Tap one to open its passport.</p>
+        <p className="muted">{items.length} {items.length === 1 ? "kind" : "kinds"} of item. Tap one to open its passport.</p>
         <ul className="item-list">
           {items.map((i) => <ItemRow key={i.id} item={i} onClick={() => onSelectItem(i.id)} />)}
         </ul>
@@ -64,6 +67,7 @@ function ItemRow({ item, onClick }: { item: Item; onClick: () => void }) {
             {item.value_max_inr ? `, ${inr(item.value_min_inr)}–${inr(item.value_max_inr)} each` : ""}
           </span>
         </span>
+        {item.verified && <span className="status ok">confirmed</span>}
         {item.status !== "available" && <span className="status">{item.status.replace("_", " ")}</span>}
         {item.hazards.length > 0 && <span className="status hazard">hazard</span>}
       </button>

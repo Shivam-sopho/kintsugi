@@ -47,6 +47,16 @@ export default function App() {
     }
   };
 
+  const offer = async (itemId: string) => {
+    const j = await api.offerItem(itemId);
+    track(j);
+    setTab("deal");
+  };
+
+  const skipDemo = async () => {
+    if (job) await api.skip(job.id).catch(() => undefined);
+  };
+
   const openSite = (id: string) => {
     setSiteId(id);
     setPredictionId(null);
@@ -120,6 +130,8 @@ export default function App() {
                 onSelectItem={setItemId}
                 onRunDemo={runDemo}
                 demoRunning={demoRunning}
+                onChanged={refresh}
+                onOffer={offer}
               />
             ) : tab === "scan" ? (
               <ScanPanel state={state} onJob={(j, cb) => { track(j, cb); }} onScanned={openSite} />
@@ -138,7 +150,7 @@ export default function App() {
             ) : tab === "deal" ? (
               <DealRoom state={state} onChanged={refresh} />
             ) : tab === "agents" ? (
-              <MissionControl job={job} events={events} />
+              <MissionControl job={job} events={events} onSkip={skipDemo} />
             ) : (
               <ImpactPanel state={state} />
             )}
