@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # CORS origin for the web app
     cors_origins: str = "*"
 
+    # Agent2Agent: the seller agent is an A2A service (see app/a2a_seller.py)
+    a2a_enabled: bool = True
+    a2a_seller_url: str = ""  # empty = call the seller agent in-process; else its base URL
+    public_base_url: str = ""  # this API's public URL, written into the Agent Card
+
 
 @lru_cache
 def get_settings() -> Settings:

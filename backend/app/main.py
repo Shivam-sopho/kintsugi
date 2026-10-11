@@ -44,6 +44,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# The seller agent speaks A2A: /a2a/seller (JSON-RPC) and its Agent Card
+if settings.a2a_enabled:
+    from .a2a_seller import mount_seller_agent
+
+    mount_seller_agent(app)
+
 _tasks: set[asyncio.Task] = set()
 
 

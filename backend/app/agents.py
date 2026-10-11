@@ -22,7 +22,8 @@ from .materials import canonical_material
 from .models import (
     AgentEvent, Component, Deal, GeoPoint, Item, Participant, Prediction, Rung, Site,
 )
-from .negotiation import NegotiationSetup, run_negotiation, sandbox_settlement
+from .a2a_seller import A2ASeller, lot_summary, seller_terms
+from .negotiation import BuyerBrain, LocalSeller, SellerBrain, negotiate, sandbox_settlement
 from .store.base import Store
 
 TAKE_APART_RUNGS = {Rung.HARVEST_PARTS, Rung.RECYCLE, Rung.RECOVER_ENERGY}
@@ -308,18 +309,18 @@ async def architect_design(
 
 # ---------------------------------------------------------------- Market
 
-def _summary(items: list[Item]) -> str:
-    return ", ".join(f"{i.count} {i.type}{'s' if i.count > 1 and not i.type.endswith('s') else ''}" for i in items)
-
-
 async def negotiate_deal(
     store: Store, llm: LLM, settings: Settings, emit: Emitter, item_ids: list[str], buyer_id: str,
     budget_cap_inr: Optional[float] = None,
 ) -> Deal:
+    """The buyer's agent negotiates with the seller's agent. Over A2A by default, so the seller's
+    floor stays inside the seller agent; the buyer's cap stays here with the buyer agent."""
     items = [store.get_item(i) for i in item_ids]
     items = [i for i in items if i is not None]
     if not items:
         raise ValueError("No such items")
+    if any(i.status != "available" for i in items):
+        raise ValueError("Some of these items are already in a deal")
     sellers = {i.seller_id for i in items}
     if len(sellers) != 1:
         raise ValueError("A deal must contain items from one seller")
@@ -328,26 +329,18 @@ async def negotiate_deal(
     buyer = store.get_participant(buyer_id)
     if buyer is None:
         raise ValueError("Unknown buyer")
-    list_price = sum((i.value_max_inr or 0) * i.count for i in items)
-    min_value = sum((i.value_min_inr or 0) * i.count for i in items)
-    if all(i.floor_price_inr for i in items):
-        floor = sum(i.floor_price_inr or 0 for i in items)  # the seller set a lowest price for each lot
-    elif seller and seller.floor_price_inr:
-        floor = seller.floor_price_inr
-    else:
-        floor = round(min_value * 0.9, -1)
+    list_price, floor = seller_terms(items, seller)
     cap = budget_cap_inr or buyer.budget_cap_inr or list_price
-    setup = NegotiationSetup(
-        item_summary=_summary(items), list_price=list_price, seller_floor=floor, buyer_cap=cap,
-        seller_lang=seller.language if seller else "en", buyer_lang=buyer.language,
-    )
+    seller_lang = seller.language if seller else "en"
+    summary = lot_summary(items)
+
     deal = Deal(item_ids=[i.id for i in items], seller_id=seller_id, buyer_id=buyer_id)
     for i in items:
         i.status = "in_deal"
     store.upsert_items(items)
     store.upsert_deal(deal)
-    await emit("market", "start", f"{seller.name if seller else seller_id} ({setup.seller_lang}) and {buyer.name} "
-               f"({setup.buyer_lang}) start negotiating: {setup.item_summary}", deal_id=deal.id)
+    await emit("market", "start", f"{seller.name if seller else seller_id} ({seller_lang}) and {buyer.name} "
+               f"({buyer.language}) start negotiating: {summary}", deal_id=deal.id)
 
     async def on_turn(turn):
         deal.transcript.append(turn)
@@ -356,7 +349,23 @@ async def negotiate_deal(
         if turn.guardrail_applied:
             await emit("market", "guardrail", turn.guardrail_note, deal_id=deal.id)
 
-    result = await run_negotiation(setup, llm, on_turn)
+    buyer_brain = BuyerBrain(limit=cap)
+    if settings.a2a_enabled:
+        seller_port = A2ASeller(deal.id, buyer.language, settings)
+        await emit("market", "a2a", "Buyer agent reached the seller agent over A2A "
+                   "(agent card at /a2a/seller/.well-known/agent-card.json). The seller's floor stays with the seller agent.",
+                   deal_id=deal.id)
+    else:
+        seller_port = LocalSeller(SellerBrain(limit=floor, list_price=list_price), llm, summary, seller_lang, buyer.language)
+    try:
+        result = await negotiate(seller_port, buyer_brain, llm, summary, seller_lang, buyer.language, on_turn=on_turn)
+    except Exception:
+        for i in items:
+            i.status = "available"
+        store.upsert_items(items)
+        deal.status = "no_deal"
+        store.upsert_deal(deal)
+        raise
     deal.status = "agreed" if result.status == "agreed" else "no_deal"
     deal.final_price_inr = result.final_price
     if deal.status == "no_deal":
