@@ -1,0 +1,14 @@
+{
+  "_note": "SAMPLE scrap buying rates in INR per kg for the demo. Replace with the rates quoted by the dealer you interview.",
+  "source": "Sample rates (replace with a real dealer quote)",
+  "rates_inr_per_kg": {
+    "steel": 30,
+    "copper": 450,
+    "aluminium": 120,
+    "plastic": 10,
+    "paper": 8,
+    "glass": 2,
+    "textile": 5,
+    "wood": 6
+  }
+}

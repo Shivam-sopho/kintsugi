@@ -1,0 +1,253 @@
+"""Sample data for mock mode and judge mode.
+
+Everything here is SYNTHETIC and labelled as such in the UI. Replace the participants with
+real ones (Places API + the dealer you interview) and the scans with your own footage.
+Demo city: Bengaluru.
+"""
+
+from __future__ import annotations
+
+from ..models import GeoPoint, Participant, Prediction
+
+HOME_HSR = GeoPoint(lat=12.9116, lng=77.6474)
+OFFICE_KORAMANGALA = GeoPoint(lat=12.9352, lng=77.6245)
+CAFE_INDIRANAGAR = GeoPoint(lat=12.9719, lng=77.6412)
+
+
+def participants() -> list[Participant]:
+    return [
+        Participant(
+            id="ppl_ramesh", name="Ramesh Scrap Traders", role="dealer", language="hi",
+            location=GeoPoint(lat=12.9406, lng=77.6290),
+            accepts_types=["door", "window", "cabinet", "pendant light"],
+            accepts_materials=["steel", "copper", "aluminium", "paper", "plastic"],
+            min_bundle_value_inr=300, floor_price_inr=None,
+        ),
+        Participant(
+            id="ppl_imran", name="Imran Kabadi", role="dealer", language="hi",
+            location=GeoPoint(lat=12.9141, lng=77.6390),
+            accepts_types=[], accepts_materials=["steel", "copper", "aluminium", "paper", "plastic"],
+            min_bundle_value_inr=250,
+        ),
+        Participant(
+            id="ppl_ananya", name="Ananya (Brew & Bloom café)", role="buyer", language="en",
+            location=CAFE_INDIRANAGAR,
+            accepts_types=["door", "pendant light", "tile", "wash basin", "window"],
+            budget_cap_inr=30000,
+        ),
+        Participant(
+            id="ppl_habitat", name="Homes For All (NGO)", role="ngo", language="kn",
+            location=GeoPoint(lat=12.9698, lng=77.7500),
+            accepts_types=["window", "door", "wash basin"],
+        ),
+        Participant(
+            id="ppl_lakdi", name="Lakdi Kaam Carpentry", role="repairer", language="hi",
+            location=GeoPoint(lat=12.9170, lng=77.6420),
+            accepts_types=["chair", "table", "door"],
+        ),
+        Participant(
+            id="ppl_reroot", name="ReRoot Upcycling Studio", role="upcycler", language="en",
+            location=GeoPoint(lat=12.9279, lng=77.6271),
+            accepts_types=["teak frame", "wooden frame"], accepts_materials=["wood", "glass"],
+        ),
+        Participant(
+            id="ppl_greenloop", name="GreenLoop Textiles", role="recycler", language="en",
+            location=GeoPoint(lat=12.9581, lng=77.6480),
+            accepts_materials=["textile"],
+        ),
+        Participant(
+            id="ppl_cnd", name="C&D Recycling Yard", role="recycler", language="kn",
+            location=GeoPoint(lat=12.9800, lng=77.5800),
+            accepts_materials=["ceramic", "brick", "concrete", "stone"],
+        ),
+        Participant(
+            id="ppl_wte", name="City Waste-to-Energy Plant", role="energy_facility", language="kn",
+            location=GeoPoint(lat=12.9900, lng=77.5600),
+            accepts_materials=["foam", "plastic", "mixed", "textile", "paper"],
+        ),
+        Participant(
+            id="ppl_safehaz", name="SafeHaz Licensed Disposal", role="hazard_handler", language="en",
+            location=GeoPoint(lat=12.9500, lng=77.6900),
+            accepts_materials=["any"],
+        ),
+    ]
+
+
+SCOUT_CHAIR = {
+    "items": [
+        {
+            "type": "chair",
+            "description": "Wooden dining chair, teak frame, cushioned seat; back leg broken at the joint",
+            "count": 1,
+            "condition": "D",
+            "condition_reason": "Back leg snapped at the joint and the frame is cracked",
+            "components": [
+                {"name": "teak frame", "material": "teak", "est_weight_kg": 4.0},
+                {"name": "steel screws and brackets", "material": "steel", "est_weight_kg": 0.3},
+                {"name": "seat cushion", "material": "foam", "est_weight_kg": 1.0},
+                {"name": "fabric cover", "material": "fabric", "est_weight_kg": 0.4},
+            ],
+            "dimensions_cm": {"width": 45, "height": 90, "depth": 50},
+            "timestamps_s": [1.5, 6.0],
+            "hazards": [],
+            "tap_test": "unknown",
+            "confidence": 0.9,
+        }
+    ],
+    "narration_language": "hi",
+    "narration_summary_en": "Owner says the chair is teak and the leg is broken.",
+}
+
+SCOUT_OFFICE = {
+    "items": [
+        {
+            "type": "teak panel door", "description": "Solid teak panel doors with brass hinges", "count": 6,
+            "condition": "B", "condition_reason": "Surface scratches only; frames sound",
+            "components": [
+                {"name": "teak door leaf", "material": "teak", "est_weight_kg": 28.0},
+                {"name": "brass hinges and handle", "material": "brass", "est_weight_kg": 0.6},
+            ],
+            "dimensions_cm": {"width": 90, "height": 210, "depth": 4},
+            "timestamps_s": [4.0, 11.5, 19.0], "hazards": [], "tap_test": "solid", "confidence": 0.86,
+        },
+        {
+            "type": "aluminium sliding window", "description": "Two-panel sliding windows, clear glass", "count": 8,
+            "condition": "B", "condition_reason": "Tracks dusty, glass intact",
+            "components": [
+                {"name": "aluminium frame", "material": "aluminium", "est_weight_kg": 6.0},
+                {"name": "glass panes", "material": "glass", "est_weight_kg": 9.0},
+            ],
+            "timestamps_s": [8.0, 22.0], "hazards": [], "confidence": 0.8,
+        },
+        {
+            "type": "vitrified floor tile", "description": "600x600 mm beige vitrified tiles, solid when tapped", "count": 120,
+            "condition": "B", "condition_reason": "Firmly bonded; can be lifted with care",
+            "components": [{"name": "tile", "material": "ceramic", "est_weight_kg": 8.0}],
+            "timestamps_s": [14.0], "hazards": [], "tap_test": "solid", "confidence": 0.7,
+        },
+        {
+            "type": "vitrified floor tile (hollow)", "description": "Tiles near the entrance that sound hollow", "count": 30,
+            "condition": "D", "condition_reason": "Hollow sound on tap test: likely detached and cracked beneath",
+            "components": [{"name": "tile", "material": "ceramic", "est_weight_kg": 8.0}],
+            "timestamps_s": [16.5], "hazards": [], "tap_test": "hollow", "confidence": 0.65,
+        },
+        {
+            "type": "pendant light", "description": "Industrial black metal pendant lights", "count": 10,
+            "condition": "B", "condition_reason": "Working; minor paint chips",
+            "components": [
+                {"name": "steel shade", "material": "steel", "est_weight_kg": 1.2},
+                {"name": "wiring", "material": "copper", "est_weight_kg": 0.2},
+                {"name": "bulb holder", "material": "plastic", "est_weight_kg": 0.1},
+            ],
+            "timestamps_s": [25.0], "hazards": [], "confidence": 0.88,
+        },
+        {
+            "type": "steel office cabinet", "description": "Grey two-door steel storage cabinets", "count": 4,
+            "condition": "C", "condition_reason": "Dents and rust spots; doors close",
+            "components": [{"name": "steel body", "material": "steel", "est_weight_kg": 35.0}],
+            "timestamps_s": [30.0], "hazards": [], "confidence": 0.84,
+        },
+        {
+            "type": "wash basin", "description": "White ceramic wall-hung wash basins", "count": 3,
+            "condition": "B", "condition_reason": "No cracks seen", "components": [
+                {"name": "basin", "material": "ceramic", "est_weight_kg": 12.0},
+            ],
+            "timestamps_s": [36.0], "hazards": [], "confidence": 0.82,
+        },
+        {
+            "type": "corrugated roofing sheet", "description": "Grey corrugated cement sheets over the rear shed", "count": 12,
+            "condition": "C", "condition_reason": "Weathered, some cracks",
+            "components": [{"name": "sheet", "material": "concrete", "est_weight_kg": 18.0}],
+            "timestamps_s": [44.0], "hazards": ["suspected asbestos cement: professional testing required"],
+            "confidence": 0.6,
+        },
+    ],
+    "narration_language": "hi",
+    "narration_summary_en": "Site engineer: old office, demolition next month; doors are teak.",
+}
+
+# Per-unit sample prices (INR) for mock mode. Live mode uses Gemini with Search grounding.
+SAMPLE_PRICES = [
+    ("chair", 300, 600, 900),
+    ("teak panel door", 4000, 7000, None),
+    ("aluminium sliding window", 1500, 2500, None),
+    ("vitrified floor tile (hollow)", 0, 0, None),
+    ("vitrified floor tile", 40, 70, None),
+    ("pendant light", 300, 600, None),
+    ("steel office cabinet", 1500, 2500, None),
+    ("wash basin", 400, 800, None),
+    ("corrugated roofing sheet", 0, 0, None),
+]
+
+
+def predictions() -> list[Prediction]:
+    return [
+        Prediction(
+            id="prd_mill", kind="supply", title="Old textile mill compound due for demolition",
+            address="Peenya Industrial Area, Bengaluru", location=GeoPoint(lat=13.0285, lng=77.5197),
+            expected_date="2026-11-15", expected_materials=["steel trusses", "bricks", "teak windows"],
+            confidence=0.8, source_language="hi",
+            source_excerpt="पुरानी मिल का ध्वस्तीकरण 15 नवंबर से",
+        ),
+        Prediction(
+            id="prd_kn", kind="supply", title="Two-storey residential building demolition notice",
+            address="Jayanagar 4th Block, Bengaluru", location=GeoPoint(lat=12.9250, lng=77.5838),
+            expected_date="2026-12-01", expected_materials=["doors", "windows", "granite slabs"],
+            confidence=0.7, source_language="kn", source_excerpt="ಕಟ್ಟಡ ಕೆಡವುವ ಸೂಚನೆ",
+        ),
+        Prediction(
+            id="prd_office", kind="supply", title="Office floor lease ends; fit-out to be stripped",
+            address="Koramangala 5th Block, Bengaluru", location=OFFICE_KORAMANGALA,
+            expected_date="2026-10-30", expected_materials=["doors", "lights", "tiles", "cabinets"],
+            confidence=0.9, source_language="en", source_excerpt="Premises to be handed over bare-shell",
+        ),
+        Prediction(
+            id="prd_cafe", kind="demand", title="New café fit-out needs doors, lights and tiles",
+            address="Indiranagar 100 Ft Road, Bengaluru", location=CAFE_INDIRANAGAR,
+            expected_date="2026-11-05", expected_materials=["wooden doors", "pendant lights", "floor tiles"],
+            confidence=0.85, source_language="en", source_excerpt="Interior works tender",
+        ),
+        Prediction(
+            id="prd_ngo", kind="demand", title="Affordable housing project needs windows and basins",
+            address="Whitefield, Bengaluru", location=GeoPoint(lat=12.9698, lng=77.7500),
+            expected_date="2026-12-10", expected_materials=["windows", "wash basins", "doors"],
+            confidence=0.75, source_language="kn", source_excerpt="",
+        ),
+    ]
+
+
+# Negotiation message templates for mock mode: (english, hindi)
+NEGOTIATION_TEMPLATES = {
+    ("seller", "offer"): (
+        "Hello! The {item} are in good condition. I can give them for ₹{price}.",
+        "नमस्ते! माल अच्छी हालत में है। ₹{price} में दे सकता हूँ।",
+    ),
+    ("seller", "counter"): (
+        "I can come down to ₹{price}. It's good material.",
+        "₹{price} तक आ सकता हूँ, माल बढ़िया है।",
+    ),
+    ("seller", "accept"): (
+        "Okay, ₹{price} final. When will you pick up?",
+        "ठीक है, ₹{price} पक्का। पिकअप कब करेंगे?",
+    ),
+    ("seller", "decline"): (
+        "Sorry, I can't do it at this price.",
+        "माफ़ कीजिए, इस दाम में नहीं हो पाएगा।",
+    ),
+    ("buyer", "offer"): (
+        "These would suit our café. Could you do ₹{price} for all of them?",
+        "ये हमारे कैफ़े के लिए अच्छे हैं। क्या सभी ₹{price} में दे देंगे?",
+    ),
+    ("buyer", "counter"): (
+        "I can go up to ₹{price}, and we'll handle pickup from your site.",
+        "मैं ₹{price} तक दे सकती हूँ, पिकअप हम करेंगे।",
+    ),
+    ("buyer", "accept"): (
+        "Deal at ₹{price}. Thank you!",
+        "₹{price} पर सौदा पक्का। धन्यवाद!",
+    ),
+    ("buyer", "decline"): (
+        "Sorry, that's above our budget.",
+        "माफ़ कीजिए, यह हमारे बजट से ज़्यादा है।",
+    ),
+}
