@@ -36,6 +36,7 @@ SCOUT_SCHEMA = {
                     "timestamps_s": {"type": "array", "items": {"type": "number"}},
                     "hazards": {"type": "array", "items": {"type": "string"}},
                     "tap_test": {"type": "string", "enum": ["solid", "hollow", "unknown"]},
+                    "media_index": {"type": "integer", "description": "0-based index of the file the item is seen in"},
                     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                 },
                 "required": ["type", "count", "condition", "components", "confidence"],
@@ -97,6 +98,26 @@ MESSAGES_SCHEMA = {
     "properties": {
         "en": {"type": "string"},
         "local": {"type": "string"},
+    },
+    "required": ["en", "local"],
+}
+
+TRANSCRIBE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "text": {"type": "string", "description": "Exact transcript in the spoken language and script"},
+        "language": {"type": "string", "description": "BCP-47 code, e.g. hi, kn, en"},
+        "english": {"type": "string", "description": "English translation"},
+        "amount_inr": {"type": "number", "description": "If a price or amount is spoken, its value in rupees"},
+    },
+    "required": ["text", "language", "english"],
+}
+
+TAKE_APART_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "en": {"type": "array", "items": {"type": "string"}},
+        "local": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["en", "local"],
 }

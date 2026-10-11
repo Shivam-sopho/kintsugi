@@ -35,7 +35,7 @@ class NegotiationSetup:
     buyer_cap: float  # private to the buyer agent
     seller_lang: str = "hi"
     buyer_lang: str = "en"
-    max_rounds: int = 8
+    max_rounds: int = 12
     concession: float = 0.4  # share of the gap each side gives up per turn
     tolerance: float = 0.03  # close the deal when the gap is within 3% of the ask
 

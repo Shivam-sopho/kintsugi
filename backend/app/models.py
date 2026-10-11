@@ -89,6 +89,14 @@ class Item(BaseModel):
     seller_id: Optional[str] = None
     synthetic: bool = False
 
+    # Human in the loop and seller settings
+    verified: bool = False  # a person confirmed (or corrected) what Scout saw
+    floor_price_inr: Optional[float] = None  # seller's private lowest price for the lot; never sent to buyers
+    # Evidence and guidance
+    media_index: Optional[int] = None  # which uploaded file the item was seen in
+    evidence: list[str] = Field(default_factory=list)  # evidence image ids (faces blurred)
+    take_apart: dict[str, list[str]] = Field(default_factory=dict)  # language code -> steps
+
     # Never sent to the browser
     embedding: Optional[list[float]] = Field(default=None, exclude=True)
 
@@ -212,4 +220,5 @@ class Job(BaseModel):
     status: Literal["queued", "running", "done", "error"] = "queued"
     result: dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None
+    skip: bool = False  # set by the UI to fast-forward judge mode
     created_at: float = Field(default_factory=time.time)

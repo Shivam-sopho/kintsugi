@@ -294,3 +294,50 @@ NEIGHBOURS = [
         }]},
     },
 ]
+
+
+# Offline stand-ins for voice input, keyed by where the mic button is: (text, language, english)
+SAMPLE_TRANSCRIPTS = {
+    "notes": ("कुर्सी का पैर टूट गया है, सागौन की है", "hi", "The chair's leg is broken; it's teak."),
+    "search": ("सागौन के दरवाज़े", "hi", "teak doors"),
+    "brief": ("Cozy café, about 40 square metres, warm wood", "en", "Cozy café, about 40 square metres, warm wood"),
+    "floor": ("पच्चीस हज़ार से कम नहीं", "hi", "Not less than twenty-five thousand"),
+    "listing": ("मेरे पास बारह पुरानी सागौन की खिड़कियाँ हैं, अच्छी हालत में", "hi",
+                "I have twelve old teak windows in good condition."),
+}
+SAMPLE_AMOUNTS = {"floor": 25000}
+
+# A dealer's voice-note listing (no photo): what Scout hears.
+SCOUT_VOICE_LISTING = {
+    "items": [{
+        "type": "teak window frame", "description": "Old teak window frames, described in a voice note",
+        "count": 12, "condition": "B", "condition_reason": "Seller says they are in good condition (not yet seen)",
+        "components": [
+            {"name": "teak frame", "material": "teak", "est_weight_kg": 9.0},
+            {"name": "glass pane", "material": "glass", "est_weight_kg": 4.0},
+        ],
+        "hazards": [], "confidence": 0.5,
+    }],
+    "narration_language": "hi",
+    "narration_summary_en": "Dealer: I have twelve old teak windows in good condition.",
+}
+
+# Take-apart steps for mock mode: item type -> (english steps, hindi steps)
+TAKE_APART = {
+    "chair": (
+        [
+            "Wear gloves and lay the chair on its side on a mat.",
+            "Remove the fabric cover and keep it aside for textile recycling.",
+            "Lift out the foam cushion and keep it dry in a bag.",
+            "Unscrew the steel brackets with a screwdriver and collect the screws in a tin.",
+            "Stack the teak frame pieces together for the upcycling studio.",
+        ],
+        [
+            "दस्ताने पहनें और कुर्सी को चटाई पर एक तरफ़ लिटा दें।",
+            "कपड़े का कवर उतारें और कपड़ा रीसाइक्लिंग के लिए अलग रखें।",
+            "फ़ोम की गद्दी निकालें और उसे थैले में सूखा रखें।",
+            "पेचकस से स्टील के ब्रैकेट खोलें और पेंच एक डिब्बे में रखें।",
+            "सागौन की लकड़ी के हिस्से अपसाइक्लिंग स्टूडियो के लिए एक साथ रखें।",
+        ],
+    ),
+}
