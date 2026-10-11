@@ -2,6 +2,16 @@ import { useState } from "react";
 import { api } from "../api";
 import type { AppState, DesignResult, Job, SearchResult } from "../types";
 import { DEMO_CENTER, RUNG_COLOR, RUNG_LABEL, inr } from "../labels";
+import VoiceButton from "./VoiceButton";
+
+function toBase64(file: File): Promise<{ b64: string; mime: string }> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve({ b64: String(r.result).split(",")[1] ?? "", mime: file.type || "image/jpeg" });
+    r.onerror = () => reject(new Error("Couldn't read that photo"));
+    r.readAsDataURL(file);
+  });
+}
 
 interface Props {
   state: AppState;
@@ -19,6 +29,7 @@ export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: P
   const [brief, setBrief] = useState("cozy café, 40 m², warm wood");
   const [budget, setBudget] = useState("30000");
   const [design, setDesign] = useState<DesignResult | null>(null);
+  const [inspiration, setInspiration] = useState<File | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +86,8 @@ export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: P
     e.preventDefault();
     if (!brief.trim() || !Number(budget)) return setError("Describe the space and give a budget.");
     run("design", async () => {
-      const job = await api.design(brief, Number(budget), DEMO_CENTER.lat, DEMO_CENTER.lng);
+      const image = inspiration ? await toBase64(inspiration) : undefined;
+      const job = await api.design(brief, Number(budget), DEMO_CENTER.lat, DEMO_CENTER.lng, image);
       await new Promise<void>((resolve) =>
         onJob(job, (done) => {
           if (done.status === "done") setDesign(done.result as unknown as DesignResult);
@@ -97,9 +109,13 @@ export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: P
             <button className="secondary" disabled={busy === "search"}>Search</button>
           </div>
         </label>
-        <label className="small">
-          <input type="file" accept="image/*" onChange={(e) => searchPhoto(e.target.files?.[0])} /> Search by photo
-        </label>
+        <div className="row wrap">
+          <VoiceButton hint="search" label="Say it" onResult={(t) => { setQuery(t.text); run("search", async () => setResults(await api.search(t.text, DEMO_CENTER))); }} />
+          <label className="capture-btn quiet slim">
+            <input type="file" accept="image/*" onChange={(e) => searchPhoto(e.target.files?.[0])} />
+            Search by photo
+          </label>
+        </div>
       </form>
 
       {results && (
@@ -146,6 +162,11 @@ export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: P
         <label>
           Describe the space
           <input value={brief} onChange={(e) => setBrief(e.target.value)} />
+        </label>
+        <VoiceButton hint="brief" label="Describe it by voice" onResult={(t) => setBrief(t.text)} />
+        <label className="capture-btn quiet slim">
+          <input type="file" accept="image/*" onChange={(e) => setInspiration(e.target.files?.[0] ?? null)} />
+          {inspiration ? `Inspiration: ${inspiration.name}` : "Add a sketch or inspiration photo (optional)"}
         </label>
         <label>
           Budget, ₹

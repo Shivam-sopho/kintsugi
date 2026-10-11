@@ -4,7 +4,7 @@ import { AGENT_LABEL } from "../labels";
 
 const ORDER = ["oracle", "scout", "architect", "seller", "buyer", "bundler", "ledger"];
 
-export default function MissionControl({ job, events }: { job: Job | null; events: AgentEvent[] }) {
+export default function MissionControl({ job, events, onSkip }: { job: Job | null; events: AgentEvent[]; onSkip: () => void }) {
   const end = useRef<HTMLLIElement>(null);
   useEffect(() => {
     end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -23,7 +23,12 @@ export default function MissionControl({ job, events }: { job: Job | null; event
   const t0 = events[0]?.ts ?? 0;
   return (
     <section className="mission">
-      <h2>Agents</h2>
+      <div className="row between">
+        <h2>Agents</h2>
+        {job.kind === "judge_mode" && job.status === "running" && (
+          <button className="link" onClick={onSkip}>Skip to the end</button>
+        )}
+      </div>
       <ul className="agent-strip" aria-label="Agents that have acted">
         {ORDER.map((a) => (
           <li key={a} className={active.has(a) ? `on a-${a}` : ""}>{AGENT_LABEL[a]}</li>

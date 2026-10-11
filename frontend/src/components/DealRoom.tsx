@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api";
 import type { AppState, Deal, NegotiationTurn } from "../types";
 import { LANG_LABEL, inr } from "../labels";
+import { speak } from "../speak";
 
 const ACTION: Record<NegotiationTurn["action"], string> = {
   offer: "Offer",
@@ -82,9 +83,13 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
             <p>
               Settled at <strong>{inr(deal.final_price_inr)}</strong>. {deal.settlement?.label}.
             </p>
-            <a className="secondary button" href={api.certificateUrl(deal.id)} target="_blank" rel="noreferrer">
-              Open impact certificate
-            </a>
+            <p className="row wrap">
+              <a className="secondary button" href={api.certificateUrl(deal.id, buyerLang)} target="_blank" rel="noreferrer">
+                Impact certificate
+              </a>
+              <a className="link" href={api.certificateUrl(deal.id, "hi")} target="_blank" rel="noreferrer">हिन्दी</a>
+              <a className="link" href={api.certificateUrl(deal.id, "kn")} target="_blank" rel="noreferrer">ಕನ್ನಡ</a>
+            </p>
           </>
         )}
         {error && <p className="error" role="alert">{error}</p>}
@@ -110,6 +115,7 @@ function Phone({ title, lang, side, turns }: { title: string; lang: string; side
               <span>{text}</span>
               <span className="price">{inr(t.price_inr)}</span>
               {mine && t.guardrail_applied && <span className="guard small">{t.guardrail_note}</span>}
+              <button className="listen" onClick={() => speak(text, t.messages[lang] ? lang : "en")} aria-label="Listen">Listen</button>
             </li>
           );
         })}

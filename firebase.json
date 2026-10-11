@@ -15,6 +15,13 @@
         }
       },
       {
+        "source": "/a2a/**",
+        "run": {
+          "serviceId": "kintsugi-api",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

@@ -38,8 +38,10 @@ export default function ImpactPanel({ state }: { state: AppState }) {
           <h3>Certificates</h3>
           <ul className="plain">
             {settled.map((d) => (
-              <li key={d.id}>
+              <li key={d.id} className="row wrap">
                 <a href={api.certificateUrl(d.id)} target="_blank" rel="noreferrer">Deal {d.id}, {inr(d.final_price_inr)}</a>
+                <a href={api.certificateUrl(d.id, "hi")} target="_blank" rel="noreferrer">हिन्दी</a>
+                <a href={api.certificateUrl(d.id, "kn")} target="_blank" rel="noreferrer">ಕನ್ನಡ</a>
               </li>
             ))}
           </ul>

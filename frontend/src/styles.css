@@ -244,3 +244,39 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--ink); }
   .timeline .when { display: none; }
   .map-legend, .map-note, .schematic .place { display: none; }
 }
+
+/* Voice input */
+.voice { display: inline-flex; flex-direction: column; gap: 0.25rem; align-items: flex-start; }
+.mic {
+  display: inline-flex; align-items: center; gap: 0.4rem; border: 1px solid var(--ink); background: var(--paper);
+  color: var(--ink); border-radius: 999px; padding: 0.35rem 0.8rem; font-weight: 500; cursor: pointer;
+}
+.mic.rec { background: var(--lacquer); border-color: var(--lacquer); color: #fff; }
+@media (prefers-reduced-motion: no-preference) { .mic.rec svg { animation: pulse 1s infinite; } }
+.rec-outline { border-color: var(--lacquer) !important; color: var(--lacquer) !important; }
+.row.wrap { flex-wrap: wrap; }
+.file-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.86rem; }
+.file-list li { display: flex; justify-content: space-between; gap: 0.5rem; border: 1px solid var(--line); border-radius: var(--radius-s); padding: 0.35rem 0.6rem; }
+.capture-btn.slim { min-height: 2.4rem; font-weight: 500; font-size: 0.88rem; }
+.notice { border-top: 1px solid var(--line); padding-top: 1rem; margin-top: 0.5rem; }
+
+/* Passport: evidence, confirmation, floor, steps */
+.evidence { display: flex; gap: 6px; overflow-x: auto; margin: 0.5rem 0 0.75rem; }
+.evidence img { height: 120px; border-radius: var(--radius-s); border: 1px solid var(--line); flex: none; }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.6rem 0.75rem; border-radius: var(--radius-s); background: var(--porcelain); margin: 0.5rem 0; font-size: 0.9rem; }
+.confirm.warn { border-left: 3px solid var(--gold); border-radius: 0; }
+.confirm.done { color: var(--celadon); }
+.confirm.edit { flex-direction: column; align-items: stretch; }
+.small-btn { padding: 0.3rem 0.7rem !important; font-size: 0.85rem; }
+.floor { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.9rem 0; }
+.floor input { width: 8rem; flex: none !important; }
+.passport > .primary.gold { margin: 0.25rem 0 0.5rem; }
+.steps ol { padding-left: 1.2rem; margin: 0.25rem 0 0.6rem; }
+.steps li { margin-bottom: 0.3rem; }
+.status.ok { color: var(--celadon); border-color: var(--celadon); }
+
+/* Deal room listen button */
+.phone .listen {
+  display: inline-block; margin-top: 0.3rem; background: none; border: 0; padding: 0; cursor: pointer;
+  font-size: 0.78rem; text-decoration: underline; color: inherit; opacity: 0.8;
+}

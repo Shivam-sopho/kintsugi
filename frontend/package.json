@@ -12,6 +12,7 @@
     "android:icons": "capacitor-assets generate --android --androidProject ../android --iconBackgroundColor '#1E2B4A' --iconBackgroundColorDark '#1E2B4A' --splashBackgroundColor '#F5F6F3' --splashBackgroundColorDark '#1E2B4A'"
   },
   "dependencies": {
+    "@capacitor-community/text-to-speech": "^8.0.2",
     "@capacitor/android": "^8.5.3",
     "@capacitor/core": "^8.5.3",
     "@capacitor/geolocation": "^8.2.3",
