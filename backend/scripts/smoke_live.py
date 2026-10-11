@@ -1,6 +1,6 @@
 """Check every live Gemini call once. Run from backend/ with live settings in .env:
 
-    MOCK_MODE=false python -m scripts.smoke_live [path/to/short_video.mp4] [path/to/notice.pdf]
+    MOCK_MODE=false python -m scripts.smoke_live [short_video.mp4] [notice.pdf] [voice_note.webm|m4a]
 
 Each step prints OK or the error, so you can fix calls one at a time on Day 1.
 """
@@ -35,6 +35,7 @@ async def main() -> None:
     await step("negotiation_message", llm.negotiation_message("seller", "offer", 30000, "6 teak doors", "hi"))
     await step("design", llm.design("cozy café", 30000, [{"id": "itm_1", "type": "teak door", "count": 6, "unit_price_inr": 5000}]))
     await step("render", llm.render("A small café with reclaimed teak doors, photorealistic"))
+    await step("take_apart", llm.take_apart("chair", ["teak frame", "steel screws", "foam cushion", "fabric cover"], "hi"))
     if len(sys.argv) > 1:
         path = sys.argv[1]
         data = open(path, "rb").read()
@@ -42,6 +43,11 @@ async def main() -> None:
     if len(sys.argv) > 2:
         path = sys.argv[2]
         await step("oracle_document", llm.oracle_document(MediaRef(name=path, mime_type="application/pdf", data=open(path, "rb").read())))
+    if len(sys.argv) > 3:
+        path = sys.argv[3]
+        audio = MediaRef(name=path, mime_type=guess_mime(path, "audio/webm"), data=open(path, "rb").read())
+        await step("transcribe", llm.transcribe(audio, "notes"))
+        await step("scout_media (voice-note listing)", llm.scout_media([audio], "building", None))
 
 
 if __name__ == "__main__":

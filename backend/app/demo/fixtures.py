@@ -220,13 +220,14 @@ def predictions() -> list[Prediction]:
 
 # Negotiation message templates for mock mode: (english, hindi)
 NEGOTIATION_TEMPLATES = {
+    # Hindi lines avoid gendered first-person verbs, since the speaker can be anyone.
     ("seller", "offer"): (
         "Hello! The {item} are in good condition. I can give them for ₹{price}.",
-        "नमस्ते! माल अच्छी हालत में है। ₹{price} में दे सकता हूँ।",
+        "नमस्ते! माल अच्छी हालत में है। ₹{price} में दिया जा सकता है।",
     ),
     ("seller", "counter"): (
         "I can come down to ₹{price}. It's good material.",
-        "₹{price} तक आ सकता हूँ, माल बढ़िया है।",
+        "₹{price} तक कम हो सकता है, माल बढ़िया है।",
     ),
     ("seller", "final"): (
         "₹{price} is my lowest. It's solid material.",
@@ -234,23 +235,23 @@ NEGOTIATION_TEMPLATES = {
     ),
     ("seller", "accept"): (
         "Okay, ₹{price} final. When will you pick up?",
-        "ठीक है, ₹{price} पक्का। पिकअप कब करेंगे?",
+        "ठीक है, ₹{price} पक्का। पिकअप कब होगा?",
     ),
     ("seller", "decline"): (
         "Sorry, I can't do it at this price.",
         "माफ़ कीजिए, इस दाम में नहीं हो पाएगा।",
     ),
     ("buyer", "offer"): (
-        "These would suit our café. Could you do ₹{price} for all of them?",
-        "ये हमारे कैफ़े के लिए अच्छे हैं। क्या सभी ₹{price} में दे देंगे?",
+        "These are useful to us. Could you do ₹{price} for all of them?",
+        "ये हमारे काम के हैं। क्या सभी ₹{price} में दे देंगे?",
     ),
     ("buyer", "counter"): (
-        "I can go up to ₹{price}, and we'll handle pickup from your site.",
-        "मैं ₹{price} तक दे सकती हूँ, पिकअप हम करेंगे।",
+        "We can go up to ₹{price}, and we'll handle pickup.",
+        "हम ₹{price} तक दे सकते हैं, पिकअप हम करेंगे।",
     ),
     ("buyer", "final"): (
-        "₹{price} is the most I can do, with pickup on us.",
-        "₹{price} से ज़्यादा नहीं दे पाऊँगी, पिकअप हम करेंगे।",
+        "₹{price} is the most we can do, with pickup on us.",
+        "₹{price} से ज़्यादा नहीं हो पाएगा, पिकअप हम करेंगे।",
     ),
     ("buyer", "accept"): (
         "Deal at ₹{price}. Thank you!",

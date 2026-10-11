@@ -10,24 +10,22 @@ Entry for the AI Builder Cup, Sustainability & Social Impact track. The full des
 
 ## Where things stand
 
-Everything below runs today in **mock mode** (sample data, no Google Cloud account needed), and 15 automated tests pass. The live Gemini, Firestore, Cloud Storage and Maps code paths are written but **have not been run against the real APIs yet**: that is the first job on Day 1 (see "Going live").
+Every feature in the plan that doesn't need Google Cloud credentials is built and tested: 29 backend tests pass and every screen has been walked through in a browser. Everything runs in **mock mode** (sample data, no Google account needed). The live Gemini, Firestore, Cloud Storage and Maps code paths are written but **not yet run against the real services**.
 
 | Part | Status |
 |---|---|
-| Next-life ladder (rules, per-component routing, hazards) | Done, tested |
-| Impact ledger (per-material CO2, value, certificate) | Done, tested. Emission factors are placeholders to verify against ICE |
-| Negotiation with hard floor/cap guardrails, bilingual messages | Done, tested |
-| Pickup bundling for low-value home items | Done, tested |
-| Judge mode (whole story in about a minute) | Done, tested |
-| REST API (FastAPI) and job events for Mission control | Done, tested |
-| Web app: map, scan, find/design, deal room, agents, impact | Done (schematic map offline; Google Maps with a key) |
-| Installable app (PWA: manifest, icons, offline shell) | Done |
-| Android app (Capacitor, native camera/mic/location, icon, splash) | Generated and configured; first compile happens in Android Studio |
-| ADK multi-agent app (`adk web`) | Agents build; live conversation untested |
-| Gemini calls (Scout video, Oracle docs, pricing with Search grounding, Embedding 2, design, render) | Written, untested live |
-| Firestore store with vector search, Cloud Storage uploads, Places/Geocoding | Written, untested live |
-| A2A transport between seller and buyer agents | Planned (Thu 15 Oct); agents talk in-process today |
-| AP2 settlement | Sandbox record shaped like AP2 mandates; no real AP2 call yet, no money moves |
+| Five agents, judge mode, Mission control | Done, tested |
+| Next-life ladder, hazards, per-component routing | Done, tested |
+| People in the loop: confirm or correct items, private lowest price, one-tap offer, approval before settlement | Done, tested |
+| Voice: spoken notes, search and briefs, voice-note listings, Listen buttons | Done (offline transcripts in mock mode) |
+| Evidence photos with face blur, take-apart steps in the owner's language | Done, tested |
+| Seller agent over A2A (agent card + JSON-RPC), buyer agent with private cap | Done, tested |
+| Impact ledger, certificates in English, Hindi and Kannada | Done, tested. Emission factors are placeholders to verify against ICE |
+| Web app (installable PWA) and Android app (Capacitor) | Done; the Android app's first compile happens in Android Studio |
+| Live Gemini, Firestore, Cloud Storage, Maps/Places | Written, not yet run live |
+| AP2 settlement | Sandbox record shaped like AP2 mandates; no money moves |
+
+**What to do next is in [NEXT_STEPS.md](NEXT_STEPS.md)**, ordered and with "done when" checks. [CLAUDE.md](CLAUDE.md) tells a Claude session how the repo works and which rules keep it working.
 
 ## Run it locally (mock mode)
 
@@ -105,12 +103,6 @@ Phone web app ──▶ Cloud Run API (FastAPI) ──▶ agents.py
 
 Guardrails worth pointing out to judges: hazards are never routed to reuse; prices can't cross the seller's floor or the buyer's cap (enforced in code and covered by a test with a deliberately rogue proposer); nothing settles without the buyer's tap; private limits never reach the browser; every CO2 figure links to its factor and source.
 
-## Next steps (from the build plan)
+## Next steps
 
-- **Mon 12 Oct:** run `smoke_live`, fix Scout on real footage, label the first 15 clips.
-- **Tue 13 Oct (checkpoint):** Scout produces usable inventories from your footage. If not, narrow item classes and clip length.
-- **Wed 14 Oct:** live Embedding 2 search and Firestore vector index; verify emission factors.
-- **Thu 15 Oct:** expose seller and buyer agents over A2A (a2a-sdk), AP2 sandbox or a clearly labelled mock; Gemini Live API voice input.
-- **Fri 16 Oct:** deploy, judge mode on real data, run the eval.
-- **Sat 17 Oct:** feature freeze at noon, record the video.
-- **Sun 18 Oct:** submit early.
+See [NEXT_STEPS.md](NEXT_STEPS.md).
