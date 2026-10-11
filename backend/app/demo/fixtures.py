@@ -226,6 +226,10 @@ NEGOTIATION_TEMPLATES = {
         "I can come down to ₹{price}. It's good material.",
         "₹{price} तक आ सकता हूँ, माल बढ़िया है।",
     ),
+    ("seller", "final"): (
+        "₹{price} is my lowest. It's solid material.",
+        "₹{price} से कम नहीं हो पाएगा, माल पक्का है।",
+    ),
     ("seller", "accept"): (
         "Okay, ₹{price} final. When will you pick up?",
         "ठीक है, ₹{price} पक्का। पिकअप कब करेंगे?",
@@ -242,6 +246,10 @@ NEGOTIATION_TEMPLATES = {
         "I can go up to ₹{price}, and we'll handle pickup from your site.",
         "मैं ₹{price} तक दे सकती हूँ, पिकअप हम करेंगे।",
     ),
+    ("buyer", "final"): (
+        "₹{price} is the most I can do, with pickup on us.",
+        "₹{price} से ज़्यादा नहीं दे पाऊँगी, पिकअप हम करेंगे।",
+    ),
     ("buyer", "accept"): (
         "Deal at ₹{price}. Thank you!",
         "₹{price} पर सौदा पक्का। धन्यवाद!",
@@ -251,3 +259,38 @@ NEGOTIATION_TEMPLATES = {
         "माफ़ कीजिए, यह हमारे बजट से ज़्यादा है।",
     ),
 }
+
+
+# Neighbours on the same street as the chair, used to show pickup bundling.
+NEIGHBOURS = [
+    {
+        "name": "Home, HSR Layout Sector 2 (neighbour)",
+        "location": GeoPoint(lat=12.9124, lng=77.6481),
+        "scan": {"items": [{
+            "type": "pressure cooker", "description": "Old aluminium pressure cooker, lid seal gone",
+            "count": 1, "condition": "D", "condition_reason": "Warped base",
+            "components": [{"name": "cooker body", "material": "aluminium", "est_weight_kg": 2.5}],
+            "hazards": [], "confidence": 0.9,
+        }]},
+    },
+    {
+        "name": "Home, HSR Layout Sector 2 (neighbour)",
+        "location": GeoPoint(lat=12.9109, lng=77.6466),
+        "scan": {"items": [{
+            "type": "steel bucket", "description": "Rusted steel bucket with a hole",
+            "count": 1, "condition": "D", "condition_reason": "Hole in the base",
+            "components": [{"name": "bucket", "material": "steel", "est_weight_kg": 1.5}],
+            "hazards": [], "confidence": 0.9,
+        }]},
+    },
+    {
+        "name": "Home, HSR Layout Sector 2 (neighbour)",
+        "location": GeoPoint(lat=12.9131, lng=77.6460),
+        "scan": {"items": [{
+            "type": "newspaper stack", "description": "About three months of newspapers",
+            "count": 1, "condition": "D", "condition_reason": "Read",
+            "components": [{"name": "newspapers", "material": "paper", "est_weight_kg": 12.0}],
+            "hazards": [], "confidence": 0.95,
+        }]},
+    },
+]

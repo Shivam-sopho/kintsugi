@@ -86,9 +86,11 @@ def decide(item: Item, ctx: LadderContext) -> Item:
         handler = _nearest(item, [p for p in near if p.role == "hazard_handler"])
         out.next_life = Rung.SAFE_DISPOSAL
         out.destination_id = handler.id if handler else None
-        out.next_life_reason = (
-            f"Suspected hazard ({', '.join(item.hazards)}): professional testing required; "
-            + (f"routed to licensed handler {handler.name}" if handler else "no licensed handler found nearby")
+        hazard = "; ".join(item.hazards)
+        if "professional" not in hazard.lower():
+            hazard += ": professional testing required"
+        out.next_life_reason = f"Never reused. {hazard[0].upper() + hazard[1:]}. " + (
+            f"Routed to licensed handler {handler.name}" if handler else "No licensed handler found nearby"
         )
         for c in out.components:
             c.next_life, c.destination_id, c.reason = Rung.SAFE_DISPOSAL, out.destination_id, "Hazard"

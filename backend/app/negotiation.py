@@ -94,7 +94,7 @@ async def run_negotiation(
         note = ""
         if guard:
             limit = "floor" if side == "seller" else "budget cap"
-            note = f"Proposed ₹{price:,.0f} broke the {side}'s {limit}; held at ₹{clamped:,.0f}"
+            note = f"Wanted ₹{price:,.0f}; held at the {side}'s private {limit} of ₹{clamped:,.0f}"
         return clamped, guard, note
 
     # Opening moves
@@ -109,9 +109,13 @@ async def run_negotiation(
         return NegotiationResult("agreed", ask, transcript)
     await say("buyer", "offer", bid, rnd, g, n)
 
+    buyer_stuck = False
     while rnd < setup.max_rounds:
-        # Seller moves
+        # Seller moves. A buyer who has stopped moving has made a final offer: take it if it clears the floor.
         rnd += 1
+        if buyer_stuck and bid >= setup.seller_floor:
+            await say("seller", "accept", bid, rnd, False)
+            return NegotiationResult("agreed", bid, transcript)
         new_ask, g, n = propose("seller", ask, bid, rnd, ask - setup.concession * (ask - bid))
         if new_ask <= bid or (new_ask - bid) <= setup.tolerance * ask:
             if bid >= setup.seller_floor:
@@ -119,7 +123,7 @@ async def run_negotiation(
                 return NegotiationResult("agreed", bid, transcript)
         seller_stuck = new_ask >= ask
         ask = max(new_ask, setup.seller_floor)
-        await say("seller", "counter", ask, rnd, g, n)
+        await say("seller", "final" if g or ask == setup.seller_floor else "counter", ask, rnd, g, n)
 
         # Buyer moves
         rnd += 1
@@ -132,7 +136,7 @@ async def run_negotiation(
         bid = min(new_bid, setup.buyer_cap)
         if seller_stuck and buyer_stuck:
             break  # neither side can move: their private limits do not overlap
-        await say("buyer", "counter", bid, rnd, g, n)
+        await say("buyer", "final" if g or bid == setup.buyer_cap else "counter", bid, rnd, g, n)
 
     await say("buyer", "decline", bid, rnd + 1, False)
     return NegotiationResult("no_deal", None, transcript)

@@ -140,7 +140,7 @@ class Prediction(BaseModel):
 class NegotiationTurn(BaseModel):
     round: int
     speaker: Literal["seller", "buyer"]
-    action: Literal["offer", "counter", "accept", "decline"]
+    action: Literal["offer", "counter", "final", "accept", "decline"]
     price_inr: float
     # The same message in each party's language, e.g. {"en": "...", "hi": "..."}
     messages: dict[str, str]
