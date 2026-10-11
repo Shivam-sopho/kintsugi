@@ -31,6 +31,12 @@ echo "Creating the uploads bucket gs://${BUCKET}..."
 gcloud storage buckets describe "gs://${BUCKET}" >/dev/null 2>&1 || \
   gcloud storage buckets create "gs://${BUCKET}" --location="$REGION" --uniform-bucket-level-access
 
+echo "Deleting raw uploads after 1 day (privacy: only blurred evidence is kept)..."
+cat > /tmp/kintsugi-lifecycle.json <<'JSON'
+{"rule": [{"action": {"type": "Delete"}, "condition": {"age": 1, "matchesPrefix": ["uploads/"]}}]}
+JSON
+gcloud storage buckets update "gs://${BUCKET}" --lifecycle-file=/tmp/kintsugi-lifecycle.json
+
 SA="$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')-compute@developer.gserviceaccount.com"
 echo "Granting the Cloud Run runtime account ($SA) access to Vertex AI, Firestore and the bucket..."
 for role in roles/aiplatform.user roles/datastore.user; do
