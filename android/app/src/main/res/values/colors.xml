@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Kintsugi palette: ai-zome indigo and kintsugi gold -->
+    <color name="colorPrimary">#1E2B4A</color>
+    <color name="colorPrimaryDark">#1E2B4A</color>
+    <color name="colorAccent">#B8892B</color>
+</resources>

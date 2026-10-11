@@ -21,6 +21,8 @@ Everything below runs today in **mock mode** (sample data, no Google Cloud accou
 | Judge mode (whole story in about a minute) | Done, tested |
 | REST API (FastAPI) and job events for Mission control | Done, tested |
 | Web app: map, scan, find/design, deal room, agents, impact | Done (schematic map offline; Google Maps with a key) |
+| Installable app (PWA: manifest, icons, offline shell) | Done |
+| Android app (Capacitor, native camera/mic/location, icon, splash) | Generated and configured; first compile happens in Android Studio |
 | ADK multi-agent app (`adk web`) | Agents build; live conversation untested |
 | Gemini calls (Scout video, Oracle docs, pricing with Search grounding, Embedding 2, design, render) | Written, untested live |
 | Firestore store with vector search, Cloud Storage uploads, Places/Geocoding | Written, untested live |
@@ -48,6 +50,12 @@ npm run dev                     # http://localhost:5173, /api is proxied to :808
 Open the app and press **Run demo**. Watch the Agents tab, then look at Deal and Impact.
 
 Tests: `cd backend && pytest -q`
+
+## Android app
+
+The Android app lives in [`android/`](android/README.md). It runs the same screens as the web app inside a native shell with camera, microphone and location permissions, so the team polishes one set of screens. Quick start: `cd frontend && npm install && CAP_SERVER_URL=https://<project>.web.app npm run android:sync && npm run android:open`, then press Run in Android Studio.
+
+Judges will use the web link, which is also installable from Chrome ("Add to Home screen"). The Android app is for filming Scout walkthroughs and showing the deal room on a phone in the demo video.
 
 ## Going live (Day 1 checklist)
 
@@ -93,6 +101,7 @@ Phone web app ──▶ Cloud Run API (FastAPI) ──▶ agents.py
 | `backend/app/store/` | In-memory and Firestore stores behind one interface |
 | `backend/kintsugi_adk/agent.py` | The same tools as an ADK coordinator with architect, market and ledger sub-agents |
 | `frontend/src/` | React app: `MapView` (Google Maps or schematic), `DealRoom`, `MissionControl`, `Passport` |
+| `frontend/capacitor.config.ts`, `android/` | Android app (Capacitor) built from the same screens |
 
 Guardrails worth pointing out to judges: hazards are never routed to reuse; prices can't cross the seller's floor or the buyer's cap (enforced in code and covered by a test with a deliberately rogue proposer); nothing settles without the buyer's tap; private limits never reach the browser; every CO2 figure links to its factor and source.
 
