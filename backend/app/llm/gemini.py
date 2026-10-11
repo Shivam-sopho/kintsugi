@@ -1,0 +1,154 @@
+"""Live backend: Gemini on Vertex AI through the google-genai SDK.
+
+Not yet exercised against the live API (written without credentials). On Day 1, run
+`python -m scripts.smoke_live` from backend/ to check each call and adjust if needed.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+from typing import Any, Optional
+
+from google import genai
+from google.genai import types
+
+from ..config import Settings
+from . import prompts
+from .base import MediaRef
+from .schemas import DESIGN_SCHEMA, MESSAGES_SCHEMA, ORACLE_SCHEMA, SCOUT_SCHEMA
+
+log = logging.getLogger(__name__)
+
+
+def _part(m: MediaRef) -> types.Part:
+    if m.uri:
+        return types.Part.from_uri(file_uri=m.uri, mime_type=m.mime_type)
+    if m.data is not None:
+        return types.Part.from_bytes(data=m.data, mime_type=m.mime_type)
+    raise ValueError(f"Media {m.name} has neither uri nor data")
+
+
+def _json_from_text(text: str) -> Any:
+    """Parse JSON from a model reply that may wrap it in prose or code fences."""
+    text = (text or "").strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        raise ValueError("No JSON object in model reply")
+    return json.loads(match.group(0))
+
+
+class GeminiLLM:
+    def __init__(self, settings: Settings):
+        self.s = settings
+        self.client = genai.Client(vertexai=True, project=settings.gcp_project, location=settings.gcp_location)
+
+    async def _json(self, model: str, contents: list, system: str, schema: dict, temperature: float = 0.2) -> Any:
+        resp = await self.client.aio.models.generate_content(
+            model=model,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=system,
+                response_mime_type="application/json",
+                response_json_schema=schema,
+                temperature=temperature,
+            ),
+        )
+        return _json_from_text(resp.text)
+
+    async def scout_media(self, media: list[MediaRef], kind: str, narration_text: str | None) -> dict[str, Any]:
+        contents = [_part(m) for m in media] + [prompts.scout_user_prompt(kind, narration_text)]
+        return await self._json(self.s.model_reasoning, contents, prompts.SCOUT_SYSTEM, SCOUT_SCHEMA)
+
+    async def oracle_document(self, doc: MediaRef) -> dict[str, Any]:
+        contents = [_part(doc), "Extract the predictions as JSON."]
+        return await self._json(self.s.model_reasoning, contents, prompts.ORACLE_SYSTEM, ORACLE_SCHEMA)
+
+    async def price_items(self, items: list[dict[str, Any]], city: str) -> list[dict[str, Any]]:
+        lines = "\n".join(
+            f"{i}. {it['type']} (condition {it.get('condition', 'C')}, {it.get('description', '')})"
+            for i, it in enumerate(items)
+        )
+        # Search grounding is used without a response schema; the JSON is parsed from text.
+        resp = await self.client.aio.models.generate_content(
+            model=self.s.model_fast,
+            contents=[f"City: {city}. Items:\n{lines}"],
+            config=types.GenerateContentConfig(
+                system_instruction=prompts.PRICING_SYSTEM,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.1,
+            ),
+        )
+        grounded_urls: list[str] = []
+        try:
+            meta = resp.candidates[0].grounding_metadata
+            for chunk in (meta.grounding_chunks or []) if meta else []:
+                if chunk.web and chunk.web.uri:
+                    grounded_urls.append(chunk.web.uri)
+        except (AttributeError, IndexError):
+            pass
+        parsed = _json_from_text(resp.text).get("prices", [])
+        by_index = {p.get("index"): p for p in parsed}
+        out = []
+        for i in range(len(items)):
+            p = by_index.get(i, {})
+            out.append(
+                {
+                    "value_min_inr": p.get("value_min_inr"),
+                    "value_max_inr": p.get("value_max_inr"),
+                    "repair_cost_inr": p.get("repair_cost_inr"),
+                    "sources": (p.get("sources") or [])[:3] or grounded_urls[:3],
+                }
+            )
+        return out
+
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        resp = await self.client.aio.models.embed_content(
+            model=self.s.model_embedding,
+            contents=texts,
+            config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),
+        )
+        return [list(e.values) for e in resp.embeddings]
+
+    async def embed_image(self, data: bytes, mime_type: str) -> list[float]:
+        resp = await self.client.aio.models.embed_content(
+            model=self.s.model_embedding,
+            contents=[types.Part.from_bytes(data=data, mime_type=mime_type)],
+            config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),
+        )
+        return list(resp.embeddings[0].values)
+
+    async def negotiation_message(
+        self, role: str, action: str, price: float, item_summary: str, local_lang: str
+    ) -> dict[str, str]:
+        data = await self._json(
+            self.s.model_fast,
+            [prompts.negotiation_voice_prompt(role, action, price, item_summary, local_lang)],
+            prompts.NEGOTIATION_VOICE_SYSTEM,
+            MESSAGES_SCHEMA,
+            temperature=0.6,
+        )
+        return {"en": data["en"], "local": data["local"]}
+
+    async def design(self, brief: str, budget_inr: float, candidates: list[dict[str, Any]]) -> dict[str, Any]:
+        payload = json.dumps({"brief": brief, "budget_inr": budget_inr, "candidates": candidates}, ensure_ascii=False)
+        return await self._json(self.s.model_reasoning, [payload], prompts.ARCHITECT_SYSTEM, DESIGN_SCHEMA, 0.5)
+
+    async def render(self, prompt: str) -> Optional[bytes]:
+        try:
+            resp = await self.client.aio.models.generate_content(
+                model=self.s.model_image,
+                contents=[prompt],
+                config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"]),
+            )
+            for part in resp.candidates[0].content.parts:
+                if part.inline_data and part.inline_data.data:
+                    return part.inline_data.data
+        except Exception as exc:  # rendering is optional; never break the flow
+            log.warning("Render failed: %s", exc)
+        return None

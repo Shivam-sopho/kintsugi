@@ -1,0 +1,42 @@
+"""The interface every model backend implements (live Gemini or offline mock)."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Optional, Protocol
+
+
+@dataclass
+class MediaRef:
+    name: str
+    mime_type: str
+    uri: Optional[str] = None  # gs://bucket/path in live mode
+    data: Optional[bytes] = None  # inline bytes (small files, or mock mode)
+
+
+class LLM(Protocol):
+    async def scout_media(self, media: list[MediaRef], kind: str, narration_text: str | None) -> dict[str, Any]:
+        """Return {"items": [...], "narration_language": str, "narration_summary_en": str}."""
+
+    async def oracle_document(self, doc: MediaRef) -> dict[str, Any]:
+        """Return {"predictions": [...]}."""
+
+    async def price_items(self, items: list[dict[str, Any]], city: str) -> list[dict[str, Any]]:
+        """Return one dict per input item: value_min_inr, value_max_inr, repair_cost_inr, sources."""
+
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        ...
+
+    async def embed_image(self, data: bytes, mime_type: str) -> list[float]:
+        ...
+
+    async def negotiation_message(
+        self, role: str, action: str, price: float, item_summary: str, local_lang: str
+    ) -> dict[str, str]:
+        """Return {"en": ..., "local": ...}."""
+
+    async def design(self, brief: str, budget_inr: float, candidates: list[dict[str, Any]]) -> dict[str, Any]:
+        """Return {"concept", "selected": [{"item_id","use","quantity"}], "render_prompt"}."""
+
+    async def render(self, prompt: str) -> Optional[bytes]:
+        """Return PNG/JPEG bytes, or None if rendering is unavailable."""
