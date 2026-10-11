@@ -1,0 +1,20 @@
+{
+  "_how_to": "Copy to eval/labels.json. One entry per clip you filmed. List what a careful person sees: item type, count and main materials. Paths are relative to backend/.",
+  "clips": [
+    {
+      "path": "eval/clips/chair_hsr.mp4",
+      "kind": "home",
+      "expected": [
+        {"type": "chair", "count": 1, "materials": ["wood", "steel", "foam", "textile"]}
+      ]
+    },
+    {
+      "path": "eval/clips/office_corridor.mp4",
+      "kind": "building",
+      "expected": [
+        {"type": "wooden door", "count": 3, "materials": ["wood"]},
+        {"type": "pendant light", "count": 4, "materials": ["steel"]}
+      ]
+    }
+  ]
+}
