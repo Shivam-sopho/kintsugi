@@ -27,4 +27,5 @@ def to_media_ref(filename: str, data: bytes, content_type: str | None, settings:
     blob_name = f"uploads/{uuid.uuid4().hex}/{filename}"
     bucket = storage.Client(project=settings.gcp_project or None).bucket(settings.gcs_bucket)
     bucket.blob(blob_name).upload_from_string(data, content_type=mime)
-    return MediaRef(name=filename, mime_type=mime, uri=f"gs://{settings.gcs_bucket}/{blob_name}")
+    # Keep the bytes too: evidence frames are cut locally, Gemini reads the gs:// copy.
+    return MediaRef(name=filename, mime_type=mime, uri=f"gs://{settings.gcs_bucket}/{blob_name}", data=data)

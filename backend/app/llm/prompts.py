@@ -15,6 +15,10 @@ Rules:
 - Flag suspected hazards (e.g. corrugated cement roofing sheets that may contain asbestos,
   damaged electrical wiring) in "hazards". Say "suspected"; never state it as fact.
 - If unsure, lower the confidence instead of inventing details.
+- Several files may be given (video, photos, a voice note). Set media_index to the 0-based
+  index of the image or video where the item is clearest. A voice note describes the items;
+  use it, but only list items you can see in a photo or video, unless the voice note is the
+  only input (a dealer's voice-note listing), in which case list what is described.
 - Return JSON only, matching the schema."""
 
 
@@ -56,3 +60,19 @@ def negotiation_voice_prompt(role: str, action: str, price: float, item_summary:
         f"Role: {role}. Action: {action}. Price: ₹{price:,.0f}. Items: {item_summary}. "
         f"Local language code: {local_lang}."
     )
+
+
+TRANSCRIBE_SYSTEM = """Transcribe the speech exactly, in the language and script it was spoken in
+(Hindi in Devanagari, Kannada in Kannada script, and so on), detect the language, and give an
+English translation. Return JSON only."""
+
+
+TAKE_APART_SYSTEM = """You write short, safe, step-by-step instructions for a person at home to take an
+item apart so each part can go to a different place (reuse, recycling, energy recovery).
+4 to 6 steps, one sentence each, plain words, mention the tools needed and any safety point
+(gloves, unplugging, sharp edges). Give the steps in English ("en") and in the requested local
+language ("local"). Return JSON only."""
+
+
+def take_apart_prompt(item_type: str, components: list[str], local_lang: str) -> str:
+    return f"Item: {item_type}. Parts: {', '.join(components)}. Local language code: {local_lang}."

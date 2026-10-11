@@ -22,6 +22,8 @@ class MockLLM:
     async def scout_media(self, media: list[MediaRef], kind: str, narration_text: str | None) -> dict[str, Any]:
         await self._pause()
         names = " ".join(m.name.lower() for m in media) + " " + (narration_text or "").lower()
+        if media and all(m.mime_type.startswith("audio/") for m in media):
+            return copy.deepcopy(fixtures.SCOUT_VOICE_LISTING)  # a voice-note listing
         if kind == "home" or any(k in names for k in ("chair", "kursi", "कुर्सी")):
             return copy.deepcopy(fixtures.SCOUT_CHAIR)
         return copy.deepcopy(fixtures.SCOUT_OFFICE)
@@ -64,7 +66,27 @@ class MockLLM:
         local = hi.format(item=item_summary, price=p) if local_lang == "hi" else english
         return {"en": english, "local": local}
 
-    async def design(self, brief: str, budget_inr: float, candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    async def transcribe(self, audio: MediaRef, hint: str = "") -> dict[str, str]:
+        await self._pause()
+        text, lang, english = fixtures.SAMPLE_TRANSCRIPTS.get(hint, fixtures.SAMPLE_TRANSCRIPTS["notes"])
+        out = {"text": text, "language": lang, "english": english}
+        if hint in fixtures.SAMPLE_AMOUNTS:
+            out["amount_inr"] = fixtures.SAMPLE_AMOUNTS[hint]
+        return out
+
+    async def take_apart(self, item_type: str, components: list[str], local_lang: str) -> dict[str, list[str]]:
+        await self._pause()
+        steps = fixtures.TAKE_APART.get(item_type.lower())
+        if steps:
+            en, hi = steps
+            return {"en": en, "local": hi if local_lang == "hi" else en}
+        en = [f"Separate the {c} from the rest of the item." for c in components]
+        en = ["Wear gloves and clear some floor space."] + en + ["Keep each part in its own pile for pickup."]
+        return {"en": en, "local": en}
+
+    async def design(
+        self, brief: str, budget_inr: float, candidates: list[dict[str, Any]], image: Optional[MediaRef] = None
+    ) -> dict[str, Any]:
         await self._pause()
         selected, spent = [], 0.0
         for c in candidates:
@@ -85,7 +107,8 @@ class MockLLM:
             how = next((v for k, v in use.items() if k in c["type"]), "feature piece")
             selected.append({"item_id": c["id"], "use": how, "quantity": qty})
         return {
-            "concept": "A warm, rustic café built around reclaimed teak and industrial lighting. "
+            "concept": ("Matched to your photo: a" if image is not None else "A")
+            + " warm, rustic café built around reclaimed teak and industrial lighting. "
             "Every major piece comes from buildings within 15 km.",
             "selected": selected,
             "render_prompt": f"Photorealistic interior of a small café: {brief}. Reclaimed teak doors, "

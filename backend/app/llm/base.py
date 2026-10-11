@@ -35,8 +35,17 @@ class LLM(Protocol):
     ) -> dict[str, str]:
         """Return {"en": ..., "local": ...}."""
 
-    async def design(self, brief: str, budget_inr: float, candidates: list[dict[str, Any]]) -> dict[str, Any]:
-        """Return {"concept", "selected": [{"item_id","use","quantity"}], "render_prompt"}."""
+    async def design(
+        self, brief: str, budget_inr: float, candidates: list[dict[str, Any]], image: Optional[MediaRef] = None
+    ) -> dict[str, Any]:
+        """Return {"concept", "selected": [{"item_id","use","quantity"}], "render_prompt"}.
+        `image` is an optional sketch or inspiration photo."""
+
+    async def transcribe(self, audio: MediaRef, hint: str = "") -> dict[str, str]:
+        """Return {"text", "language", "english"} for a voice recording in any language."""
+
+    async def take_apart(self, item_type: str, components: list[str], local_lang: str) -> dict[str, list[str]]:
+        """Return {"en": [...steps], "local": [...steps]}."""
 
     async def render(self, prompt: str) -> Optional[bytes]:
         """Return PNG/JPEG bytes, or None if rendering is unavailable."""

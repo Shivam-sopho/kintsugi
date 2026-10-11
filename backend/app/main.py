@@ -9,15 +9,17 @@ from typing import Any, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
-from . import agents, ledger
+from . import agents
+from .certificate import render as render_certificate
 from .config import get_settings
 from .demo import fixtures
-from .llm import get_llm
+from .llm import MediaRef, get_llm
+from .evidence import get_evidence_store
 from .media import to_media_ref
-from .models import GeoPoint, Job, Site, new_id
+from .models import GeoPoint, Item, Job, Site, new_id
 from .store import get_store
 
 log = logging.getLogger("kintsugi")
@@ -73,14 +75,41 @@ def health() -> dict[str, Any]:
     return {"ok": True, "mock_mode": settings.mock_mode, "store": settings.store}
 
 
+HOME_GRID = 0.005  # about 500 m: homes show at neighbourhood level until a deal closes
+
+
+def _coarse(v: float) -> float:
+    return round(round(v / HOME_GRID) * HOME_GRID, 4)
+
+
+def public_item(it: Item, home_site_ids: set[str]) -> dict[str, Any]:
+    """What anyone may see: the seller's lowest price stays private, home locations stay approximate."""
+    data = it.model_dump(mode="json", exclude={"floor_price_inr"})
+    data["has_floor_price"] = it.floor_price_inr is not None
+    if it.site_id in home_site_ids and it.status != "sold":
+        data["location"] = {"lat": _coarse(it.location.lat), "lng": _coarse(it.location.lng)}
+    return data
+
+
+def _home_ids(store) -> set[str]:
+    return {s.id for s in store.list_sites() if s.kind == "home"}
+
+
 @app.get("/api/state")
 def state() -> dict[str, Any]:
     """Everything the map needs in one call."""
     store = get_store()
+    homes = _home_ids(store)
+    sites = []
+    for s in store.list_sites():
+        d = s.model_dump(mode="json")
+        if s.kind == "home":
+            d["location"] = {"lat": _coarse(s.location.lat), "lng": _coarse(s.location.lng)}
+        sites.append(d)
     return {
         "mock_mode": settings.mock_mode,
-        "sites": [s.model_dump(mode="json") for s in store.list_sites()],
-        "items": [i.model_dump(mode="json") for i in store.list_items()],
+        "sites": sites,
+        "items": [public_item(i, homes) for i in store.list_items()],
         "participants": [p.model_dump(mode="json", exclude={"floor_price_inr", "budget_cap_inr"})
                          for p in store.list_participants()],
         "predictions": [p.model_dump(mode="json") for p in store.list_predictions()],
@@ -92,10 +121,75 @@ def state() -> dict[str, Any]:
 
 @app.get("/api/items/{item_id}")
 def get_item(item_id: str) -> dict[str, Any]:
-    it = get_store().get_item(item_id)
+    store = get_store()
+    it = store.get_item(item_id)
     if not it:
         raise HTTPException(404, "Item not found")
-    return it.model_dump(mode="json")
+    return public_item(it, _home_ids(store))
+
+
+class ItemPatch(BaseModel):
+    count: Optional[int] = None
+    condition: Optional[str] = None
+    verified: Optional[bool] = None
+    floor_price_inr: Optional[float] = None
+
+
+@app.patch("/api/items/{item_id}")
+async def patch_item(item_id: str, body: ItemPatch) -> dict[str, Any]:
+    """Confirm or correct an item, or set the seller's private lowest price."""
+    if body.condition is not None and body.condition not in ("A", "B", "C", "D"):
+        raise HTTPException(400, "Condition must be A, B, C or D")
+    if body.count is not None and body.count < 1:
+        raise HTTPException(400, "Count must be at least 1")
+    store = get_store()
+    try:
+        it = await agents.update_item(store, settings, item_id, body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return public_item(it, _home_ids(store))
+
+
+@app.post("/api/items/{item_id}/offer")
+async def offer(item_id: str) -> dict[str, Any]:
+    """Offer this item (and the rest of the lot the same taker wants) to the taker the ladder picked."""
+    store, llm = get_store(), get_llm()
+    it = store.get_item(item_id)
+    taker = store.get_participant(it.destination_id) if it and it.destination_id else None
+    if not it or not taker or taker.role not in ("buyer", "ngo", "dealer"):
+        raise HTTPException(400, "This item has no buyer to offer it to")
+
+    async def flow(job_id: str):
+        deal = await agents.offer_item(store, llm, settings, agents.Emitter(store, job_id, delay=0.4), item_id)
+        return {"deal_id": deal.id, "status": deal.status}
+
+    return _start_job("deal", flow).model_dump(mode="json")
+
+
+@app.get("/api/evidence/{evidence_id}")
+def evidence(evidence_id: str) -> Response:
+    data = get_evidence_store().get(evidence_id)
+    if not data:
+        raise HTTPException(404, "Evidence not found")
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@app.post("/api/transcribe")
+async def transcribe(file: UploadFile = File(...), hint: str = Form("notes")) -> dict[str, Any]:
+    """Voice input in any language: returns the transcript, its language and an English translation."""
+    audio = to_media_ref(file.filename or "voice.webm", await file.read(), file.content_type or "audio/webm", settings)
+    return await get_llm().transcribe(audio, hint)
+
+
+@app.post("/api/jobs/{job_id}/skip")
+def skip(job_id: str) -> dict[str, Any]:
+    store = get_store()
+    job = store.get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    job.skip = True
+    store.upsert_job(job)
+    return {"ok": True}
 
 
 @app.get("/api/jobs/{job_id}")
@@ -178,15 +272,22 @@ class DesignIn(BaseModel):
     budget_inr: float
     lat: float
     lng: float
+    image_b64: Optional[str] = None  # optional sketch or inspiration photo
+    image_mime: str = "image/jpeg"
 
 
 @app.post("/api/design")
 async def design(body: DesignIn) -> dict[str, Any]:
     store, llm = get_store(), get_llm()
+    image = None
+    if body.image_b64:
+        import base64
+
+        image = MediaRef(name="inspiration", mime_type=body.image_mime, data=base64.b64decode(body.image_b64))
 
     async def flow(job_id: str):
         return await agents.architect_design(store, llm, settings, agents.Emitter(store, job_id),
-                                             body.brief, body.budget_inr, GeoPoint(lat=body.lat, lng=body.lng))
+                                             body.brief, body.budget_inr, GeoPoint(lat=body.lat, lng=body.lng), image)
 
     return _start_job("design", flow).model_dump(mode="json")
 
@@ -245,27 +346,11 @@ async def judge_mode() -> dict[str, Any]:
 
 
 @app.get("/api/certificate/{deal_id}", response_class=HTMLResponse)
-def certificate(deal_id: str) -> str:
-    """A printable impact certificate for a settled deal (browser print → PDF)."""
+def certificate(deal_id: str, lang: str = "en") -> str:
+    """A printable impact certificate for a settled deal, in English, Hindi or Kannada."""
     store = get_store()
     deal = store.get_deal(deal_id)
     if not deal or deal.status != "settled":
         raise HTTPException(404, "No settled deal")
     entries = [e for e in store.list_ledger() if e.source_id == deal_id]
-    t = ledger.totals(entries)
-    buyer, seller = store.get_participant(deal.buyer_id), store.get_participant(deal.seller_id)
-    rows = "".join(
-        f"<tr><td>{e.material}</td><td>{e.rung.value.replace('_', ' ')}</td><td>{e.mass_kg:,.1f}</td>"
-        f"<td>{e.factor_kg_per_kg}</td><td>{e.co2_avoided_kg:,.1f}</td></tr>"
-        for e in entries
-    )
-    return f"""<!doctype html><html><head><meta charset="utf-8"><title>Kintsugi impact certificate</title>
-<style>body{{font-family:Georgia,serif;max-width:720px;margin:40px auto;color:#1d1d1b}}
-h1{{font-weight:500}}table{{border-collapse:collapse;width:100%}}td,th{{border-bottom:1px solid #ccc;padding:6px;text-align:left}}
-.big{{font-size:28px}}.note{{color:#666;font-size:13px}}</style></head><body>
-<h1>Kintsugi impact certificate</h1>
-<p>{seller.name if seller else deal.seller_id} → {buyer.name if buyer else deal.buyer_id} · deal {deal.id}</p>
-<p class="big">{t['mass_diverted_kg']:,.0f} kg reused · {t['co2_avoided_kg']:,.0f} kg CO2e avoided</p>
-<table><tr><th>Material</th><th>Next life</th><th>kg</th><th>kg CO2e/kg</th><th>kg CO2e avoided</th></tr>{rows}</table>
-<p class="note">Emission factors: {t['factor_source']}. Settlement: {deal.settlement.label if deal.settlement else ''}.</p>
-</body></html>"""
+    return render_certificate(deal, entries, store.get_participant(deal.seller_id), store.get_participant(deal.buyer_id), lang)

@@ -17,7 +17,7 @@ from google.genai import types
 from ..config import Settings
 from . import prompts
 from .base import MediaRef
-from .schemas import DESIGN_SCHEMA, MESSAGES_SCHEMA, ORACLE_SCHEMA, SCOUT_SCHEMA
+from .schemas import DESIGN_SCHEMA, MESSAGES_SCHEMA, ORACLE_SCHEMA, SCOUT_SCHEMA, TAKE_APART_SCHEMA, TRANSCRIBE_SCHEMA
 
 log = logging.getLogger(__name__)
 
@@ -135,9 +135,27 @@ class GeminiLLM:
         )
         return {"en": data["en"], "local": data["local"]}
 
-    async def design(self, brief: str, budget_inr: float, candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    async def design(
+        self, brief: str, budget_inr: float, candidates: list[dict[str, Any]], image: Optional[MediaRef] = None
+    ) -> dict[str, Any]:
         payload = json.dumps({"brief": brief, "budget_inr": budget_inr, "candidates": candidates}, ensure_ascii=False)
-        return await self._json(self.s.model_reasoning, [payload], prompts.ARCHITECT_SYSTEM, DESIGN_SCHEMA, 0.5)
+        contents: list = [payload]
+        if image is not None:
+            contents = [_part(image), "This is the buyer's sketch or inspiration photo. Match its style.", payload]
+        return await self._json(self.s.model_reasoning, contents, prompts.ARCHITECT_SYSTEM, DESIGN_SCHEMA, 0.5)
+
+    async def transcribe(self, audio: MediaRef, hint: str = "") -> dict[str, str]:
+        data = await self._json(self.s.model_fast, [_part(audio), "Transcribe this recording."],
+                                prompts.TRANSCRIBE_SYSTEM, TRANSCRIBE_SCHEMA, 0.0)
+        out = {"text": data["text"], "language": data.get("language", ""), "english": data.get("english", "")}
+        if data.get("amount_inr") is not None:
+            out["amount_inr"] = data["amount_inr"]
+        return out
+
+    async def take_apart(self, item_type: str, components: list[str], local_lang: str) -> dict[str, list[str]]:
+        data = await self._json(self.s.model_fast, [prompts.take_apart_prompt(item_type, components, local_lang)],
+                                prompts.TAKE_APART_SYSTEM, TAKE_APART_SCHEMA, 0.3)
+        return {"en": data["en"], "local": data["local"]}
 
     async def render(self, prompt: str) -> Optional[bytes]:
         try:
