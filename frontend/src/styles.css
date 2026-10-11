@@ -46,6 +46,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .topbar {
   display: flex; align-items: center; gap: 1rem;
   padding: 0.6rem 1rem; background: var(--ink); color: var(--porcelain);
+  /* Phones with notches, the installed PWA and the Android app draw under the status bar */
+  padding-top: calc(0.6rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+  padding-left: calc(1rem + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+  padding-right: calc(1rem + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
 }
 .brand { flex: 1; display: flex; align-items: baseline; gap: 0.9rem; flex-wrap: wrap; }
 .brand h1 { font: 700 1.55rem/1 var(--display); letter-spacing: 0.02em; margin: 0; }
@@ -57,7 +61,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .map-wrap { position: relative; min-height: 0; }
 .map-canvas { position: absolute; inset: 0; }
 .panel { background: var(--paper); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
-.panel-body { padding: 1.1rem 1.2rem 2rem; overflow-y: auto; flex: 1; }
+.panel-body { padding: 1.1rem 1.2rem calc(2rem + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); overflow-y: auto; flex: 1; }
 
 /* Buttons */
 button.primary, button.secondary, a.button {
@@ -177,6 +181,16 @@ input:not([type="radio"]):not([type="checkbox"]):not([type="file"]), select, tex
 fieldset.segmented { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.35rem; }
 fieldset.segmented legend { font-size: 0.88rem; font-weight: 500; margin-bottom: 0.3rem; }
 fieldset.segmented label { flex-direction: row; align-items: center; font-weight: 400; }
+input[type="radio"], input[type="checkbox"] { accent-color: var(--ink); }
+.capture { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.capture-btn {
+  position: relative; display: flex; align-items: center; justify-content: center; text-align: center;
+  min-height: 3.5rem; padding: 0.6rem; border-radius: var(--radius-m); cursor: pointer;
+  background: var(--ink); color: var(--porcelain); font-weight: 600;
+}
+.capture-btn.quiet { background: var(--paper); color: var(--ink); border: 1px dashed var(--slate); }
+.capture-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.capture-btn:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
 .deal-box { border: 1px solid var(--gold); border-radius: var(--radius-m); padding: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem; }
 
 /* Design */

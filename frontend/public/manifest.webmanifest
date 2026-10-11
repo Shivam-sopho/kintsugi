@@ -1,0 +1,18 @@
+{
+  "name": "Kintsugi",
+  "short_name": "Kintsugi",
+  "description": "Google Maps for the circular economy. Point your phone at anything, and AI agents find its best next life.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F6F3",
+  "theme_color": "#1E2B4A",
+  "lang": "en",
+  "categories": ["utilities", "lifestyle", "business"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

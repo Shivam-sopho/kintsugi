@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Geolocation } from "@capacitor/geolocation";
 import { api } from "../api";
 import type { AppState, Job } from "../types";
 import { DEMO_CENTER } from "../labels";
@@ -19,15 +20,15 @@ export default function ScanPanel({ onJob, onScanned }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const useMyLocation = () => {
-    if (!navigator.geolocation) return setLocNote("This browser can't share its location.");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setWhere({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setLocNote("Using your current location.");
-      },
-      () => setLocNote("Location was not shared, so the demo location is used."),
-    );
+  // Native location permission in the Android app; the browser's geolocation on the web.
+  const useMyLocation = async () => {
+    try {
+      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+      setWhere({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      setLocNote("Using your current location.");
+    } catch {
+      setLocNote("Location was not shared, so the demo location is used.");
+    }
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -67,10 +68,19 @@ export default function ScanPanel({ onJob, onScanned }: Props) {
         <label><input type="radio" checked={kind === "home"} onChange={() => setKind("home")} /> Something at home</label>
         <label><input type="radio" checked={kind === "building"} onChange={() => setKind("building")} /> A building or site</label>
       </fieldset>
-      <label>
-        Video or photos
-        <input type="file" accept="video/*,image/*" multiple capture="environment" onChange={(e) => setFiles(e.target.files)} />
-      </label>
+      <div className="capture">
+        <label className="capture-btn">
+          <input type="file" accept="video/*" capture="environment" onChange={(e) => setFiles(e.target.files)} />
+          Film a walkthrough
+        </label>
+        <label className="capture-btn quiet">
+          <input type="file" accept="image/*,video/*" multiple onChange={(e) => setFiles(e.target.files)} />
+          Choose photos or a video
+        </label>
+      </div>
+      {files?.length ? (
+        <p className="small muted">Ready: {Array.from(files).map((f) => f.name).join(", ")}</p>
+      ) : null}
       <label>
         Name
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === "home" ? "My home" : "Old office, Koramangala"} />
