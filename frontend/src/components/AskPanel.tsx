@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, audioFileName } from "../api";
+import { preferredLanguage } from "../language";
 import { speak, voiceRepliesOn } from "../speak";
 import type { AppState, AskReply, Job } from "../types";
 import { DEMO_CENTER, LANG_LABEL } from "../labels";
@@ -43,7 +44,7 @@ export default function AskPanel({ state, personaId, onOpenItem, onJob, onGoToDe
     const form = new FormData();
     form.append("persona_id", personaId);
     form.append("question", question);
-    form.append("lang", persona?.language ?? "en");
+    form.append("lang", preferredLanguage() ?? persona?.language ?? "en");
     form.append("history", JSON.stringify(messages.slice(-6).map((m) => ({ role: m.from, text: m.en ?? m.text }))));
     if (audio) form.append("file", new File([audio], audioFileName(audio), { type: audio.type }));
     if (question) setMessages((prev) => [...prev, { from: "you", text: question }]);

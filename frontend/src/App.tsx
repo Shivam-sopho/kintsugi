@@ -16,6 +16,7 @@ import ProfilePanel from "./components/ProfilePanel";
 import DemoStory from "./components/DemoStory";
 import NearbyList from "./components/NearbyList";
 import AskPanel from "./components/AskPanel";
+import { LiveJourney } from "./components/LifeStory";
 import { loadPersona, savePersona } from "./persona";
 
 type Tab = "home" | "map" | "deals" | "impact";
@@ -37,7 +38,10 @@ const ICON: Record<Tab, ReactNode> = {
 };
 const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Handovers", impact: "Impact" };
 
-type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | { kind: "story" } | { kind: "ask" } | null;
+// Jobs that move someone's own things along their second life: shown live as its stages.
+const LIVE_KINDS = new Set(["scan", "handover", "deal", "autopilot", "request"]);
+
+type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | { kind: "story" } | { kind: "ask" } | { kind: "live" } | null;
 
 export default function App() {
   const { state, job, events, error, refresh, track } = useJobs();
@@ -160,7 +164,7 @@ export default function App() {
                 personaId={personaId}
                 onJob={track}
                 onOpenItem={openItem}
-                onOpenAgents={() => setSheet(job?.kind === "judge_mode" ? { kind: "story" } : { kind: "agents" })}
+                onOpenAgents={() => setSheet(job?.kind === "judge_mode" ? { kind: "story" } : LIVE_KINDS.has(job?.kind ?? "") ? { kind: "live" } : { kind: "agents" })}
                 onSkip={skipDemo}
                 onDealStarted={() => setTab("deals")}
                 onRunDemo={runDemo}
@@ -188,7 +192,7 @@ export default function App() {
             ) : tab === "deals" ? (
               <DealRoom state={state} onChanged={refresh} />
             ) : (
-              <ImpactPanel state={state} />
+              <ImpactPanel state={state} personaId={personaId} />
             )}
           </div>
         </section>
@@ -261,6 +265,11 @@ export default function App() {
               setTab("deals");
             }}
           />
+        </Sheet>
+      )}
+      {sheet?.kind === "live" && job && (
+        <Sheet title="Its second life, live" onClose={() => setSheet(null)}>
+          <LiveJourney job={job} events={events} state={state} onOpenItem={openItem} onShowSteps={() => setSheet({ kind: "agents" })} />
         </Sheet>
       )}
       {sheet?.kind === "agents" && (

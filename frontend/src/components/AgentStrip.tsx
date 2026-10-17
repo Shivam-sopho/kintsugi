@@ -25,7 +25,7 @@ export default function AgentStrip({ job, events, onOpen, onSkip }: Props) {
         <strong>{last ? AGENT_LABEL[last.agent] ?? last.agent : "Kintsugi"}</strong> {text}
       </span>
       {running && job.kind === "judge_mode" && <button type="button" className="link" onClick={onSkip}>Skip</button>}
-      <button type="button" className="link" onClick={onOpen}>{events.length} steps</button>
+      <button type="button" className="link" onClick={onOpen}>{job.kind === "judge_mode" || job.kind === "oracle" || job.kind === "design" ? `${events.length} steps` : "Follow it live"}</button>
     </div>
   );
 }

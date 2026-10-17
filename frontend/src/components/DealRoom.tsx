@@ -58,7 +58,10 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
             ))}
           </ul>
           {it?.co2_avoided_kg != null && <p><strong>{it.co2_avoided_kg} kg CO2e</strong> avoided, recorded in the ledger.</p>}
-          <a className="secondary button" href={api.certificateUrl(deal.id, sellerLang)} target="_blank" rel="noreferrer">Impact certificate</a>
+          <p className="row wrap">
+            <a className="secondary button" href={api.certificateUrl(deal.id, sellerLang)} target="_blank" rel="noreferrer">Impact certificate</a>
+            <a className="link" href={api.certificatePdfUrl(deal.id, sellerLang)} download target="_blank" rel="noreferrer">Download PDF</a>
+          </p>
         </article>
       </section>
     );
@@ -132,6 +135,7 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
               </a>
               <a className="link" href={api.certificateUrl(deal.id, "hi")} target="_blank" rel="noreferrer">हिन्दी</a>
               <a className="link" href={api.certificateUrl(deal.id, "kn")} target="_blank" rel="noreferrer">ಕನ್ನಡ</a>
+              <a className="link" href={api.certificatePdfUrl(deal.id, buyerLang)} download target="_blank" rel="noreferrer">Download PDF</a>
             </p>
           </>
         )}

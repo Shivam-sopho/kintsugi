@@ -4,7 +4,23 @@ import { api } from "../api";
 import { Totals } from "./MapPanel";
 import { Logo, RungIcon } from "./Icons";
 
-export default function ImpactPanel({ state }: { state: AppState }) {
+/** Download the impact report as a PDF: this person's, or everyone's. */
+function Downloads({ state, personaId }: { state: AppState; personaId: string }) {
+  const name = state.participants.find((p) => p.id === personaId)?.name;
+  return (
+    <div className="downloads">
+      <a className="primary button" href={api.reportPdfUrl(personaId)} download target="_blank" rel="noreferrer">
+        Download my report (PDF)
+      </a>
+      <a className="secondary button" href={api.reportPdfUrl()} download target="_blank" rel="noreferrer">
+        Everyone's report (PDF)
+      </a>
+      <p className="small muted">{name ? `Yours is prepared for ${name}: ` : ""}what was kept out of landfill, the CO2e avoided, and each item's second life, stage by stage.</p>
+    </div>
+  );
+}
+
+export default function ImpactPanel({ state, personaId }: { state: AppState; personaId: string }) {
   const t = state.totals;
   const settled = state.deals.filter((d) => d.status === "settled");
   // What everything listed could save once it reaches its next life, before any deal settles.
@@ -26,6 +42,7 @@ export default function ImpactPanel({ state }: { state: AppState }) {
       <section className="impact">
         <h2 className="with-mark"><Logo size={30} /> Impact</h2>
         {potential || <p className="muted">Nothing listed yet. Scan something on Home, or play the demo.</p>}
+        {potential && <Downloads state={state} personaId={personaId} />}
         <p className="small muted">Emission factors: {t.factor_source}.</p>
       </section>
     );
@@ -35,6 +52,7 @@ export default function ImpactPanel({ state }: { state: AppState }) {
     <section className="impact">
       <h2 className="with-mark"><Logo size={30} /> Impact</h2>
       <Totals state={state} />
+      <Downloads state={state} personaId={personaId} />
       <p className="muted">
         {Math.round(t.diverted_fraction * 100)}% of {kg(t.mass_total_kg)} handled so far stayed out of landfill.
       </p>
@@ -56,9 +74,10 @@ export default function ImpactPanel({ state }: { state: AppState }) {
           <ul className="plain">
             {settled.map((d) => (
               <li key={d.id} className="row wrap">
-                <a href={api.certificateUrl(d.id)} target="_blank" rel="noreferrer">Deal {d.id}, {inr(d.final_price_inr)}</a>
+                <a href={api.certificateUrl(d.id)} target="_blank" rel="noreferrer">{d.kind === "handover" ? "Hand-over, free" : `Sale, ${inr(d.final_price_inr)}`} · {new Date(d.created_at * 1000).toLocaleDateString()}</a>
                 <a href={api.certificateUrl(d.id, "hi")} target="_blank" rel="noreferrer">हिन्दी</a>
                 <a href={api.certificateUrl(d.id, "kn")} target="_blank" rel="noreferrer">ಕನ್ನಡ</a>
+                <a href={api.certificatePdfUrl(d.id)} download target="_blank" rel="noreferrer">PDF</a>
               </li>
             ))}
           </ul>

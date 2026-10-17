@@ -51,7 +51,11 @@ export const LANG_LABEL: Record<string, string> = {
   hi: "Hindi",
   kn: "Kannada",
   ta: "Tamil",
-  id: "Bahasa",
+  id: "Bahasa Indonesia",
+  ms: "Bahasa Melayu",
+  th: "Thai",
+  vi: "Vietnamese",
+  fil: "Filipino",
   ja: "Japanese",
 };
 

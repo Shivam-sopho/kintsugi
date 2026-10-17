@@ -1,7 +1,8 @@
 import { TextToSpeech } from "@capacitor-community/text-to-speech";
 import { api } from "./api";
 
-const LOCALE: Record<string, string> = { en: "en-IN", hi: "hi-IN", kn: "kn-IN", ta: "ta-IN", id: "id-ID", ja: "ja-JP" };
+const LOCALE: Record<string, string> = { en: "en-IN", hi: "hi-IN", kn: "kn-IN", ta: "ta-IN", id: "id-ID", ms: "ms-MY", th: "th-TH",
+  vi: "vi-VN", fil: "fil-PH", ja: "ja-JP" };
 
 // An empty WAV. Phones only let a page start sound from a tap, so the first tap anywhere plays
 // this on the one shared player; after that, replies that arrive seconds later can play on it.

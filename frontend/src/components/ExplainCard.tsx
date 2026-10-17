@@ -2,15 +2,23 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { Explanation, Item } from "../types";
 import ListenButton from "./ListenButton";
+import { LANGUAGES, languageName, preferredLanguage } from "../language";
 
 const EXPLAIN_VERSION = "v2"; // matches the backend's cache key
-const YOU_CAN: Record<string, string> = { en: "You can", hi: "आप क्या कर सकते हैं", kn: "ನೀವು ಮಾಡಬಹುದಾದದ್ದು" };
-const LANGS: [string, string][] = [["en", "English"], ["hi", "हिन्दी"], ["kn", "ಕನ್ನಡ"]];
+const YOU_CAN: Record<string, string> = {
+  en: "You can", hi: "आप क्या कर सकते हैं", kn: "ನೀವು ಮಾಡಬಹುದಾದದ್ದು", ta: "நீங்கள் செய்யக்கூடியவை",
+  id: "Yang bisa Anda lakukan", ms: "Apa yang anda boleh lakukan", th: "สิ่งที่คุณทำได้", vi: "Bạn có thể",
+  fil: "Ang magagawa mo", ja: "あなたにできること",
+};
+const KNOWN = new Set(LANGUAGES.map(([c]) => c));
 
 /** "What becomes of it": Gemini explains, in plain words and the person's language, where each
  *  part goes and what happens to it there. The routes themselves were decided by the rules. */
 export default function ExplainCard({ item }: { item: Item }) {
-  const first = LANGS.some(([c]) => c === item.language) ? item.language : "en";
+  const preferred = preferredLanguage();
+  const first = preferred ?? (KNOWN.has(item.language) ? item.language : "en");
+  // Quick choices: the person's language, the language the item was described in, and English.
+  const quick = [...new Set([first, item.language, "en", "hi", "kn"].filter((c) => KNOWN.has(c)))].slice(0, 4);
   const [lang, setLang] = useState(first);
   const cachedFor = (l: string) => item.explanation?.[`${EXPLAIN_VERSION}:${l}`];
   const [data, setData] = useState<Explanation | null>(cachedFor(first) ?? null);
@@ -40,11 +48,15 @@ export default function ExplainCard({ item }: { item: Item }) {
       <div className="explain-head">
         <h3>What becomes of it</h3>
         <div className="lang-chips" role="group" aria-label="Language">
-          {LANGS.map(([code, label]) => (
+          {quick.map((code) => (
             <button key={code} type="button" className={lang === code ? "on" : ""} aria-pressed={lang === code} onClick={() => setLang(code)}>
-              {label}
+              {languageName(code)}
             </button>
           ))}
+          <select value={quick.includes(lang) ? "" : lang} onChange={(e) => e.target.value && setLang(e.target.value)} aria-label="More languages">
+            <option value="">More…</option>
+            {LANGUAGES.filter(([c]) => !quick.includes(c)).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+          </select>
         </div>
       </div>
       {!data && !error && (
@@ -73,7 +85,7 @@ export default function ExplainCard({ item }: { item: Item }) {
           )}
           <p className="why">{data.why}</p>
           <div className="row between">
-            <ListenButton text={readOut} lang={lang} />
+            <ListenButton text={readOut} lang={lang} auto />
             <span className="gemini-chip">Written by Gemini 2.5 Flash from the routes the rules chose</span>
           </div>
         </div>

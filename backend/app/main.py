@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from typing import Any, Optional
@@ -16,6 +17,7 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from . import agents
+from . import report_pdf
 from .certificate import render as render_certificate
 from .config import get_settings
 from .demo import fixtures
@@ -515,6 +517,40 @@ async def judge_mode() -> dict[str, Any]:
     job = _start_job("judge_mode", lambda job_id: agents.judge_mode(store, llm, settings, job_id))
     _running_demos.append(job.id)
     return job.model_dump(mode="json")
+
+
+def _pdf(data: bytes, name: str) -> Response:
+    return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.get("/api/report.pdf")
+def report(persona_id: Optional[str] = None) -> Response:
+    """The impact report as a PDF: everyone's, or one person's things and deals."""
+    store = get_store()
+    people = {p.id: p for p in store.list_participants()}
+    items, deals, entries = store.list_items(), store.list_deals(), store.list_ledger()
+    if persona_id:
+        if persona_id not in people:
+            raise HTTPException(404, "No such person")
+        items = [i for i in items if i.seller_id == persona_id]
+        deals = [d for d in deals if persona_id in (d.seller_id, d.buyer_id)]
+        mine = {d.id for d in deals}
+        entries = [e for e in entries if e.source_id in mine]
+    scope = f"Prepared for {people[persona_id].name}" if persona_id else "Everyone on Kintsugi"
+    data = report_pdf.impact_report(items, deals, entries, people, scope, agents.ledger_summary(store)["factor_source"])
+    return _pdf(data, f"kintsugi-impact-report-{time.strftime('%Y-%m-%d')}.pdf")
+
+
+@app.get("/api/certificate/{deal_id}.pdf")
+def certificate_pdf(deal_id: str, lang: str = "en") -> Response:
+    """The deal's certificate as a PDF to download, in English, Hindi or Kannada."""
+    store = get_store()
+    deal = store.get_deal(deal_id)
+    if not deal or deal.status != "settled":
+        raise HTTPException(404, "No settled deal")
+    entries = [e for e in store.list_ledger() if e.source_id == deal_id]
+    data = report_pdf.certificate(deal, entries, store.get_participant(deal.seller_id), store.get_participant(deal.buyer_id), lang)
+    return _pdf(data, f"kintsugi-certificate-{deal_id}-{lang}.pdf")
 
 
 @app.get("/api/certificate/{deal_id}", response_class=HTMLResponse)
