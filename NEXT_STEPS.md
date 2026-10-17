@@ -31,7 +31,7 @@ Keys go in `.env` files (git-ignored), never in chat if you can avoid it.
 
 ## Done
 
-- A1 Google Cloud set up (APIs, Firestore with vector and events indexes, bucket with 1-day lifecycle on `uploads/`, IAM)
+- A1 Google Cloud set up (APIs, Firestore with vector and events indexes, bucket deleting raw uploads after 30 days, set for the judging period, IAM)
 - A2 Live Gemini: every smoke step passes; model IDs current (2.5 Pro and Flash, Flash Image, Flash TTS, Embedding 2). Fixed on the way: grounded pricing (timeout, retry, stricter prompt), embeddings (one call per text: Embedding 2 folds a list into one vector), judge mode in live mode
 - A4 Firestore and Cloud Storage: judge mode, scans, search, deals and Autopilot work with `STORE=firestore`
 - A5 Maps: browser key (Maps JavaScript, restricted to the site) and server key (Places + Geocoding); real nearby takers appear after live scans. Uses `DEMO_MAP_ID`
@@ -63,7 +63,7 @@ Label 10 to 30 clips in `backend/eval/labels.json` and run `python -m eval.run_e
 
 - Local live mode: in `backend/.env` set `MOCK_MODE=false`; start with `GRPC_DNS_RESOLVER=native uvicorn app.main:app --port 8080` (the Firestore client hangs on some networks without it).
 - Deploy: `MK=$(grep '^MAPS_API_KEY=' backend/.env | cut -d= -f2-); PROJECT=kintsugi-ai-builder-cup-2026 MOCK_MODE=false MAPS_API_KEY="$MK" ./infra/deploy_backend.sh` and `PROJECT=kintsugi-ai-builder-cup-2026 ./infra/deploy_frontend.sh`.
-- After judging: lower cost with `gcloud run services update kintsugi-api --region us-central1 --min-instances 0`.
+- After judging: shorten raw-upload storage again with `UPLOAD_DAYS=1` (or edit the bucket's lifecycle rule), and lower cost with `gcloud run services update kintsugi-api --region us-central1 --min-instances 0`.
 
 ## Known limits to say out loud
 - Settlement is sandboxed; no money moves.
