@@ -118,6 +118,21 @@ class MockLLM:
     async def render(self, prompt: str) -> Optional[bytes]:
         return None
 
+    async def explain(self, item: dict[str, Any], lang: str) -> dict[str, Any]:
+        # Offline: plain sentences built from the decided routes.
+        happens = {"reuse": "is used again as it is", "repair": "is repaired and used again", "upcycle": "is made into something new",
+                   "harvest parts": "is taken off and used as a spare part", "recycle": "is melted or shredded into new material",
+                   "compost": "becomes compost or biogas", "recover energy": "is burned for energy",
+                   "safe disposal": "is tested and disposed of safely by a licensed handler"}
+        parts = [{"part": p["part"], "goes_to": p.get("goes_to") or "", "happens": happens.get(p.get("next_life") or "", "waits for a taker")}
+                 for p in item.get("parts", [])]
+        return {
+            "headline": f"Your {item['type']} gets a next life: {item.get('next_life') or 'still being decided'}.",
+            "parts": parts,
+            "you_can": ["Keep it out of the regular bin.", "Separate the parts if you can.", "Hand it over to the taker shown."],
+            "why": f"This keeps it out of landfill and saves about {item.get('co2e_saved_kg') or 0} kg CO2e.",
+        }
+
     async def ask(self, question: str, history: list[dict[str, str]], context: dict[str, Any], lang: str) -> dict[str, Any]:
         # Offline: a plain answer built from the context, with the obvious next step.
         items = context.get("your_items", [])

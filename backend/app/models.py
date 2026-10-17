@@ -100,6 +100,7 @@ class Item(BaseModel):
     media_index: Optional[int] = None  # which uploaded file the item was seen in
     evidence: list[str] = Field(default_factory=list)  # evidence image ids (faces blurred)
     take_apart: dict[str, list[str]] = Field(default_factory=dict)  # language code -> steps
+    explanation: dict[str, dict[str, Any]] = Field(default_factory=dict)  # language code -> 'What becomes of it'
 
     # Never sent to the browser
     embedding: Optional[list[float]] = Field(default=None, exclude=True)
@@ -183,6 +184,7 @@ class Deal(BaseModel):
     final_price_inr: Optional[float] = None
     settlement: Optional[Settlement] = None
     autopilot: bool = False  # started by Autopilot, not by a person's tap
+    kind: Literal["sale", "handover"] = "sale"  # a handover completes the journey without money
     created_at: float = Field(default_factory=time.time)
 
 

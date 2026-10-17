@@ -230,6 +230,30 @@ def cancel_request(request_id: str) -> dict[str, Any]:
     return public_request(req)
 
 
+@app.get("/api/items/{item_id}/explain")
+async def explain(item_id: str, lang: str = "en") -> dict[str, Any]:
+    """'What becomes of it': Gemini explains the item's decided next life in the person's language."""
+    try:
+        return await agents.explain_item(get_store(), get_llm(), item_id, lang[:8])
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.post("/api/items/{item_id}/handover")
+async def handover(item_id: str) -> dict[str, Any]:
+    """Hand the item over to the takers the rules chose: no money, impact recorded."""
+    store = get_store()
+    it = store.get_item(item_id)
+    if not it:
+        raise HTTPException(404, "Item not found")
+
+    async def flow(job_id: str):
+        deal = await agents.handover_item(store, agents.Emitter(store, job_id, delay=0.3), item_id)
+        return {"deal_id": deal.id}
+
+    return _start_job("handover", flow).model_dump(mode="json")
+
+
 @app.post("/api/items/{item_id}/offer")
 async def offer(item_id: str) -> dict[str, Any]:
     """Offer this item (and the rest of the lot the same taker wants) to the taker the ladder picked."""
