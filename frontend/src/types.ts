@@ -148,6 +148,15 @@ export interface StandingRequest {
   notified_item_ids: string[];
 }
 
+export interface AskReply {
+  answer: string;
+  answer_en: string;
+  language: string;
+  action: { type: "none" | "offer_item" | "autopilot_on" | "keep_looking" | "open_item"; item_id?: string; query?: string; label?: string };
+  used: { model: string; items: number; takers: number; deals: number; listed_nearby: number };
+  heard: Transcript | null;
+}
+
 export interface AppState {
   mock_mode: boolean;
   sites: Site[];

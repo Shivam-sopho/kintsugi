@@ -15,6 +15,7 @@ import { Logo } from "./components/Icons";
 import ProfilePanel from "./components/ProfilePanel";
 import DemoStory from "./components/DemoStory";
 import NearbyList from "./components/NearbyList";
+import AskPanel from "./components/AskPanel";
 import { loadPersona, savePersona } from "./persona";
 
 type Tab = "home" | "map" | "deals" | "impact";
@@ -35,7 +36,7 @@ const ICON: Record<Tab, ReactNode> = {
 };
 const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Deals", impact: "Impact" };
 
-type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | { kind: "story" } | null;
+type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | { kind: "story" } | { kind: "ask" } | null;
 
 export default function App() {
   const { state, job, events, error, refresh, track } = useJobs();
@@ -192,6 +193,16 @@ export default function App() {
         </section>
       </main>
 
+      {!sheet && state && (
+        <button className="ask-fab" onClick={() => setSheet({ kind: "ask" })} aria-label="Ask Kintsugi, by voice or text">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
+            <path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
+          </svg>
+          Ask Kintsugi
+        </button>
+      )}
+
       <nav className="bottom-nav" aria-label="Sections">
         {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
           <button key={t} className={tab === t ? "on" : ""} aria-current={tab === t ? "page" : undefined} onClick={() => setTab(t)}>
@@ -233,6 +244,20 @@ export default function App() {
             onFinish={(t) => {
               setSheet(null);
               setTab(t);
+            }}
+          />
+        </Sheet>
+      )}
+      {sheet?.kind === "ask" && state && (
+        <Sheet title="Ask Kintsugi" onClose={() => setSheet(null)}>
+          <AskPanel
+            state={state}
+            personaId={personaId}
+            onOpenItem={openItem}
+            onJob={track}
+            onGoToDeals={() => {
+              setSheet(null);
+              setTab("deals");
             }}
           />
         </Sheet>

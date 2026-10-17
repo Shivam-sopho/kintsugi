@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AdvancedMarker, APIProvider, Map, Polyline } from "@vis.gl/react-google-maps";
+import ErrorBoundary from "./ErrorBoundary";
 import type { AppState, GeoPoint, Item, Rung } from "../types";
 import { DEMO_CENTER, RUNG_COLOR, RUNG_ORDER } from "../labels";
 
@@ -77,7 +78,9 @@ export function useMapModel(state: AppState) {
 }
 
 export default function MapView(props: Props) {
-  return MAPS_KEY ? <GoogleMapView {...props} /> : <SchematicMap {...props} />;
+  if (!MAPS_KEY) return <SchematicMap {...props} />;
+  // If Google Maps can't load (blocked, offline, key problem), fall back to the schematic map.
+  return <ErrorBoundary fallback={<SchematicMap {...props} />}><GoogleMapView {...props} /></ErrorBoundary>;
 }
 
 function pinStyle(p: SitePin, selected: boolean): React.CSSProperties {
