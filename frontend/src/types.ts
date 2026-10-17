@@ -51,6 +51,7 @@ export interface Item {
   synthetic: boolean;
   verified: boolean;
   has_floor_price: boolean;
+  autopilot: boolean;
   evidence: string[];
   take_apart: Record<string, string[]>;
 }
@@ -105,6 +106,7 @@ export interface Deal {
   transcript: NegotiationTurn[];
   final_price_inr: number | null;
   settlement: { label: string; payment_mandate: Record<string, unknown> } | null;
+  autopilot: boolean;
   created_at: number;
 }
 
@@ -130,6 +132,18 @@ export interface Totals {
   factor_source: string;
 }
 
+export interface StandingRequest {
+  id: string;
+  buyer_id: string;
+  query: string;
+  radius_km: number;
+  has_cap: boolean; // the highest price itself stays with the buyer's agent
+  auto_approve: boolean;
+  active: boolean;
+  matched_item_ids: string[];
+  notified_item_ids: string[];
+}
+
 export interface AppState {
   mock_mode: boolean;
   sites: Site[];
@@ -138,6 +152,7 @@ export interface AppState {
   predictions: Prediction[];
   deals: Deal[];
   bundles: Bundle[];
+  requests: StandingRequest[];
   totals: Totals;
 }
 

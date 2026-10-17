@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional, Protocol
 
-from ..models import AgentEvent, Bundle, Deal, Item, Job, LedgerEntry, Participant, Prediction, Site
+from ..models import AgentEvent, Bundle, Deal, Item, Job, LedgerEntry, Participant, Prediction, Site, StandingRequest
 
 
 class Store(Protocol):
@@ -38,6 +38,9 @@ class Store(Protocol):
     def list_bundles(self) -> list[Bundle]: ...
 
     # ledger
+    def upsert_request(self, r: StandingRequest) -> None: ...
+    def list_requests(self) -> list[StandingRequest]: ...
+
     def add_ledger(self, entries: list[LedgerEntry]) -> None: ...
     def list_ledger(self) -> list[LedgerEntry]: ...
 

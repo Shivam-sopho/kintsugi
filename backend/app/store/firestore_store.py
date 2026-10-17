@@ -14,11 +14,11 @@ from google.cloud.firestore_v1.vector import Vector
 from pydantic import BaseModel
 
 from ..config import Settings
-from ..models import AgentEvent, Bundle, Deal, Item, Job, LedgerEntry, Participant, Prediction, Site
+from ..models import AgentEvent, Bundle, Deal, Item, Job, LedgerEntry, Participant, Prediction, Site, StandingRequest
 
 T = TypeVar("T", bound=BaseModel)
 
-COLLECTIONS = ["participants", "sites", "items", "predictions", "deals", "bundles", "ledger", "jobs", "events"]
+COLLECTIONS = ["participants", "sites", "items", "predictions", "deals", "bundles", "requests", "ledger", "jobs", "events"]
 
 
 class FirestoreStore:
@@ -132,6 +132,13 @@ class FirestoreStore:
         return self._all("bundles", Bundle)
 
     # ledger
+    # standing requests (their embedding is a plain list: matched in Python, not by the vector index)
+    def upsert_request(self, r: StandingRequest) -> None:
+        self._put("requests", r.id, r)
+
+    def list_requests(self) -> list[StandingRequest]:
+        return self._all("requests", StandingRequest)
+
     def add_ledger(self, entries: list[LedgerEntry]) -> None:
         batch = self.db.batch()
         for e in entries:

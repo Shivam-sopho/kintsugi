@@ -72,6 +72,23 @@ export default function ProfilePanel({ state, personaId, onChangePersona, onOpen
         <p className="muted small">Nothing listed yet. Scan something on Home.</p>
       )}
 
+      {state.requests.some((r) => r.buyer_id === personaId && r.active) && (
+        <>
+          <h3>Standing requests</h3>
+          <ul className="history">
+            {state.requests.filter((r) => r.buyer_id === personaId && r.active).map((r) => (
+              <li key={r.id}>
+                <strong>{r.query}</strong>
+                <span className="small muted">
+                  Within {r.radius_km} km{r.auto_approve ? ", approves automatically within a private limit" : ""}.{" "}
+                  {r.matched_item_ids.length} negotiated, {r.notified_item_ids.length} other matches.
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
       <h3>Deals ({deals.length})</h3>
       {deals.length ? (
         <ul className="history">
@@ -82,7 +99,7 @@ export default function ProfilePanel({ state, personaId, onChangePersona, onOpen
             return (
               <li key={d.id}>
                 <div className="row between">
-                  <strong>{selling ? "Sold" : "Bought"} {what || "items"}</strong>
+                  <strong>{selling ? "Sold" : "Bought"} {what || "items"}{d.autopilot && <span className="status autopilot">Autopilot</span>}</strong>
                   <span>{inr(d.final_price_inr)}</span>
                 </div>
                 <span className="small muted">

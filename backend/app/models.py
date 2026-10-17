@@ -92,6 +92,7 @@ class Item(BaseModel):
     # Human in the loop and seller settings
     verified: bool = False  # a person confirmed (or corrected) what Scout saw
     floor_price_inr: Optional[float] = None  # seller's private lowest price for the lot; never sent to buyers
+    autopilot: bool = False  # the seller lets their agent sell it to matching buyers, never below the floor
     # Evidence and guidance
     media_index: Optional[int] = None  # which uploaded file the item was seen in
     evidence: list[str] = Field(default_factory=list)  # evidence image ids (faces blurred)
@@ -178,6 +179,25 @@ class Deal(BaseModel):
     transcript: list[NegotiationTurn] = Field(default_factory=list)
     final_price_inr: Optional[float] = None
     settlement: Optional[Settlement] = None
+    autopilot: bool = False  # started by Autopilot, not by a person's tap
+    created_at: float = Field(default_factory=time.time)
+
+
+class StandingRequest(BaseModel):
+    """A buyer's standing request. Kintsugi watches new listings for it, and the buyer's agent can
+    negotiate and, within the buyer's private limit, approve on its own."""
+
+    id: str = Field(default_factory=lambda: new_id("req"))
+    buyer_id: str
+    query: str
+    location: GeoPoint
+    radius_km: float = 15.0
+    cap_inr: Optional[float] = None  # private to the buyer agent; never in API responses
+    auto_approve: bool = False  # settle deals within cap_inr without asking
+    active: bool = True
+    embedding: Optional[list[float]] = None
+    matched_item_ids: list[str] = Field(default_factory=list)  # items Autopilot negotiated for
+    notified_item_ids: list[str] = Field(default_factory=list)  # matches the buyer was told about
     created_at: float = Field(default_factory=time.time)
 
 

@@ -22,10 +22,11 @@ interface Props {
   onJob: (job: Job, onDone?: (j: Job) => void) => void;
   onDealStarted: () => void;
   onOpenItem: (id: string) => void;
+  onChanged?: () => void;
 }
 
 /** "I need something": say or show what you need, pick from what's nearby, let the agents negotiate. */
-export default function FindPanel({ state, buyerId: personaId, onJob, onDealStarted, onOpenItem }: Props) {
+export default function FindPanel({ state, buyerId: personaId, onJob, onDealStarted, onOpenItem, onChanged }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [spoken, setSpoken] = useState<string | null>(null);
@@ -38,6 +39,10 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
   const [design, setDesign] = useState<DesignResult | null>(null);
   const [inspiration, setInspiration] = useState<File | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [reqRadius, setReqRadius] = useState("10");
+  const [reqCap, setReqCap] = useState("");
+  const [reqAuto, setReqAuto] = useState(false);
+  const [reqNote, setReqNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
 
@@ -103,6 +108,27 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
     });
   };
 
+  const myRequests = state.requests.filter((r) => r.buyer_id === buyerId && r.active);
+
+  const saveRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim().length < 2) return setError("Say or type what you need first.");
+    if (reqAuto && !Number(reqCap)) return setError("Give your highest price to approve deals automatically.");
+    setReqNote(null);
+    run("request", async () => {
+      const job = await api.createRequest({
+        buyer_id: buyerId, query: query.trim(), lat: DEMO_CENTER.lat, lng: DEMO_CENTER.lng,
+        radius_km: Number(reqRadius), cap_inr: Number(reqCap) || undefined, auto_approve: reqAuto,
+      });
+      onJob(job, (done) => {
+        const n = ((done.result.deal_ids as string[]) ?? []).length;
+        setReqNote(done.status !== "done" ? done.error ?? "Couldn't save it."
+          : n ? `Saved. Your agent started ${n} deal${n > 1 ? "s" : ""} already: see Deals.`
+          : "Saved. Kintsugi will tell you, or act for you, when something matching is listed.");
+      });
+    });
+  };
+
   const runDesign = (e: React.FormEvent) => {
     e.preventDefault();
     if (!brief.trim() || !Number(budget)) return setError("Describe the space and give a budget.");
@@ -165,6 +191,55 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
         </div>
       )}
       {error && <p className="error" role="alert">{error}</p>}
+
+      <details className="more" open={Boolean(results && results.length === 0) || myRequests.length > 0}>
+        <summary>Keep looking for me</summary>
+        <form className="stack" onSubmit={saveRequest}>
+          <p className="small muted">
+            Kintsugi checks every new listing for "{query.trim() || "what you need"}". When the seller has Autopilot on,
+            your agent negotiates for you{reqAuto ? " and approves any price within your limit" : ""}.
+          </p>
+          <div className="row wrap">
+            <label className="grow">
+              Buying as
+              <select value={buyerId} onChange={(e) => setBuyerId(e.target.value)}>
+                {buyers.map((b) => <option key={b.id} value={b.id}>{b.name}{b.synthetic ? " (sample)" : ""}</option>)}
+              </select>
+            </label>
+            <label>
+              Within
+              <select value={reqRadius} onChange={(e) => setReqRadius(e.target.value)}>
+                {[5, 10, 15, 25].map((k) => <option key={k} value={k}>{k} km</option>)}
+              </select>
+            </label>
+          </div>
+          <label>
+            Your highest price, ₹ (only your agent will know it)
+            <input inputMode="numeric" value={reqCap} onChange={(e) => setReqCap(e.target.value.replace(/\D/g, ""))} placeholder="Optional" />
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={reqAuto} onChange={(e) => setReqAuto(e.target.checked)} />
+            Approve deals automatically within my highest price
+          </label>
+          <button className="secondary" disabled={busy === "request"}>{busy === "request" ? "Saving…" : "Save request"}</button>
+          {reqNote && <p className="small" role="status">{reqNote}</p>}
+        </form>
+        {myRequests.length > 0 && (
+          <ul className="history">
+            {myRequests.map((r) => (
+              <li key={r.id}>
+                <div className="row between">
+                  <strong>{r.query}</strong>
+                  <button type="button" className="link" onClick={() => run("cancel", async () => { await api.cancelRequest(r.id); onChanged?.(); setReqNote("Request stopped."); })}>Stop</button>
+                </div>
+                <span className="small muted">
+                  Within {r.radius_km} km{r.auto_approve ? ", approves automatically" : ""}. {r.matched_item_ids.length + r.notified_item_ids.length} matches so far.
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </details>
 
       <details className="more" open={Boolean(design)}>
         <summary>Design a space from what's nearby</summary>

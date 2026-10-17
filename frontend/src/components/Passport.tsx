@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import ListenButton from "./ListenButton";
-import type { AppState, Item } from "../types";
+import type { AppState, Item, Job } from "../types";
 import { LANG_LABEL, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, inr, kg } from "../labels";
 import VoiceButton from "./VoiceButton";
 import { RungIcon } from "./Icons";
@@ -15,9 +15,10 @@ interface Props {
   onBack?: () => void;
   onChanged: () => void;
   onOffer: (itemId: string) => Promise<void>;
+  onJob?: (job: Job, onDone?: (j: Job) => void) => void;
 }
 
-export default function Passport({ item, state, onChanged, onOffer }: Props) {
+export default function Passport({ item, state, onChanged, onOffer, onJob }: Props) {
   const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
   const dest = item.destination_id ? people[item.destination_id] : undefined;
   const weight = item.components.reduce((s, c) => s + c.est_weight_kg, 0) * Math.max(item.count, 1);
@@ -134,6 +135,37 @@ export default function Passport({ item, state, onChanged, onOffer }: Props) {
             <button className="secondary" onClick={() => saveFloor(Number(floor))} disabled={busy === "floor"}>Set</button>
             <VoiceButton hint="floor" label="Say it" onResult={(t) => t.amount_inr && saveFloor(t.amount_inr)} />
           </div>
+        </div>
+      )}
+
+      {open && (
+        <div className={`autopilot-box ${item.autopilot ? "on" : ""}`}>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={item.autopilot}
+              disabled={busy === "autopilot" || item.hazards.length > 0 || (!item.has_floor_price && !item.autopilot)}
+              onChange={(e) => {
+                const on = e.target.checked;
+                run("autopilot", async () => {
+                  const job = await api.itemAutopilot(item.id, on);
+                  onJob?.(job, onChanged);
+                });
+              }}
+            />
+            <span>
+              <strong>Let my agent sell it</strong>
+              <span className="small muted block">
+                {item.hazards.length
+                  ? "Suspected hazards go to a licensed handler, so they can't be sold on Autopilot."
+                  : item.autopilot
+                    ? "On. Your agent negotiates with buyers whose requests match, never below your lowest price."
+                    : item.has_floor_price
+                      ? "Your agent negotiates with matching buyers on its own, never below your lowest price."
+                      : "Set your lowest price above first, so your agent knows where to stop."}
+              </span>
+            </span>
+          </label>
         </div>
       )}
 
