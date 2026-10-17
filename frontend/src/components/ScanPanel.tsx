@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Geolocation } from "@capacitor/geolocation";
 import { api, audioFileName } from "../api";
+import { compressForUpload, MAX_UPLOAD_BYTES, megabytes } from "../compress";
 import { useRecorder } from "../useRecorder";
 import type { AppState, Job } from "../types";
 import { DEMO_CENTER } from "../labels";
@@ -12,6 +13,17 @@ interface Props {
   onScanned: (siteId: string) => void;
 }
 
+/** Says why location failed: browsers give a numeric code, the Android plugin a message. */
+function locationProblem(err: unknown): string {
+  const { code, message = "" } = (err ?? {}) as { code?: number | string; message?: string };
+  if (code === 1 || /denied|permission/i.test(message))
+    return "Location is blocked for this app. Allow it in your browser's or phone's settings, then try again.";
+  if (code === 2 || /disabled|unavailable|services/i.test(message))
+    return "Your phone couldn't find its location. Turn on location and try again.";
+  if (code === 3 || /timeout|timed out/i.test(message)) return "Finding your location took too long. Try again.";
+  return "Location isn't available here.";
+}
+
 export default function ScanPanel({ onJob, onScanned }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [kind, setKind] = useState<"home" | "building">("home");
@@ -20,6 +32,7 @@ export default function ScanPanel({ onJob, onScanned }: Props) {
   const [where, setWhere] = useState(DEMO_CENTER);
   const [locNote, setLocNote] = useState("Using the demo location in Bengaluru.");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const voiceNote = useRecorder();
@@ -27,13 +40,15 @@ export default function ScanPanel({ onJob, onScanned }: Props) {
   const add = (list: FileList | null) => list && setFiles((prev) => [...prev, ...Array.from(list)]);
 
   // Native location permission in the Android app; the browser's geolocation on the web.
+  // Network location is enough (homes are shown to about 500 m) and, unlike GPS, works indoors.
   const useMyLocation = async () => {
+    setLocNote("Finding your location…");
     try {
-      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
       setWhere({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       setLocNote("Using your current location.");
-    } catch {
-      setLocNote("Location was not shared, so the demo location is used.");
+    } catch (err) {
+      setLocNote(`${locationProblem(err)} Using the demo location in Bengaluru for now.`);
     }
   };
 
@@ -48,8 +63,22 @@ export default function ScanPanel({ onJob, onScanned }: Props) {
     if (!files.length) return setError("Film a walkthrough, add photos, or record a voice note first.");
     setError(null);
     setBusy(true);
+    // Shrink videos and large photos first: the API takes at most about 30 MB per scan.
+    const ready: File[] = [];
+    for (const [i, f] of files.entries()) {
+      const label = f.type.startsWith("video/") ? "video" : "photo";
+      const of = files.length > 1 ? ` ${i + 1} of ${files.length}` : "";
+      setProgress(`Making the ${label}${of} smaller…`);
+      ready.push(await compressForUpload(f, (p) => setProgress(`Making the ${label}${of} smaller… ${Math.round(p * 100)}%`)));
+    }
+    setProgress(null);
+    const total = ready.reduce((sum, f) => sum + f.size, 0);
+    if (total > MAX_UPLOAD_BYTES) {
+      setBusy(false);
+      return setError(`These files are ${megabytes(total)}, more than the ${megabytes(MAX_UPLOAD_BYTES)} a scan can take. Film a shorter clip or choose fewer photos.`);
+    }
     const form = new FormData();
-    files.forEach((f) => form.append("files", f));
+    ready.forEach((f) => form.append("files", f));
     form.append("kind", kind);
     form.append("name", name || (kind === "home" ? "My home" : "My site"));
     form.append("lat", String(where.lat));
@@ -135,7 +164,7 @@ export default function ScanPanel({ onJob, onScanned }: Props) {
           {locNote} <button type="button" className="link" onClick={useMyLocation}>Use my location</button>
         </p>
         {error && <p className="error" role="alert">{error}</p>}
-        <button className="primary" disabled={busy}>{busy ? "Scout is watching…" : "Scan with Scout"}</button>
+        <button className="primary" disabled={busy}>{busy ? progress ?? "Scout is watching…" : "Scan with Scout"}</button>
       </form>
 
       <section className="stack notice">
