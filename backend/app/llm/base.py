@@ -50,6 +50,10 @@ class LLM(Protocol):
     async def render(self, prompt: str) -> Optional[bytes]:
         """Return PNG/JPEG bytes, or None if rendering is unavailable."""
 
+    async def explain(self, item: dict[str, Any], lang: str) -> dict[str, Any]:
+        """'What becomes of it': explain an item's decided next life and routes in plain words.
+        Return {"headline", "parts": [{"part", "goes_to", "happens"}], "you_can": [...], "why"}."""
+
     async def ask(self, question: str, history: list[dict[str, str]], context: dict[str, Any], lang: str) -> dict[str, Any]:
         """Ask Kintsugi: answer from the person's context in their language, with one suggested
         action. Return {"answer", "answer_en", "language", "action": {"type", ...}}. An empty

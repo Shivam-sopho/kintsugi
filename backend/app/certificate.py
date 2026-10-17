@@ -21,6 +21,7 @@ LABELS = {
         "number": "Certificate", "date": "Issued", "value": "agreed value", "from_to": "From seller to buyer",
         "seal": "Kintsugi Ledger · recorded impact · ", "hallmark": "Recorded by the Kintsugi Ledger from this deal's settled items.",
         "sample": "Sample data", "print": "Print or save as PDF",
+        "handover": "Hand-over: no money involved", "handed": "handed over",
     },
     "hi": {
         "title": "किंत्सुगी प्रभाव प्रमाणपत्र", "reused": "किलो सामान फिर से इस्तेमाल में", "co2": "किलो CO2e की बचत",
@@ -30,6 +31,7 @@ LABELS = {
         "number": "प्रमाणपत्र", "date": "जारी", "value": "तय कीमत", "from_to": "विक्रेता से खरीदार तक",
         "seal": "किंत्सुगी लेजर · दर्ज प्रभाव · ", "hallmark": "इस सौदे की निपटाई गई चीज़ों से किंत्सुगी लेजर द्वारा दर्ज।",
         "sample": "नमूना डेटा", "print": "प्रिंट करें या PDF सहेजें",
+        "handover": "सौंपना: कोई पैसा नहीं", "handed": "सौंपा गया",
     },
     "kn": {
         "title": "ಕಿಂತ್ಸುಗಿ ಪರಿಣಾಮ ಪ್ರಮಾಣಪತ್ರ", "reused": "ಕೆಜಿ ಮತ್ತೆ ಬಳಕೆಗೆ", "co2": "ಕೆಜಿ CO2e ಉಳಿತಾಯ",
@@ -39,6 +41,7 @@ LABELS = {
         "number": "ಪ್ರಮಾಣಪತ್ರ", "date": "ನೀಡಿದ ದಿನಾಂಕ", "value": "ಒಪ್ಪಿದ ಬೆಲೆ", "from_to": "ಮಾರಾಟಗಾರರಿಂದ ಖರೀದಿದಾರರಿಗೆ",
         "seal": "ಕಿಂತ್ಸುಗಿ ಲೆಡ್ಜರ್ · ದಾಖಲಾದ ಪರಿಣಾಮ · ", "hallmark": "ಈ ವ್ಯವಹಾರದ ಇತ್ಯರ್ಥವಾದ ವಸ್ತುಗಳಿಂದ ಕಿಂತ್ಸುಗಿ ಲೆಡ್ಜರ್ ದಾಖಲಿಸಿದೆ.",
         "sample": "ಮಾದರಿ ಡೇಟಾ", "print": "ಮುದ್ರಿಸಿ ಅಥವಾ PDF ಆಗಿ ಉಳಿಸಿ",
+        "handover": "ಹಸ್ತಾಂತರ: ಹಣ ಇಲ್ಲ", "handed": "ಹಸ್ತಾಂತರಿಸಲಾಗಿದೆ",
     },
 }
 
@@ -81,7 +84,8 @@ def render(deal: Deal, entries: list[LedgerEntry], seller: Participant | None, b
         f'<a href="?lang={code}"{" aria-current=page" if code == lang else ""}>{label}</a>'
         for code, label in (("en", "English"), ("hi", "हिन्दी"), ("kn", "ಕನ್ನಡ"))
     )
-    price = f"₹{deal.final_price_inr:,.0f}" if deal.final_price_inr else "–"
+    handover = deal.kind == "handover"
+    price = L["handed"] if handover else (f"₹{deal.final_price_inr:,.0f}" if deal.final_price_inr else "–")
     return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{L['title']} {number}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600;700&family=Noto+Serif+Devanagari:wght@400;600&family=Noto+Serif+Kannada:wght@400;600&display=swap" rel="stylesheet">
@@ -119,11 +123,11 @@ td.num,th.num{{text-align:right;font-variant-numeric:tabular-nums}}
 <p class="parties">{L['from_to']}: {names}</p>
 <section class="hero">
   <div class="stat"><div class="n">{t['mass_diverted_kg']:,.0f}</div><div class="l">{L['reused']}</div></div>
-  <div class="stat"><div class="n">{price}</div><div class="l">{L['value']}</div></div>
+  <div class="stat"><div class="n">{price}</div><div class="l">{L['handover'] if handover else L['value']}</div></div>
   {_seal(t['co2_avoided_kg'], L['co2'], L['seal'], latin=lang == 'en')}
 </section>
 <table><tr><th>{L['material']}</th><th>{L['next']}</th><th class="num">{L['kg']}</th><th class="num">{L['factor']}</th><th class="num">{L['avoided']}</th></tr>{rows}</table>
-<div class="hallmark">{_mark(28)}<span>{L['hallmark']} {L['factors']}: {escape(t['factor_source'])}. {L['settlement']}: {L['sandbox']}.</span></div>
+<div class="hallmark">{_mark(28)}<span>{L['hallmark']} {L['factors']}: {escape(t['factor_source'])}. {L['settlement']}: {L['handover'] if handover else L['sandbox']}.</span></div>
 </main></body></html>"""
 
 

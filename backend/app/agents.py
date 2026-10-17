@@ -310,6 +310,73 @@ async def run_autopilot(
     return deals
 
 
+# ---------------------------------------------------------------- What becomes of it, and hand-overs
+
+def _routes(store: Store, it: Item) -> list[dict[str, Any]]:
+    """Each part with where the rules sent it: the material, the taker and how far away."""
+    people = {p.id: p for p in store.list_participants()}
+    out = []
+    for c in it.components:
+        dest = people.get(c.destination_id or it.destination_id or "")
+        rung = c.next_life or it.next_life
+        out.append({
+            "part": c.name, "material": c.material, "weight_kg": round(c.est_weight_kg * max(it.count, 1), 1),
+            "next_life": rung.value.replace("_", " ") if rung else None,
+            "goes_to": f"{dest.name} ({dest.role.replace('_', ' ')}, {haversine_km(it.location, dest.location):.1f} km)" if dest else None,
+        })
+    return out
+
+
+EXPLAIN_VERSION = "v2"  # bump when the explanation prompt changes, so cached ones are rewritten
+
+
+async def explain_item(store: Store, llm: LLM, item_id: str, lang: str) -> dict[str, Any]:
+    """'What becomes of it', in the person's language: Gemini explains the decided routes in plain
+    words, without changing them. Cached on the item per language."""
+    it = store.get_item(item_id)
+    if it is None:
+        raise ValueError("Item not found")
+    key = f"{EXPLAIN_VERSION}:{lang}"
+    if key in it.explanation:
+        return it.explanation[key]
+    out = await llm.explain({
+        "type": it.type, "count": it.count, "condition": it.condition, "hazards": it.hazards,
+        "next_life": it.next_life.value.replace("_", " ") if it.next_life else None,
+        "why_this_next_life": it.next_life_reason, "co2e_saved_kg": it.co2_avoided_kg, "parts": _routes(store, it),
+    }, lang)
+    it.explanation[key] = out
+    store.upsert_items([it])
+    return out
+
+
+async def handover_item(store: Store, emit: Emitter, item_id: str) -> Deal:
+    """Complete an item's journey without money: it goes to the takers the rules chose (a
+    recycler, municipal centre, compost unit, charity or licensed handler), and the ledger records
+    what was kept out of landfill. Most things leave homes this way, not by being sold."""
+    it = store.get_item(item_id)
+    if it is None:
+        raise ValueError("Item not found")
+    if it.status != "available":
+        raise ValueError("This item is already on its way to its next life")
+    dest_ids = [it.destination_id] if it.destination_id else [c.destination_id for c in it.components if c.destination_id]
+    dest_ids = list(dict.fromkeys(d for d in dest_ids if d))
+    if not dest_ids:
+        raise ValueError("No taker nearby yet. Kintsugi keeps looking and tells you when one appears.")
+    people = {p.id: p for p in store.list_participants()}
+    names = [people[d].name for d in dest_ids if d in people]
+    deal = Deal(item_ids=[it.id], seller_id=it.seller_id or "", buyer_id=dest_ids[0], kind="handover",
+                status="settled", final_price_inr=0.0)
+    it.status = "routed"
+    entries = ledger.entries_for_item(it, deal.id, 0.0)
+    store.upsert_items([it])
+    store.add_ledger(entries)
+    store.upsert_deal(deal)
+    t = ledger.totals(entries)
+    await emit("ledger", "handover", f"Handed over: the {it.type} goes to {', '.join(names)}. "
+               f"{t['mass_diverted_kg']:,.1f} kg kept out of landfill, {t['co2_avoided_kg']:,.1f} kg CO2e avoided", deal_id=deal.id)
+    return deal
+
+
 # ---------------------------------------------------------------- Ask Kintsugi
 
 BUYING_ROLES = ("buyer", "ngo", "dealer")

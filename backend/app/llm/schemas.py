@@ -97,6 +97,24 @@ DESIGN_SCHEMA = {
     "required": ["concept", "selected", "render_prompt"],
 }
 
+EXPLAIN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "headline": {"type": "string"},
+        "parts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"part": {"type": "string"}, "goes_to": {"type": "string"}, "happens": {"type": "string"}},
+                "required": ["part", "happens"],
+            },
+        },
+        "you_can": {"type": "array", "items": {"type": "string"}},
+        "why": {"type": "string"},
+    },
+    "required": ["headline", "parts", "you_can", "why"],
+}
+
 ASK_SCHEMA = {
     "type": "object",
     "properties": {

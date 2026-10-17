@@ -20,7 +20,7 @@ from google.genai import types
 from ..config import Settings
 from . import prompts
 from .base import MediaRef
-from .schemas import DESIGN_SCHEMA, MESSAGES_SCHEMA, ORACLE_SCHEMA, SCOUT_SCHEMA, TAKE_APART_SCHEMA, TRANSCRIBE_SCHEMA, TRANSLATE_SCHEMA, ASK_SCHEMA
+from .schemas import DESIGN_SCHEMA, MESSAGES_SCHEMA, ORACLE_SCHEMA, SCOUT_SCHEMA, TAKE_APART_SCHEMA, TRANSCRIBE_SCHEMA, TRANSLATE_SCHEMA, ASK_SCHEMA, EXPLAIN_SCHEMA
 
 log = logging.getLogger(__name__)
 
@@ -201,6 +201,11 @@ class GeminiLLM:
         except Exception as exc:  # rendering is optional; never break the flow
             log.warning("Render failed: %s", exc)
         return None
+
+    async def explain(self, item: dict[str, Any], lang: str) -> dict[str, Any]:
+        prompt = (f"ITEM (JSON):\n{json.dumps(item, ensure_ascii=False)}\n\n"
+                  f"Write everything in {LANGUAGE_NAMES.get(lang, lang)} ({lang}).")
+        return await self._json(self.s.model_fast, [prompt], prompts.EXPLAIN_SYSTEM, EXPLAIN_SCHEMA, 0.3)
 
     async def ask(self, question: str, history: list[dict[str, str]], context: dict[str, Any], lang: str) -> dict[str, Any]:
         turns = "\n".join(f"{t.get('role', 'user')}: {t.get('text', '')}" for t in history[-6:])
