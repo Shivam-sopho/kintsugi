@@ -110,7 +110,7 @@ export default function App() {
           {(persona?.name ?? "Y").slice(0, 1)}
         </button>
         <button className="demo-btn" onClick={runDemo} disabled={demoRunning}>
-          {demoRunning ? "Demo running…" : "Run demo"}
+          {demoRunning ? "Demo running…" : <><span className="long">Run demo</span><span className="short">Demo</span></>}
         </button>
       </header>
 

@@ -49,4 +49,4 @@ npm run android:sync                            # rebuild and copy into the Andr
 
 ## Live mode status
 
-Everything runs offline and is tested. The live Gemini, Firestore, Cloud Storage and Maps code paths are written but have not been run against real services yet; that is task A2 onwards in `NEXT_STEPS.md`. When a live call fails, fix it in `app/llm/gemini.py` (or the store/maps module), keep the mock behaviour identical, and rerun `python -m scripts.smoke_live`.
+Live and deployed: https://kintsugi-ai-builder-cup-2026.web.app (project `kintsugi-ai-builder-cup-2026`, Cloud Run `kintsugi-api`, Firestore, Cloud Storage, Maps). Every Gemini call works live (`python -m scripts.smoke_live`). Locally, run the backend with `GRPC_DNS_RESOLVER=native` when using Firestore or live mode. When a live call fails, fix it in `app/llm/gemini.py` (or the store/maps module), keep the mock behaviour identical, and add an offline test with a fake client. Judge mode must only ever clear its own sample data (`agents.clear_demo_data`), never call `store.reset()` on a shared database.

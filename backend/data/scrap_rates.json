@@ -1,6 +1,6 @@
 {
   "_note": "SAMPLE scrap buying rates in INR per kg for the demo. Replace with the rates quoted by the dealer you interview.",
-  "source": "Sample rates (replace with a real dealer quote)",
+  "source": "Sample data: typical Bengaluru scrap buying rates",
   "rates_inr_per_kg": {
     "steel": 30,
     "copper": 450,

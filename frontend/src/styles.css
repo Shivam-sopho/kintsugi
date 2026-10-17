@@ -527,3 +527,24 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .situations button.on { border-color: var(--celadon); color: var(--ink); background: var(--porcelain); font-weight: 600; }
 .tip { text-align: center; color: var(--slate); margin: -0.4rem auto 0; max-width: 26rem; }
 .timeline .model { display: block; font-size: 0.72rem; color: var(--gold-ink); margin-top: 0.1rem; }
+
+/* Top bar stays on one line on narrow phones and with large system fonts */
+.brand { flex-wrap: nowrap; min-width: 0; }
+.brand h1 { white-space: nowrap; }
+.topbar .demo-btn, .voice-toggle { white-space: nowrap; flex: none; }
+@media (max-width: 420px) {
+  .topbar { gap: 0.4rem; }
+  .brand h1 { font-size: 1.3rem; }
+  .brand .logo { width: 24px; height: 24px; }
+  .topbar .demo-btn { padding: 0.35rem 0.7rem; font-size: 0.9rem; }
+  .avatar { width: 30px; height: 30px; }
+  .voice-toggle { padding: 0.3rem 0.5rem; }
+}
+.demo-btn .short { display: none; }
+.brand { overflow: hidden; }
+@media (max-width: 420px) {
+  .brand h1 { font-size: 21px; }
+  .demo-btn .long { display: none; }
+  .demo-btn .short { display: inline; }
+}
+.brand h1 { line-height: 1.25; padding-bottom: 2px; }
