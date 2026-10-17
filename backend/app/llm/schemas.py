@@ -19,7 +19,11 @@ SCOUT_SCHEMA = {
                             "type": "object",
                             "properties": {
                                 "name": {"type": "string"},
-                                "material": {"type": "string"},
+                                "material": {
+                                    "type": "string",
+                                    "enum": ["wood", "steel", "aluminium", "copper", "glass", "ceramic", "brick", "concrete",
+                                             "stone", "plastic", "foam", "textile", "paper", "electronics"],
+                                },
                                 "est_weight_kg": {"type": "number"},
                             },
                             "required": ["name", "material", "est_weight_kg"],
