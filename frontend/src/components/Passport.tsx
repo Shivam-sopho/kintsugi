@@ -4,6 +4,7 @@ import ListenButton from "./ListenButton";
 import type { AppState, Item } from "../types";
 import { LANG_LABEL, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, inr, kg } from "../labels";
 import VoiceButton from "./VoiceButton";
+import { RungIcon } from "./Icons";
 
 const CONDITION: Record<Item["condition"], string> = { A: "Like new", B: "Good", C: "Worn", D: "Broken" };
 const BUYING_ROLES = new Set(["buyer", "ngo", "dealer"]);
@@ -110,7 +111,7 @@ export default function Passport({ item, state, onChanged, onOffer }: Props) {
       <ol className="ladder" aria-label="Next-life ladder">
         {RUNG_ORDER.map((r) => (
           <li key={r} className={r === item.next_life ? "on" : ""} style={{ ["--rung" as string]: RUNG_COLOR[r] }}>
-            {RUNG_LABEL[r]}
+            <RungIcon rung={r} /> {RUNG_LABEL[r]}
           </li>
         ))}
       </ol>

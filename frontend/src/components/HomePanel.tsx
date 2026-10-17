@@ -9,6 +9,7 @@ interface Props {
   state: AppState;
   job: Job | null;
   events: AgentEvent[];
+  personaId: string;
   onJob: (job: Job, onDone?: (j: Job) => void) => void;
   onOpenItem: (id: string) => void;
   onOpenAgents: () => void;
@@ -21,7 +22,7 @@ interface Props {
 /** Home: one question, two answers. Talking is the main way in; filming, photos and typing still work. */
 export default function HomePanel(p: Props) {
   const [mode, setMode] = useState<"have" | "need">("have");
-  const recent = [...p.state.items].filter((i) => !i.synthetic).slice(-4).reverse();
+  const recent = [...p.state.items].filter((i) => i.seller_id === p.personaId).slice(-4).reverse();
 
   return (
     <section className="home">
@@ -38,9 +39,9 @@ export default function HomePanel(p: Props) {
       <AgentStrip job={p.job} events={p.events} onOpen={p.onOpenAgents} onSkip={p.onSkip} />
 
       {mode === "have" ? (
-        <ScanPanel state={p.state} onJob={p.onJob} onOpenItem={p.onOpenItem} />
+        <ScanPanel state={p.state} sellerId={p.personaId} onJob={p.onJob} onOpenItem={p.onOpenItem} />
       ) : (
-        <FindPanel state={p.state} onJob={p.onJob} onDealStarted={p.onDealStarted} onOpenItem={p.onOpenItem} />
+        <FindPanel state={p.state} buyerId={p.personaId} onJob={p.onJob} onDealStarted={p.onDealStarted} onOpenItem={p.onOpenItem} />
       )}
 
       {recent.length > 0 ? (

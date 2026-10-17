@@ -10,6 +10,7 @@ import ItemCard from "./ItemCard";
 
 interface Props {
   state: AppState;
+  sellerId: string;
   onJob: (job: Job, onDone?: (j: Job) => void) => void;
   onOpenItem: (id: string) => void;
 }
@@ -26,7 +27,7 @@ function locationProblem(err: unknown): string {
 }
 
 /** "I have something": talk, film or photograph it, and Scout lists it and finds each part's next life. */
-export default function ScanPanel({ state, onJob, onOpenItem }: Props) {
+export default function ScanPanel({ state, sellerId, onJob, onOpenItem }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [kind, setKind] = useState<"home" | "building">("home");
   const [name, setName] = useState("");
@@ -89,6 +90,7 @@ export default function ScanPanel({ state, onJob, onOpenItem }: Props) {
     form.append("name", name || (kind === "home" ? "My home" : "My site"));
     form.append("lat", String(where.lat));
     form.append("lng", String(where.lng));
+    form.append("seller_id", sellerId);
     if (notes) form.append("narration_text", notes);
     try {
       const job = await api.scan(form);

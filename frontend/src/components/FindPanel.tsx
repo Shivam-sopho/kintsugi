@@ -18,18 +18,20 @@ function toBase64(file: File): Promise<{ b64: string; mime: string }> {
 
 interface Props {
   state: AppState;
+  buyerId: string; // the persona; used when they can buy
   onJob: (job: Job, onDone?: (j: Job) => void) => void;
   onDealStarted: () => void;
   onOpenItem: (id: string) => void;
 }
 
 /** "I need something": say or show what you need, pick from what's nearby, let the agents negotiate. */
-export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: Props) {
+export default function FindPanel({ state, buyerId: personaId, onJob, onDealStarted, onOpenItem }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [spoken, setSpoken] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [buyerId, setBuyerId] = useState("ppl_ananya");
+  const buyers = state.participants.filter((p) => p.role === "buyer" || p.role === "ngo" || p.role === "dealer");
+  const [buyerId, setBuyerId] = useState(buyers.some((b) => b.id === personaId) ? personaId : "ppl_ananya");
   const [cap, setCap] = useState("");
   const [brief, setBrief] = useState("cozy café, 40 m², warm wood");
   const [budget, setBudget] = useState("30000");
@@ -38,7 +40,6 @@ export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: P
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const buyers = state.participants.filter((p) => p.role === "buyer" || p.role === "ngo");
 
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(label);
