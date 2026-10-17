@@ -433,3 +433,33 @@ details.more summary { cursor: pointer; font-weight: 600; color: var(--slate); m
   padding-top: calc(0.7rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
 }
 .sheet-head .back { color: var(--porcelain); border-color: rgba(245, 246, 243, 0.4); }
+
+/* Mark and next-life icons */
+.brand { align-items: center; gap: 0.55rem; }
+.brand .logo { color: var(--porcelain); flex: none; align-self: center; }
+.rung-pill { display: inline-flex; align-items: center; gap: 0.3rem; }
+.ladder li { display: inline-flex; align-items: center; gap: 0.3rem; }
+.ladder li:not(.on) .rung-icon { color: var(--rung); }
+h2.with-mark { display: flex; align-items: center; gap: 0.5rem; }
+h2.with-mark .logo { color: var(--ink); }
+.legend li { display: inline-flex; align-items: center; gap: 0.3rem; }
+.legend .ink { color: var(--ink); }
+
+/* Profile and history */
+.avatar {
+  width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; flex: none;
+  background: var(--celadon); color: #fff; border: 2px solid rgba(245, 246, 243, 0.6); font-weight: 700; cursor: pointer;
+}
+.avatar.big { width: 56px; height: 56px; font-size: 1.5rem; border-color: var(--line); cursor: default; }
+.profile-head { display: flex; gap: 0.8rem; align-items: center; margin-bottom: 1rem; }
+.profile-head h2 { font-family: var(--display); margin: 0; }
+.profile label { margin-bottom: 0.35rem; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin: 1rem 0; }
+.stat-grid > div { background: var(--paper); border-top: 3px solid var(--gold); padding: 0.6rem 0.7rem; border-radius: 0 0 var(--radius-s) var(--radius-s); }
+.stat-grid .num { display: block; font: 700 1.3rem/1.2 var(--display); }
+.stat-grid .lbl { font-size: 0.78rem; color: var(--slate); }
+.history { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.history li { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 0.7rem 0.8rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.item-card-meta .co2 { color: var(--celadon); font-weight: 600; }
+.potential { background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--celadon); border-radius: var(--radius-m); padding: 0.8rem 0.9rem; margin: 0.8rem 0; }
+.potential h3 { margin-top: 0; }

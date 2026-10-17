@@ -10,6 +10,9 @@ import MissionControl from "./components/MissionControl";
 import ImpactPanel from "./components/ImpactPanel";
 import Passport from "./components/Passport";
 import Sheet from "./components/Sheet";
+import { Logo } from "./components/Icons";
+import ProfilePanel from "./components/ProfilePanel";
+import { loadPersona, savePersona } from "./persona";
 
 type Tab = "home" | "map" | "deals" | "impact";
 
@@ -29,7 +32,7 @@ const ICON: Record<Tab, ReactNode> = {
 };
 const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Deals", impact: "Impact" };
 
-type SheetState = { kind: "item"; id: string } | { kind: "agents" } | null;
+type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | null;
 
 export default function App() {
   const { state, job, events, error, refresh, track } = useJobs();
@@ -39,6 +42,8 @@ export default function App() {
   const [predictionId, setPredictionId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [voice, setVoice] = useState(voiceRepliesOn());
+  const [personaId, setPersonaId] = useState(loadPersona());
+  const persona = state?.participants.find((p) => p.id === personaId);
   const demoRunning = job?.kind === "judge_mode" && job.status === "running";
   const negotiating = state?.deals.some((d) => d.status === "negotiating" || d.status === "agreed");
 
@@ -83,6 +88,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
+          <Logo size={30} />
           <h1>Kintsugi</h1>
           <p>Google Maps for the circular economy</p>
         </div>
@@ -95,6 +101,9 @@ export default function App() {
                    : <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}
           </svg>
           <span>{voice ? "Voice on" : "Voice off"}</span>
+        </button>
+        <button className="avatar" onClick={() => setSheet({ kind: "profile" })} aria-label={`Profile: ${persona?.name ?? "you"}`} title="Profile and history">
+          {(persona?.name ?? "Y").slice(0, 1)}
         </button>
         <button className="demo-btn" onClick={runDemo} disabled={demoRunning}>
           {demoRunning ? "Demo running…" : "Run demo"}
@@ -141,6 +150,7 @@ export default function App() {
                 state={state}
                 job={job}
                 events={events}
+                personaId={personaId}
                 onJob={track}
                 onOpenItem={openItem}
                 onOpenAgents={() => setSheet({ kind: "agents" })}
@@ -189,6 +199,19 @@ export default function App() {
       {sheet?.kind === "item" && sheetItem && state && (
         <Sheet title={sheetItem.type} onClose={() => setSheet(null)}>
           <Passport key={sheetItem.id} item={sheetItem} state={state} onBack={() => setSheet(null)} onChanged={refresh} onOffer={offer} />
+        </Sheet>
+      )}
+      {sheet?.kind === "profile" && state && (
+        <Sheet title="Profile" onClose={() => setSheet(null)}>
+          <ProfilePanel
+            state={state}
+            personaId={personaId}
+            onChangePersona={(id) => {
+              savePersona(id);
+              setPersonaId(id);
+            }}
+            onOpenItem={openItem}
+          />
         </Sheet>
       )}
       {sheet?.kind === "agents" && (
