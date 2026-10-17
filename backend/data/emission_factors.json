@@ -1,25 +1,43 @@
 {
-  "_note": "PLACEHOLDER VALUES. Approximate embodied-carbon factors (kg CO2e per kg of material, cradle-to-gate) in the range published by the ICE database (Circular Ecology). Before the demo, replace every value with the exact figure from the ICE version you cite, and update 'source'.",
-  "source": "Approximate cradle-to-gate factors in the range published by the ICE database (Circular Ecology and University of Bath)",
+  "_note": "Generated from the UK Government GHG Conversion Factors for Company Reporting 2026, flat file v1.2 (assets.publishing.service.gov.uk/media/6a6c9748862aaf18d9c62ac9). kg CO2e per kg = per-tonne factor / 1000. Copper uses the construction metals average and ceramic uses fired-clay bricks, as no closer row exists.",
+  "source": "UK Government GHG Conversion Factors 2026 (DESNZ), Open Government Licence v3.0",
   "factors": {
-    "wood": 0.31,
-    "steel": 1.55,
-    "aluminium": 6.7,
-    "copper": 2.7,
-    "glass": 1.44,
-    "ceramic": 0.78,
-    "brick": 0.21,
-    "concrete": 0.13,
-    "stone": 0.1,
-    "plastic": 3.0,
-    "foam": 4.0,
-    "textile": 5.0,
-    "paper": 1.0,
-    "electronics": 2.0,
-    "organic": 0.5,
-    "mixed": 1.0
+    "wood": 0.2695,
+    "steel": 3.8219,
+    "copper": 3.8219,
+    "aluminium": 9.1136,
+    "glass": 1.4028,
+    "ceramic": 0.2418,
+    "brick": 0.2418,
+    "concrete": 0.1188,
+    "stone": 0.0078,
+    "plastic": 3.1705,
+    "foam": 1.8618,
+    "textile": 22.31,
+    "paper": 1.287,
+    "electronics": 5.6479,
+    "mixed": 0.075,
+    "organic": 0.6471
   },
-  "_credit_note": "Share of a material's embodied carbon counted as avoided for each next life. ASSUMPTIONS: reuse avoids making a new item; recycling avoids roughly half; composting or biogas is credited with the landfill methane it avoids (the organic factor, about 0.5 kg CO2e per kg of food waste, is an assumption to cite); energy recovery and disposal avoid none. Tune and cite before the demo.",
+  "basis": {
+    "wood": "Material use: Wood, primary material production (19_500_5048_15_1)",
+    "steel": "Material use: Metals, primary material production (19_500_5028_15_1)",
+    "copper": "Material use: Metals, primary material production (19_500_5028_15_1)",
+    "aluminium": "Material use: Metal: aluminium cans and foil (excl. forming), primary material production (19_504_5104_15_1)",
+    "glass": "Material use: Glass, primary material production (19_501_5056_15_1)",
+    "ceramic": "Material use: Bricks, primary material production (19_500_5016_15_1)",
+    "brick": "Material use: Bricks, primary material production (19_500_5016_15_1)",
+    "concrete": "Material use: Concrete, primary material production (19_500_5020_15_1)",
+    "stone": "Material use: Aggregates, primary material production (19_500_5000_15_1)",
+    "plastic": "Material use: Plastics: average plastics, primary material production (19_505_5120_15_1)",
+    "foam": "Material use: Insulation, primary material production (19_500_5024_15_1)",
+    "textile": "Material use: Clothing, primary material production (19_501_5060_15_1)",
+    "paper": "Material use: Paper and board: mixed, primary material production (19_506_5160_15_1)",
+    "electronics": "Material use: Electrical items - small, primary material production (19_503_5088_15_1)",
+    "mixed": "Material use: Average construction, primary material production (19_500_5004_15_1)",
+    "organic": "Waste disposal: organic mixed food and garden waste, landfill (20_507_5306_15_1) minus composting (20_507_5305_15_1)"
+  },
+  "_credit_note": "Share of the primary-production factor counted as avoided for each next life. Recycling and re-use use the government's closed-loop and re-used factors where published (1 - secondary/primary); otherwise the defaults below, which are the project's own stated assumptions. Composting is credited with the landfill emissions it avoids (the organic factor already is that difference).",
   "rung_credit": {
     "reuse": 1.0,
     "repair": 0.9,
@@ -29,5 +47,23 @@
     "compost": 1.0,
     "recover_energy": 0.0,
     "safe_disposal": 0.0
+  },
+  "credit_by_material": {
+    "recycle": {
+      "steel": 0.572,
+      "copper": 0.572,
+      "aluminium": 0.891,
+      "glass": 0.413,
+      "concrete": 0.973,
+      "stone": 0.587,
+      "plastic": 0.504,
+      "foam": 0.005,
+      "paper": 0.171
+    },
+    "reuse": {
+      "wood": 0.857,
+      "stone": 0.717,
+      "textile": 0.993
+    }
   }
 }

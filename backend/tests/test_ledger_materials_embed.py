@@ -48,3 +48,16 @@ def test_dedup_merges_repeat_sightings_without_double_counting():
     assert len(out) == 2
     merged = next(i for i in out if i.site_id == "s")
     assert merged.count == 3 and merged.confidence == 0.9 and merged.timestamps_s == [1, 9]
+
+
+def test_factors_come_from_the_government_conversion_factors():
+    from app.materials import emission_factor, factor_basis, factor_source, rung_credit
+
+    assert "UK Government GHG Conversion Factors 2026" in factor_source()
+    # Every material we use has a published row behind it.
+    for m in ("wood", "steel", "aluminium", "glass", "brick", "concrete", "plastic", "textile", "paper", "organic"):
+        assert emission_factor(m) > 0 and factor_basis(m)
+    # Composting credit is the landfill emissions it avoids; recycling uses the material's own saving.
+    assert 0.6 < emission_factor("food waste") < 0.7
+    assert rung_credit("recycle", "aluminium") > rung_credit("recycle", "paper")
+    assert rung_credit("recycle", "brick") == 0.5  # no published closed-loop figure: the stated default

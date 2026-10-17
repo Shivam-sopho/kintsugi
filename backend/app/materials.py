@@ -62,8 +62,20 @@ def emission_factor(material: str) -> float:
     return float(factors.get(canonical_material(material), factors["mixed"]))
 
 
-def rung_credit(rung: str) -> float:
-    return float(_factors_file()["rung_credit"].get(rung, 0.0))
+def rung_credit(rung: str, material: str | None = None) -> float:
+    """Share of a material's production emissions avoided by a next life: the government's
+    material-specific figure where published, otherwise the stated default for that rung."""
+    data = _factors_file()
+    if material is not None:
+        specific = data.get("credit_by_material", {}).get(rung, {}).get(canonical_material(material))
+        if specific is not None:
+            return float(specific)
+    return float(data["rung_credit"].get(rung, 0.0))
+
+
+def factor_basis(material: str) -> str:
+    """Which published row a material's factor comes from."""
+    return _factors_file().get("basis", {}).get(canonical_material(material), "")
 
 
 def factor_source() -> str:
