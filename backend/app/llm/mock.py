@@ -118,5 +118,8 @@ class MockLLM:
     async def render(self, prompt: str) -> Optional[bytes]:
         return None
 
+    async def translate(self, text: str, lang: str) -> str:
+        return text  # offline: no translation, the English is read as it is
+
     async def speech(self, text: str, lang: str) -> Optional[bytes]:
         return None  # offline: the app falls back to the device's own voice

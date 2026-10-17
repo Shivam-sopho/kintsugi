@@ -7,6 +7,7 @@ import logging
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from typing import Any, Optional
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -191,28 +192,35 @@ async def transcribe(file: UploadFile = File(...), hint: str = Form("notes")) ->
 class SpeakIn(BaseModel):
     text: str = Field(min_length=1, max_length=1500)
     lang: str = Field("en", max_length=8)
+    translate: bool = False  # text is English; read it in `lang` (spoken summaries in the person's language)
 
 
 # Each line takes Gemini a few seconds, so repeat taps are served from memory.
-_speech_cache: OrderedDict[tuple[str, str], bytes] = OrderedDict()
+_speech_cache: OrderedDict[tuple[str, str, bool], tuple[str, Optional[bytes]]] = OrderedDict()
 SPEECH_CACHE_SIZE = 200
 
 
 @app.post("/api/speak")
 async def speak(body: SpeakIn) -> Response:
-    """Read text aloud with Gemini TTS. 204 means no audio (offline), so the app uses the device's voice."""
-    key = (body.lang, body.text)
-    audio = _speech_cache.get(key)
-    if audio is None:
-        audio = await get_llm().speech(body.text, body.lang)
-        if audio is None:
-            return Response(status_code=204)
-        _speech_cache[key] = audio
-        if len(_speech_cache) > SPEECH_CACHE_SIZE:
-            _speech_cache.popitem(last=False)
+    """Read text aloud with Gemini TTS, optionally translated from English first. The words spoken
+    come back in X-Spoken-Text (URL-encoded). 204 means no audio (offline): the app uses the device's voice."""
+    key = (body.lang, body.text, body.translate)
+    cached = _speech_cache.get(key)
+    if cached is None:
+        llm = get_llm()
+        spoken = await llm.translate(body.text, body.lang) if body.translate and body.lang != "en" else body.text
+        cached = (spoken, await llm.speech(spoken, body.lang))
+        if cached[1] is not None:  # don't remember failures
+            _speech_cache[key] = cached
+            if len(_speech_cache) > SPEECH_CACHE_SIZE:
+                _speech_cache.popitem(last=False)
     else:
         _speech_cache.move_to_end(key)
-    return Response(audio, media_type="audio/wav", headers={"Cache-Control": "private, max-age=86400"})
+    spoken, audio = cached
+    headers = {"X-Spoken-Text": quote(spoken), "Access-Control-Expose-Headers": "X-Spoken-Text"}
+    if audio is None:
+        return Response(status_code=204, headers=headers)
+    return Response(audio, media_type="audio/wav", headers={**headers, "Cache-Control": "private, max-age=86400"})
 
 
 @app.post("/api/jobs/{job_id}/skip")

@@ -441,8 +441,25 @@ def seed_participants(store: Store) -> list[Participant]:
     return ps
 
 
+class SampleMediaLLM:
+    """Judge mode films nothing: its sample videos, notice and prices come from the fixtures, so the
+    story is the same every time and quick. Every other call (negotiation wording, take-apart steps,
+    embeddings, speech) goes to the live model when there is one."""
+
+    SAMPLED = ("scout_media", "oracle_document", "price_items")
+
+    def __init__(self, live: LLM, settings: Settings):
+        from .llm.mock import MockLLM
+
+        self._live, self._sample = live, MockLLM(settings)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._sample if name in self.SAMPLED else self._live, name)
+
+
 async def judge_mode(store: Store, llm: LLM, settings: Settings, job_id: str) -> dict[str, Any]:
     """The full story in about a minute: one chair, one building, one city."""
+    llm = SampleMediaLLM(llm, settings)  # type: ignore[assignment]
     emit = Emitter(store, job_id, delay=settings.demo_step_delay)
     store_reset_keep_job(store, job_id)
     seed_participants(store)
