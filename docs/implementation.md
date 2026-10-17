@@ -243,7 +243,7 @@ One button on the landing page loads a preset scenario (pre-uploaded real footag
 
 ### Ledger (Prove)
 - **Purpose:** verified impact.
-- **Process:** for each completed deal or routing, compute mass diverted per material × emission factor (from a published embodied-carbon dataset such as the ICE database) and record value recovered.
+- **Process:** for each completed deal or routing, compute mass diverted per material × emission factor (from the UK Government GHG Conversion Factors 2026, material use and waste disposal) and record value recovered.
 - **Outputs:** `ledger_entries`; city totals; downloadable impact certificate (PDF) in the user's language; per-item "% recovered by weight".
 - **Guardrail:** every number links to its source factor and calculation.
 
@@ -335,7 +335,7 @@ Design principles: mobile-first, voice-first, large tap targets, one primary act
 
 | Need | Source |
 |---|---|
-| Embodied carbon factors | Published dataset such as the ICE (Inventory of Carbon and Energy) database; cite version used |
+| Embodied carbon factors | UK Government GHG Conversion Factors for Company Reporting 2026 (DESNZ), Open Government Licence v3.0 |
 | Resale prices | Gemini grounding with Google Search (store cited URLs) |
 | Repairers, recyclers, dealers | Google Maps Platform Places API, plus seeded demo participants |
 | Permits / notices | Public examples where available; otherwise clearly labelled synthetic samples |

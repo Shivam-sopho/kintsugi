@@ -53,7 +53,7 @@ Decided not to do: A7 Gemini Live API, A8 real AP2, A9 seller agent as its own s
 Hindi and Kannada strings written without review: `backend/app/certificate.py`, `backend/app/demo/fixtures.py`. Live translations come from Gemini.
 
 ### B3. Real data (optional; sample data is labelled)
-- Emission factors in `backend/data/emission_factors.json` are approximate values in the ICE range. To cite exact ones, download ICE v4.0 (free form) from circularecology.com/embodied-carbon-footprint-database.html and update the values and `source`.
+- Emission factors are done: `backend/data/emission_factors.json` is generated from the UK Government GHG Conversion Factors 2026 (DESNZ, flat file v1.2, Open Government Licence v3.0), with the government row behind each value in `basis`. ICE was not used: its v5.0 Educational terms forbid use in software or carbon calculations.
 - `backend/data/scrap_rates.json` holds sample Bengaluru rates.
 
 ### A3. Scout accuracy numbers (optional)
