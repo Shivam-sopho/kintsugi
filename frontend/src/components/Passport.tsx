@@ -9,6 +9,7 @@ import LifeStory from "./LifeStory";
 import TakersList from "./TakersList";
 import ExplainCard from "./ExplainCard";
 import { say } from "../speak";
+import Problem from "./Problem";
 import { preferredLanguage } from "../language";
 
 /** What Kintsugi says once something is handed over: where it went and what it saved. */
@@ -278,7 +279,7 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
           )}
         </p>
       )}
-      {error && <p className="error" role="alert">{error}</p>}
+      <Problem text={error} />
     </article>
   );
 }

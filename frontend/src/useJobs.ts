@@ -19,7 +19,7 @@ export function useJobs() {
       setState(await api.state());
       setError(null);
     } catch (e) {
-      setError(`Can't reach the Kintsugi API (${(e as Error).message}). Is the backend running?`);
+      setError(`Can't reach Kintsugi for a moment (${(e as Error).message}).`);
     }
   }, []);
 

@@ -13,7 +13,8 @@ from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from google.genai import errors as genai_errors
 from pydantic import BaseModel, Field
 
 from . import agents
@@ -22,6 +23,7 @@ from .certificate import render as render_certificate
 from .config import get_settings
 from .demo import fixtures
 from .llm import MediaRef, get_llm
+from .llm.gemini import is_busy
 from .evidence import get_evidence_store
 from .media import to_media_ref
 from .models import GeoPoint, Item, Job, Site, new_id
@@ -58,11 +60,23 @@ if settings.a2a_enabled:
 _tasks: set[asyncio.Task] = set()
 
 
+BUSY_MESSAGE = ("Google's Gemini is very busy for a moment, so Kintsugi is waiting its turn. "
+                "Please try again in a minute; nothing you added was lost.")
+
+
 def friendly_error(exc: Exception) -> str:
     """What a person sees when a job fails: plain words, not a raw API error."""
-    if getattr(exc, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(exc):
-        return "Gemini is very busy right now. Please try again in a minute; nothing you added was lost."
-    return str(exc)
+    return BUSY_MESSAGE if is_busy(exc) else str(exc)
+
+
+@app.exception_handler(genai_errors.APIError)
+async def gemini_error(request, exc: genai_errors.APIError):
+    """A Gemini call that fails in a request (Ask, explain, transcribe): plain words, and 503 with
+    Retry-After when it is only busy, so the app can try again by itself."""
+    log.warning("Gemini error on %s: %s", request.url.path, exc)
+    if is_busy(exc):
+        return JSONResponse({"detail": BUSY_MESSAGE, "busy": True}, status_code=503, headers={"Retry-After": "5"})
+    return JSONResponse({"detail": "Gemini couldn't do that one. Please try again."}, status_code=502)
 
 
 def _start_job(kind: str, coro_factory) -> Job:

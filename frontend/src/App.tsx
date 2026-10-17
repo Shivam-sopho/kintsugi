@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useJobs } from "./useJobs";
 import { setVoiceReplies, unlockAudio, voiceRepliesOn } from "./speak";
-import { sentence } from "./labels";
+import { sentence, isBusy, problemText } from "./labels";
 import MapView, { type Layers } from "./components/MapView";
 import MapPanel from "./components/MapPanel";
 import HomePanel from "./components/HomePanel";
@@ -64,7 +64,7 @@ export default function App() {
       setSiteId(null);
       setSheet({ kind: "story" });
     } catch (e) {
-      alert((e as Error).message);
+      alert(problemText((e as Error).message));
     }
   };
 
@@ -120,7 +120,7 @@ export default function App() {
         </button>
       </header>
 
-      {error && <p className="banner error" role="alert">{error}</p>}
+      {error && <p className={`banner ${isBusy(error) ? "busy-note" : "error"}`} role="status">{isBusy(error) ? "Reconnecting to Kintsugi… it picks up where it left off." : error}</p>}
 
       <main className={`layout tab-${tab === "map" && mapView === "list" ? "maplist" : tab}`}>
         <div className="map-wrap">

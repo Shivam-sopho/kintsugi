@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api";
 import type { AppState, Deal, NegotiationTurn } from "../types";
 import { LANG_LABEL, inr } from "../labels";
+import Problem from "./Problem";
 import ListenButton from "./ListenButton";
 
 const ACTION: Record<NegotiationTurn["action"], string> = {
@@ -139,7 +140,7 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
             </p>
           </>
         )}
-        {error && <p className="error" role="alert">{error}</p>}
+        <Problem text={error} />
       </div>
     </section>
   );

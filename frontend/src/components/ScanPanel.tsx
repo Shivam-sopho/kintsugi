@@ -7,6 +7,7 @@ import { say } from "../speak";
 import type { AppState, Job } from "../types";
 import { DEMO_CENTER, scanSummary } from "../labels";
 import BigMic from "./BigMic";
+import Problem from "./Problem";
 import ItemCard from "./ItemCard";
 
 interface Props {
@@ -181,7 +182,7 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
       <p className="small muted where">
         {locNote} <button type="button" className="link" onClick={useMyLocation}>Use my location</button>
       </p>
-      {error && <p className="error" role="alert">{error}</p>}
+      <Problem text={error} />
 
       {resultSite && (
         <section className="results" aria-live="polite">

@@ -4,6 +4,7 @@ import type { Explanation, Item } from "../types";
 import { RUNG_COLOR, RUNG_LABEL, sentence } from "../labels";
 import { RungIcon } from "./Icons";
 import ListenButton from "./ListenButton";
+import Problem from "./Problem";
 import { LANGUAGES, languageName, preferredLanguage } from "../language";
 
 const EXPLAIN_VERSION = "v3"; // matches the backend's cache key
@@ -25,6 +26,7 @@ export default function ExplainCard({ item }: { item: Item }) {
   const cachedFor = (l: string) => item.explanation?.[`${EXPLAIN_VERSION}:${l}`];
   const [data, setData] = useState<Explanation | null>(cachedFor(first) ?? null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -37,12 +39,12 @@ export default function ExplainCard({ item }: { item: Item }) {
     setData(null);
     api.explain(item.id, lang)
       .then((d) => alive && setData(d))
-      .catch((e) => alive && setError(`Couldn't explain it right now (${(e as Error).message}).`));
+      .catch((e) => alive && setError((e as Error).message));
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.id, item.explanation, lang]);
+  }, [item.id, item.explanation, lang, attempt]);
 
   const ideas = data?.afterlives ?? [];
   const readOut = data ? [...ideas.map((a) => `${a.use}.`), data.headline, ...data.parts.map((p) => `${p.part}: ${p.happens}`), data.why].join(" ") : "";
@@ -67,7 +69,7 @@ export default function ExplainCard({ item }: { item: Item }) {
           <span className="dots" aria-hidden="true"><i /><i /><i /></span> Gemini is working out what each part becomes…
         </div>
       )}
-      {error && <p className="small error">{error}</p>}
+      <Problem text={error} small onRetry={() => setAttempt((n) => n + 1)} />
       {data && (
         <div lang={lang}>
           {ideas.length > 0 && (
