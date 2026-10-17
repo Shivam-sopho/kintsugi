@@ -460,6 +460,9 @@ class SampleMediaLLM:
 async def judge_mode(store: Store, llm: LLM, settings: Settings, job_id: str) -> dict[str, Any]:
     """The full story in about a minute: one chair, one building, one city."""
     llm = SampleMediaLLM(llm, settings)  # type: ignore[assignment]
+    # Everything the demo creates is sample data, labelled as such, with its own sample takers (no
+    # live Places lookups), even when the model calls are live.
+    settings = settings.model_copy(update={"mock_mode": True})
     emit = Emitter(store, job_id, delay=settings.demo_step_delay)
     store_reset_keep_job(store, job_id)
     seed_participants(store)

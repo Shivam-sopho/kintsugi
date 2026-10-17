@@ -313,3 +313,11 @@ def test_judge_mode_never_sends_its_empty_sample_media_to_the_live_model():
     store.upsert_job(job)
     result = asyncio.run(agents.judge_mode(store, Live(settings), settings, job.id))
     assert result["deal_id"] and "negotiation_message" in calls and "embed_texts" in calls
+    # Sample data stays labelled as sample data, even when the model is live.
+    live = settings.model_copy(update={"mock_mode": False})
+    store.reset()
+    job = Job(kind="judge_mode")
+    store.upsert_job(job)
+    asyncio.run(agents.judge_mode(store, Live(live), live, job.id))
+    assert store.list_items() and all(i.synthetic for i in store.list_items())
+    assert all(p.synthetic for p in store.list_predictions())
