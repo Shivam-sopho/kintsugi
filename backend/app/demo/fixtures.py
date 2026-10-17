@@ -68,6 +68,21 @@ def participants() -> list[Participant]:
             accepts_materials=["foam", "plastic", "mixed", "textile", "paper"],
         ),
         Participant(
+            id="ppl_compost", name="Ward compost and biogas unit, HSR Layout", role="composter", language="kn",
+            location=GeoPoint(lat=12.9150, lng=77.6350),
+            accepts_materials=["organic"],
+        ),
+        Participant(
+            id="ppl_dwcc", name="Municipal dry waste collection centre, Koramangala", role="government", language="kn",
+            location=GeoPoint(lat=12.9330, lng=77.6200),
+            accepts_materials=["paper", "plastic", "glass", "textile", "aluminium", "steel"],
+        ),
+        Participant(
+            id="ppl_ewaste", name="Authorised e-waste collection point, Indiranagar", role="government", language="en",
+            location=GeoPoint(lat=12.9750, lng=77.6400),
+            accepts_materials=["electronics", "copper"],
+        ),
+        Participant(
             id="ppl_safehaz", name="SafeHaz Licensed Disposal", role="hazard_handler", language="en",
             location=GeoPoint(lat=12.9500, lng=77.6900),
             accepts_materials=["any"],
@@ -267,7 +282,7 @@ NEGOTIATION_TEMPLATES = {
 # Neighbours on the same street as the chair, used to show pickup bundling.
 NEIGHBOURS = [
     {
-        "name": "Home, HSR Layout Sector 2 (neighbour)",
+        "name": "Neighbour 1, HSR Layout Sector 2",
         "location": GeoPoint(lat=12.9124, lng=77.6481),
         "scan": {"items": [{
             "type": "pressure cooker", "description": "Old aluminium pressure cooker, lid seal gone",
@@ -277,7 +292,7 @@ NEIGHBOURS = [
         }]},
     },
     {
-        "name": "Home, HSR Layout Sector 2 (neighbour)",
+        "name": "Neighbour 2, HSR Layout Sector 2",
         "location": GeoPoint(lat=12.9109, lng=77.6466),
         "scan": {"items": [{
             "type": "steel bucket", "description": "Rusted steel bucket with a hole",
@@ -287,7 +302,7 @@ NEIGHBOURS = [
         }]},
     },
     {
-        "name": "Home, HSR Layout Sector 2 (neighbour)",
+        "name": "Neighbour 3, HSR Layout Sector 2",
         "location": GeoPoint(lat=12.9131, lng=77.6460),
         "scan": {"items": [{
             "type": "newspaper stack", "description": "About three months of newspapers",
@@ -296,6 +311,16 @@ NEIGHBOURS = [
             "hazards": [], "confidence": 0.95,
         }]},
     },
+    {
+        "name": "Neighbour 4, HSR Layout Sector 2",
+        "location": GeoPoint(lat=12.9131, lng=77.6459),
+        "scan": {"items": [{
+            "type": "garden waste", "description": "Two sacks of dry leaves and coconut fronds from a garden",
+            "count": 2, "condition": "D", "condition_reason": "Organic waste, cannot be reused",
+            "components": [{"name": "leaves and fronds", "material": "organic", "est_weight_kg": 9.0}],
+            "hazards": [], "confidence": 0.95,
+        }]},
+    }
 ]
 
 

@@ -73,3 +73,18 @@ def test_auto_approve_needs_a_highest_price(client):
     body = {"buyer_id": ANANYA, "query": "doors", "lat": 12.9, "lng": 77.6, "auto_approve": True}
     assert client.post("/api/requests", json=body).status_code == 400
     assert get_store().list_requests() == []
+
+
+def test_running_the_demo_never_deletes_peoples_data(client):
+    """Judges and testers share one database: the demo clears only its own sample data."""
+    mine = scan(client, kind="home", seller_id="ppl_me")
+    _request(client, "teak panel door")
+    demo_items = []
+    for _ in range(2):  # twice: the second run replaces the first run's sample data, nothing more
+        wait(client, client.post("/api/judge-mode").json()["id"])
+        state = client.get("/api/state").json()
+        demo_items.append(len([i for i in state["items"] if i["site_id"] in ("site_home_hsr", "site_office_kor")]))
+    ids = {i["id"] for i in state["items"]}
+    assert {i["id"] for i in mine} <= ids, "a person's own listing must survive the demo"
+    assert state["requests"], "standing requests must survive the demo"
+    assert demo_items[0] == demo_items[1] > 0, "the demo must not pile up duplicate sample data"

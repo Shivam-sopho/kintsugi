@@ -170,7 +170,7 @@ async def scout_ingest(
 
 async def scout_scan(
     store: Store, llm: LLM, settings: Settings, emit: Emitter, media: list[MediaRef],
-    site: Site, seller_id: str, narration_text: Optional[str] = None,
+    site: Site, seller_id: str, narration_text: Optional[str] = None, autopilot: bool = True,
 ) -> list[Item]:
     store.upsert_site(site)
     kinds = sorted({m.mime_type.split("/")[0] for m in media})
@@ -179,7 +179,8 @@ async def scout_scan(
     items = await scout_ingest(store, llm, settings, emit, raw, site, seller_id, media=media)
     if site.kind == "home":
         await run_bundling(store, emit)  # small items from nearby homes may now make a pickup worthwhile
-    await run_autopilot(store, llm, settings, emit, item_ids=[i.id for i in items])
+    if autopilot:  # the demo's sample items are never matched with people's real requests
+        await run_autopilot(store, llm, settings, emit, item_ids=[i.id for i in items])
     return items
 
 
@@ -557,7 +558,7 @@ async def judge_mode(store: Store, llm: LLM, settings: Settings, job_id: str) ->
     # live Places lookups), even when the model calls are live.
     settings = settings.model_copy(update={"mock_mode": True})
     emit = Emitter(store, job_id, delay=settings.demo_step_delay)
-    store_reset_keep_job(store, job_id)
+    clear_demo_data(store)
     seed_participants(store)
     await emit("system", "start", "Judge mode: sample data, Bengaluru. One chair, one building, one city.")
 
@@ -567,12 +568,13 @@ async def judge_mode(store: Store, llm: LLM, settings: Settings, job_id: str) ->
     # One chair
     home = Site(id="site_home_hsr", owner_id="ppl_home_priya", kind="home", name="Home, HSR Layout", location=fixtures.HOME_HSR)
     await scout_scan(store, llm, settings, emit, [MediaRef(name="chair_hsr.mp4", mime_type="video/mp4", data=b"")],
-                     home, seller_id="ppl_home_priya", narration_text="कुर्सी का पैर टूट गया है, सागौन की है")
+                     home, seller_id="ppl_home_priya", narration_text="कुर्सी का पैर टूट गया है, सागौन की है",
+                     autopilot=False)
     for n, nb in enumerate(fixtures.NEIGHBOURS):
         site = Site(id=f"site_nb_{n}", owner_id=f"ppl_nb_{n}", kind="home", name=nb["name"], location=nb["location"])
         store.upsert_site(site)
         await scout_ingest(store, llm, settings, emit, nb["scan"], site, seller_id=site.owner_id, quiet=True)
-    await emit("scout", "neighbours", "3 neighbours on the same street also listed small items")
+    await emit("scout", "neighbours", f"{len(fixtures.NEIGHBOURS)} neighbours on the same street also listed small items, including garden waste for the compost unit")
     await run_bundling(store, emit)
 
     # One building
@@ -580,7 +582,7 @@ async def judge_mode(store: Store, llm: LLM, settings: Settings, job_id: str) ->
                   location=fixtures.OFFICE_KORAMANGALA)
     office_items = await scout_scan(
         store, llm, settings, emit, [MediaRef(name="office_walkthrough.mp4", mime_type="video/mp4", data=b"")],
-        office, seller_id="ppl_ramesh",
+        office, seller_id="ppl_ramesh", autopilot=False,
     )
 
     # Design from what exists
@@ -600,12 +602,18 @@ async def judge_mode(store: Store, llm: LLM, settings: Settings, job_id: str) ->
     return {"deal_id": deal.id, "design": design, "totals": totals}
 
 
-def store_reset_keep_job(store: Store, job_id: str) -> None:
-    """Reset demo data but keep this job and its events so Mission control keeps streaming."""
-    job = store.get_job(job_id)
-    events = store.list_events(job_id)
-    store.reset()
-    if job:
-        store.upsert_job(job)
-    for e in events:
-        store.add_event(e)
+DEMO_SITE_IDS = {"site_home_hsr", "site_office_kor", *(f"site_nb_{n}" for n in range(len(fixtures.NEIGHBOURS)))}
+
+
+def clear_demo_data(store: Store) -> None:
+    """Remove what an earlier demo created (its sample sites, their items, deals, bundles, ledger
+    entries and the sample notices) and nothing else: people's own listings, deals, requests and
+    profiles stay, so data isn't lost when someone runs the demo."""
+    items = {i.id for i in store.list_items() if i.site_id in DEMO_SITE_IDS}
+    deals = [d for d in store.list_deals() if set(d.item_ids) & items]
+    store.delete_docs("ledger", [e.id for e in store.list_ledger() if e.item_id in items])
+    store.delete_docs("deals", [d.id for d in deals])
+    store.delete_docs("bundles", [b.id for b in store.list_bundles() if set(b.item_ids) & items])
+    store.delete_docs("items", list(items))
+    store.delete_docs("sites", [s.id for s in store.list_sites() if s.id in DEMO_SITE_IDS])
+    store.delete_docs("predictions", [p.id for p in store.list_predictions() if p.synthetic])

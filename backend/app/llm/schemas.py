@@ -22,7 +22,7 @@ SCOUT_SCHEMA = {
                                 "material": {
                                     "type": "string",
                                     "enum": ["wood", "steel", "aluminium", "copper", "glass", "ceramic", "brick", "concrete",
-                                             "stone", "plastic", "foam", "textile", "paper", "electronics"],
+                                             "stone", "plastic", "foam", "textile", "paper", "electronics", "organic"],
                                 },
                                 "est_weight_kg": {"type": "number"},
                             },

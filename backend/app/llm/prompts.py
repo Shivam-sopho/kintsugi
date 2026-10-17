@@ -21,7 +21,8 @@ How to describe each item:
   "steel almirah", "ceiling fan". description: one English sentence on what it is, its size and
   its visible condition. Use common Indian names where natural (almirah, cooler, mixer grinder).
 - components: break it into parts. Each part's material must be one of: wood, steel, aluminium,
-  copper, glass, ceramic, brick, concrete, stone, plastic, foam, textile, paper, electronics.
+  copper, glass, ceramic, brick, concrete, stone, plastic, foam, textile, paper, electronics,
+  organic (food, kitchen and garden waste, coconut shells: these can become compost or biogas).
   Put the specific kind in the part name, e.g. "tabletop (MDF)", "frame (teak)".
 - est_weight_kg: realistic weights from the visible size and typical materials. Use scale cues
   (an Indian door is about 200 x 80 cm, an A4 sheet is 21 x 29.7 cm, a brick is about 23 cm).

@@ -22,6 +22,7 @@ class Rung(str, Enum):
     UPCYCLE = "upcycle"
     HARVEST_PARTS = "harvest_parts"
     RECYCLE = "recycle"
+    COMPOST = "compost"  # organic material: composting or biogas
     RECOVER_ENERGY = "recover_energy"
     SAFE_DISPOSAL = "safe_disposal"
 
@@ -37,6 +38,8 @@ Role = Literal[
     "upcycler",
     "recycler",
     "energy_facility",
+    "composter",  # compost units and biogas plants
+    "government",  # e.g. municipal dry-waste collection centres, authorised e-waste points
     "hazard_handler",
     "buyer",
     "ngo",

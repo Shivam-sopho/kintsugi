@@ -452,10 +452,20 @@ async def bundles() -> dict[str, Any]:
     return _start_job("bundling", flow).model_dump(mode="json")
 
 
+_running_demos: list[str] = []  # this instance's demo job, if one is running
+
+
 @app.post("/api/judge-mode")
 async def judge_mode() -> dict[str, Any]:
+    """Run the demo, or join the one already running so two viewers don't interfere."""
     store, llm = get_store(), get_llm()
-    return _start_job("judge_mode", lambda job_id: agents.judge_mode(store, llm, settings, job_id)).model_dump(mode="json")
+    running = next((j for j in _running_demos if (cur := store.get_job(j)) and cur.status == "running"), None)
+    if running:
+        return store.get_job(running).model_dump(mode="json")  # type: ignore[union-attr]
+    _running_demos.clear()
+    job = _start_job("judge_mode", lambda job_id: agents.judge_mode(store, llm, settings, job_id))
+    _running_demos.append(job.id)
+    return job.model_dump(mode="json")
 
 
 @app.get("/api/certificate/{deal_id}", response_class=HTMLResponse)
