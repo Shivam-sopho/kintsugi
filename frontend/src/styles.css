@@ -578,3 +578,39 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .crash { max-width: 26rem; margin: 20vh auto 0; padding: 0 16px; text-align: center; }
 .crash h1 { font-family: var(--display); }
 .listen-again { display: inline-block; margin-top: 0.3rem; font-size: 0.85rem; }
+.schematic .flow { stroke-width: 2.5; opacity: 0.75; }
+.chip.flows.on { border-color: var(--celadon); color: var(--ink); }
+
+/* What becomes of it */
+.explain { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 1rem; margin: 0.9rem 0; box-shadow: 0 1px 0 var(--line); }
+.explain-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.explain-head h3 { margin: 0; font: 700 1.1rem/1.2 var(--display); }
+.lang-chips { display: flex; gap: 0.25rem; }
+.lang-chips button { border: 1px solid var(--line); background: var(--porcelain); border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.8rem; cursor: pointer; color: var(--slate); }
+.lang-chips button.on { border-color: var(--ink); color: var(--ink); font-weight: 600; background: var(--paper); }
+.explain-loading { color: var(--slate); display: flex; gap: 0.5rem; align-items: center; padding: 0.6rem 0; }
+.explain-headline { font: 600 1.12rem/1.4 var(--display); margin: 0.2rem 0 0.7rem; }
+.flow-list { list-style: none; padding: 0; margin: 0 0 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.flow-list li { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.6rem; padding: 0.55rem 0.7rem; border-radius: var(--radius-s); background: var(--porcelain); border-left: 3px solid var(--celadon); }
+.flow-part { font-weight: 600; }
+.flow-to { color: var(--celadon); font-size: 0.85rem; text-align: right; }
+.flow-to::before { content: "→ "; }
+.flow-happens { grid-column: 1 / -1; font-size: 0.92rem; color: var(--ink); }
+.explain h4 { margin: 0.4rem 0 0.3rem; font-size: 0.85rem; color: var(--slate); font-weight: 600; }
+.you-can { margin: 0 0 0.7rem; padding-left: 1.2rem; }
+.you-can li { margin-bottom: 0.25rem; }
+.why { margin: 0 0 0.6rem; padding: 0.5rem 0.7rem; border-radius: var(--radius-s); background: var(--porcelain); font-size: 0.92rem; }
+
+/* Choose how it goes */
+.next-life h3, .choose h3 { font-family: var(--display); }
+.choose { display: flex; flex-direction: column; gap: 0.7rem; margin: 0.6rem 0 1rem; }
+.option { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.option-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.option-head strong { font-size: 1.02rem; }
+.handover-option { border-left: 4px solid var(--celadon); }
+.handover-option .primary { background: var(--celadon); border-color: var(--celadon); }
+.sell-option { border-left: 4px solid var(--gold); }
+.on-its-way { background: var(--paper); border: 1px solid var(--celadon); border-radius: var(--radius-m); padding: 0.7rem 0.85rem; }
+.handover-card { background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--celadon); border-radius: var(--radius-m); padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; align-items: flex-start; }
+.handover-card h3 { margin: 0; font-family: var(--display); }
+.handover-card .takers { width: 100%; }

@@ -186,6 +186,7 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
         <section className="results" aria-live="polite">
           <h3>{results.length ? `Scout found ${results.length} ${results.length === 1 ? "item" : "items"}` : "Nothing listed"}</h3>
           {spoken && <p className="spoken">{spoken}</p>}
+          {results.length > 0 && <p className="small muted">Tap each one to see what it becomes and where its parts go.</p>}
           <ul className="cards">
             {results.map((i) => <ItemCard key={i.id} item={i} onOpen={() => onOpenItem(i.id)} />)}
           </ul>

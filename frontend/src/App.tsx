@@ -21,10 +21,11 @@ import { loadPersona, savePersona } from "./persona";
 type Tab = "home" | "map" | "deals" | "impact";
 
 const LAYER_LABEL: Record<keyof Layers, string> = {
+  flows: "Next lives",
   future: "Coming up",
   materials: "Materials",
   destinations: "Takers",
-  deals: "Deals",
+  deals: "Handovers",
 };
 
 // Simple line icons for the bottom bar (24px grid, stroke follows the text colour).
@@ -34,14 +35,14 @@ const ICON: Record<Tab, ReactNode> = {
   deals: <path d="M4 5h16v10H9l-5 4zM8 9h8M8 12h5" />,
   impact: <path d="M5 19V11M12 19V5M19 19v-6" />,
 };
-const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Deals", impact: "Impact" };
+const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Handovers", impact: "Impact" };
 
 type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | { kind: "story" } | { kind: "ask" } | null;
 
 export default function App() {
   const { state, job, events, error, refresh, track } = useJobs();
   const [tab, setTab] = useState<Tab>("home");
-  const [layers, setLayers] = useState<Layers>({ future: true, materials: true, destinations: true, deals: true });
+  const [layers, setLayers] = useState<Layers>({ flows: true, future: true, materials: true, destinations: true, deals: true });
   const [siteId, setSiteId] = useState<string | null>(null);
   const [predictionId, setPredictionId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetState>(null);

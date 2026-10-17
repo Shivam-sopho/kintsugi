@@ -7,6 +7,7 @@ import VoiceButton from "./VoiceButton";
 import { RungIcon } from "./Icons";
 import Journey from "./Journey";
 import TakersList from "./TakersList";
+import ExplainCard from "./ExplainCard";
 
 const CONDITION: Record<Item["condition"], string> = { A: "Like new", B: "Good", C: "Worn", D: "Broken" };
 const BUYING_ROLES = new Set(["buyer", "ngo", "dealer"]);
@@ -33,6 +34,8 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
   const langs = Object.keys(item.take_apart);
   const [stepLang, setStepLang] = useState(langs.find((l) => l !== "en") ?? "en");
   const open = item.status === "available";
+  const routeIds = [...new Set([item.destination_id, ...item.components.map((c) => c.destination_id)].filter(Boolean) as string[])];
+  const routeNames = routeIds.map((id) => people[id]?.name).filter(Boolean) as string[];
 
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setBusy(label);
@@ -112,24 +115,50 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
         </div>
       )}
 
-      <ol className="ladder" aria-label="Next-life ladder">
-        {RUNG_ORDER.map((r) => (
-          <li key={r} className={r === item.next_life ? "on" : ""} style={{ ["--rung" as string]: RUNG_COLOR[r] }}>
-            <RungIcon rung={r} /> {RUNG_LABEL[r]}
-          </li>
-        ))}
-      </ol>
-      <p className="reason">{item.next_life_reason}</p>
-      {dest && <p className="muted">Goes to {dest.name}</p>}
+      <ExplainCard item={item} />
 
-      {open && dest && BUYING_ROLES.has(dest.role) && (
-        <button className="primary gold" disabled={busy === "offer"} onClick={() => run("offer", () => onOffer(item.id))}>
-          {busy === "offer" ? "Starting…" : `Offer to ${dest.name}`}
-        </button>
-      )}
+      <section className="next-life">
+        <h3>Its next life, decided by the rules</h3>
+        <ol className="ladder" aria-label="Next-life ladder">
+          {RUNG_ORDER.map((r) => (
+            <li key={r} className={r === item.next_life ? "on" : ""} style={{ ["--rung" as string]: RUNG_COLOR[r] }}>
+              <RungIcon rung={r} /> {RUNG_LABEL[r]}
+            </li>
+          ))}
+        </ol>
+        <p className="reason">{item.next_life_reason}</p>
+      </section>
 
-      {open && (
-        <div className="floor">
+      {open ? (
+        <section className="choose">
+          <h3>Choose how it goes</h3>
+          <div className="option handover-option">
+            <div className="option-head">
+              <strong>{item.hazards.length ? "Hand it to a licensed handler" : "Hand it over"}</strong>
+              <span className="status ok">Free</span>
+            </div>
+            <p className="small muted">
+              {routeNames.length
+                ? `It goes to ${routeNames.join(", ")}. Kintsugi records what it keeps out of landfill and the CO2e it saves.`
+                : "No taker nearby yet. Kintsugi keeps looking and tells you when one appears."}
+            </p>
+            <button className="primary wide" disabled={busy === "handover" || !routeNames.length}
+                    onClick={() => run("handover", async () => { const job = await api.handover(item.id); onJob?.(job, onChanged); })}>
+              {busy === "handover" ? "Arranging…" : item.hazards.length ? "Hand it to the licensed handler" : "Hand it over"}
+            </button>
+          </div>
+
+          {!item.hazards.length && dest && BUYING_ROLES.has(dest.role) && (
+            <div className="option sell-option">
+              <div className="option-head">
+                <strong>Sell it</strong>
+                {!!item.value_max_inr && <span className="muted small">worth {inr(item.value_min_inr)}–{inr(item.value_max_inr)} each</span>}
+              </div>
+              <p className="small muted">{dest.name} wants it. Agents negotiate for you and the buyer, each within a private limit.</p>
+              <button className="primary gold wide" disabled={busy === "offer"} onClick={() => run("offer", () => onOffer(item.id))}>
+                {busy === "offer" ? "Starting…" : `Offer to ${dest.name}`}
+              </button>
+              <div className="floor">
           <span className="small">
             {item.has_floor_price ? "Your lowest price is set. Only your agent knows it." : "Your lowest price (only your agent will know it)"}
           </span>
@@ -139,10 +168,7 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
             <VoiceButton hint="floor" label="Say it" onResult={(t) => t.amount_inr && saveFloor(t.amount_inr)} />
           </div>
         </div>
-      )}
-
-      {open && (
-        <div className={`autopilot-box ${item.autopilot ? "on" : ""}`}>
+              <div className={`autopilot-box ${item.autopilot ? "on" : ""}`}>
           <label className="switch">
             <input
               type="checkbox"
@@ -170,13 +196,18 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
             </span>
           </label>
         </div>
+            </div>
+          )}
+        </section>
+      ) : (
+        <p className="on-its-way">On its way to its next life. {item.status === "sold" ? "Sold" : "Handed over"}; see Handovers.</p>
       )}
 
       <dl className="facts">
         <div><dt>Condition</dt><dd>{CONDITION[item.condition]} ({item.condition})</dd></div>
         <div><dt>Value</dt><dd>{item.value_max_inr ? `${inr(item.value_min_inr)}–${inr(item.value_max_inr)} each` : "–"}</dd></div>
         <div><dt>Weight</dt><dd>{kg(weight)}</dd></div>
-        <div><dt>CO2 avoided</dt><dd>{kg(item.co2_avoided_kg)}</dd></div>
+        <div><dt>CO2e avoided</dt><dd>{kg(item.co2_avoided_kg)}</dd></div>
         {item.recovered_fraction != null && <div><dt>Kept out of landfill</dt><dd>{Math.round(item.recovered_fraction * 100)}%</dd></div>}
         <div><dt>Confidence</dt><dd>{Math.round(item.confidence * 100)}%</dd></div>
         {item.tap_test && item.tap_test !== "unknown" && <div><dt>Tap test</dt><dd>{item.tap_test}</dd></div>}
