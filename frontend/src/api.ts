@@ -32,6 +32,10 @@ export const api = {
     return { audio: res.status === 200 ? await res.blob() : null, spoken };
   },
   state: () => call<AppState>("/api/state"),
+  itemAutopilot: (id: string, on: boolean) => call<Job>(`/api/items/${id}/autopilot`, json({ on })),
+  createRequest: (body: { buyer_id: string; query: string; lat: number; lng: number; radius_km: number; cap_inr?: number; auto_approve: boolean }) =>
+    call<Job>("/api/requests", json(body)),
+  cancelRequest: (id: string) => call<unknown>(`/api/requests/${id}/cancel`, { method: "POST" }),
   job: (id: string) => call<Job>(`/api/jobs/${id}`),
   events: (id: string, after: number) => call<AgentEvent[]>(`/api/jobs/${id}/events?after=${after}`),
   judgeMode: () => call<Job>("/api/judge-mode", { method: "POST" }),

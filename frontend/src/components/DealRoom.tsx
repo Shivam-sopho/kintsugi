@@ -59,7 +59,9 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
           </select>
         )}
       </div>
-      <p className="muted">{items.map((i) => `${i!.count} × ${i!.type}`).join(", ")}</p>
+      <p className="muted">
+        {deal.autopilot && <span className="status autopilot">Autopilot</span>} {items.map((i) => `${i!.count} × ${i!.type}`).join(", ")}
+      </p>
 
       <div className="mode-switch phone-switch" role="tablist" aria-label="Whose phone">
         <button role="tab" aria-selected={view === "seller"} className={view === "seller" ? "on" : ""} onClick={() => setView("seller")}>

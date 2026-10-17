@@ -20,7 +20,7 @@ from .geo import haversine_km
 from .llm.base import LLM, MediaRef
 from .materials import canonical_material
 from .models import (
-    AgentEvent, Component, Deal, GeoPoint, Item, Participant, Prediction, Rung, Site,
+    AgentEvent, Component, Deal, GeoPoint, Item, Participant, Prediction, Rung, Site, StandingRequest,
 )
 from .a2a_seller import A2ASeller, lot_summary, seller_terms
 from .negotiation import BuyerBrain, LocalSeller, SellerBrain, negotiate, sandbox_settlement
@@ -179,6 +179,7 @@ async def scout_scan(
     items = await scout_ingest(store, llm, settings, emit, raw, site, seller_id, media=media)
     if site.kind == "home":
         await run_bundling(store, emit)  # small items from nearby homes may now make a pickup worthwhile
+    await run_autopilot(store, llm, settings, emit, item_ids=[i.id for i in items])
     return items
 
 
@@ -214,6 +215,98 @@ async def offer_item(store: Store, llm: LLM, settings: Settings, emit: Emitter, 
     if taker is None or taker.role not in ("buyer", "ngo", "dealer"):
         raise ValueError("The taker for this item doesn't buy items; it is routed instead")
     return await negotiate_deal(store, llm, settings, emit, [it.id], taker.id)
+
+
+# ---------------------------------------------------------------- Autopilot
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    na, nb = sum(x * x for x in a) ** 0.5, sum(y * y for y in b) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
+
+
+async def set_autopilot(store: Store, llm: LLM, settings: Settings, emit: Emitter, item_id: str, on: bool) -> list[Deal]:
+    """The seller lets their agent sell this item on its own, never below their private lowest
+    price. Hazards are never sold this way: they go to a licensed handler."""
+    it = store.get_item(item_id)
+    if it is None:
+        raise ValueError("Item not found")
+    if on and it.hazards:
+        raise ValueError("Suspected hazards go to a licensed handler, so they can't be sold on Autopilot.")
+    if on and it.floor_price_inr is None:
+        raise ValueError("Set your lowest price first, so your agent knows where to stop.")
+    if it.status != "available":
+        raise ValueError("This item is already in a deal")
+    it.autopilot = on
+    store.upsert_items([it])
+    await emit("seller", "autopilot", f"Autopilot {'on' if on else 'off'} for the {it.type}"
+               + (": the seller's agent will negotiate with matching buyers, never below the seller's lowest price." if on else "."))
+    return await run_autopilot(store, llm, settings, emit, item_ids=[it.id]) if on else []
+
+
+async def create_request(
+    store: Store, llm: LLM, settings: Settings, emit: Emitter, buyer_id: str, query: str, near: GeoPoint,
+    radius_km: float, cap_inr: Optional[float], auto_approve: bool,
+) -> tuple[StandingRequest, list[Deal]]:
+    """A buyer saves what they're looking for; Kintsugi checks what's listed now and every new scan."""
+    buyer = store.get_participant(buyer_id)
+    if buyer is None or buyer.role not in ("buyer", "ngo", "dealer"):
+        raise ValueError("Only buyers, charities and dealers can save a standing request.")
+    if auto_approve and not cap_inr:
+        raise ValueError("Give a highest price to approve deals automatically.")
+    req = StandingRequest(buyer_id=buyer_id, query=query.strip(), location=near, radius_km=radius_km,
+                          cap_inr=cap_inr, auto_approve=auto_approve)
+    req.embedding = (await llm.embed_texts([req.query]))[0]
+    store.upsert_request(req)
+    await emit("buyer", "request", f"{buyer.name} saved a standing request: {req.query}, within {radius_km:.0f} km"
+               + (", approving automatically within a private limit." if auto_approve else "."))
+    return req, await run_autopilot(store, llm, settings, emit, request_ids=[req.id])
+
+
+async def run_autopilot(
+    store: Store, llm: LLM, settings: Settings, emit: Emitter,
+    item_ids: Optional[list[str]] = None, request_ids: Optional[list[str]] = None,
+) -> list[Deal]:
+    """Match listed items with buyers' standing requests. If the seller has put an item on
+    Autopilot, the two agents negotiate on their own; a deal within the buyer's auto-approve limit
+    settles without anyone tapping. Otherwise the buyer is told about the match. The limits stay
+    private to each agent, and hazards are never matched."""
+    requests = [r for r in store.list_requests() if r.active and r.embedding and (request_ids is None or r.id in request_ids)]
+    deals: list[Deal] = []
+    for req in requests:
+        buyer = store.get_participant(req.buyer_id)
+        if buyer is None:
+            continue
+        for it in store.list_items():
+            if item_ids is not None and it.id not in item_ids:
+                continue
+            if (it.status != "available" or not it.embedding or it.hazards or it.seller_id == req.buyer_id
+                    or it.id in req.matched_item_ids):
+                continue
+            score = _cosine(req.embedding or [], it.embedding)
+            dist = haversine_km(req.location, it.location)
+            if score < settings.autopilot_min_score or dist > req.radius_km:
+                continue
+            if not it.autopilot:
+                if it.id in req.notified_item_ids:
+                    continue
+                req.notified_item_ids.append(it.id)
+                store.upsert_request(req)
+                await emit("market", "match", f"New match for {buyer.name}: {it.type}, {dist:.1f} km away, fits "
+                           f"\"{req.query}\". The seller hasn't turned on Autopilot, so {buyer.name} can make an offer.")
+                continue
+            req.matched_item_ids.append(it.id)
+            store.upsert_request(req)
+            await emit("market", "autopilot", f"Autopilot: {it.type} fits {buyer.name}'s request \"{req.query}\", "
+                       f"{dist:.1f} km away. Both agents start negotiating.")
+            deal = await negotiate_deal(store, llm, settings, emit, [it.id], buyer.id, budget_cap_inr=req.cap_inr,
+                                        autopilot=True)
+            if deal.status == "agreed" and req.auto_approve:
+                await emit("buyer", "autopilot", f"The price is within {buyer.name}'s auto-approve limit, "
+                           "so the buyer agent approves.", deal_id=deal.id)
+                deal = await approve_deal(store, emit, deal.id)
+            deals.append(deal)
+    return deals
 
 
 # ---------------------------------------------------------------- Oracle
@@ -311,7 +404,7 @@ async def architect_design(
 
 async def negotiate_deal(
     store: Store, llm: LLM, settings: Settings, emit: Emitter, item_ids: list[str], buyer_id: str,
-    budget_cap_inr: Optional[float] = None,
+    budget_cap_inr: Optional[float] = None, autopilot: bool = False,
 ) -> Deal:
     """The buyer's agent negotiates with the seller's agent. Over A2A by default, so the seller's
     floor stays inside the seller agent; the buyer's cap stays here with the buyer agent."""
@@ -334,7 +427,7 @@ async def negotiate_deal(
     seller_lang = seller.language if seller else "en"
     summary = lot_summary(items)
 
-    deal = Deal(item_ids=[i.id for i in items], seller_id=seller_id, buyer_id=buyer_id)
+    deal = Deal(item_ids=[i.id for i in items], seller_id=seller_id, buyer_id=buyer_id, autopilot=autopilot)
     for i in items:
         i.status = "in_deal"
     store.upsert_items(items)

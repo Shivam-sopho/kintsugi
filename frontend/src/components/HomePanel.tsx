@@ -17,6 +17,7 @@ interface Props {
   onDealStarted: () => void;
   onRunDemo: () => void;
   demoRunning: boolean;
+  onChanged: () => void;
 }
 
 /** Home: one question, two answers. Talking is the main way in; filming, photos and typing still work. */
@@ -41,7 +42,7 @@ export default function HomePanel(p: Props) {
       {mode === "have" ? (
         <ScanPanel state={p.state} sellerId={p.personaId} onJob={p.onJob} onOpenItem={p.onOpenItem} />
       ) : (
-        <FindPanel state={p.state} buyerId={p.personaId} onJob={p.onJob} onDealStarted={p.onDealStarted} onOpenItem={p.onOpenItem} />
+        <FindPanel state={p.state} buyerId={p.personaId} onJob={p.onJob} onDealStarted={p.onDealStarted} onOpenItem={p.onOpenItem} onChanged={p.onChanged} />
       )}
 
       {recent.length > 0 ? (

@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     model_embedding: str = "gemini-embedding-2-preview"
     model_tts: str = "gemini-2.5-flash-tts"  # Listen: reads steps and deal messages aloud
     tts_voice: str = "Kore"
+    # How close a listing must be to a standing request to count as a match. Measured with Gemini
+    # Embedding 2: right matches scored 0.65-0.78 (Hindi included), wrong ones at most 0.62.
+    autopilot_min_score: float = 0.64
     embedding_dim: int = 768  # reduced via Matryoshka; must match the Firestore vector index
 
     # Google Maps Platform (Places + Geocoding), server-side key

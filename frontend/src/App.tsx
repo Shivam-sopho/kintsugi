@@ -158,6 +158,7 @@ export default function App() {
                 onDealStarted={() => setTab("deals")}
                 onRunDemo={runDemo}
                 demoRunning={demoRunning}
+                onChanged={refresh}
               />
             ) : tab === "map" ? (
               <MapPanel
@@ -198,7 +199,7 @@ export default function App() {
 
       {sheet?.kind === "item" && sheetItem && state && (
         <Sheet title={sheetItem.type} onClose={() => setSheet(null)}>
-          <Passport key={sheetItem.id} item={sheetItem} state={state} onBack={() => setSheet(null)} onChanged={refresh} onOffer={offer} />
+          <Passport key={sheetItem.id} item={sheetItem} state={state} onBack={() => setSheet(null)} onChanged={refresh} onOffer={offer} onJob={track} />
         </Sheet>
       )}
       {sheet?.kind === "profile" && state && (

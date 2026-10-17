@@ -103,6 +103,13 @@ def _home_ids(store) -> set[str]:
     return {s.id for s in store.list_sites() if s.kind == "home"}
 
 
+def public_request(r) -> dict[str, Any]:
+    """A standing request as others may see it: the buyer's highest price stays with their agent."""
+    data = r.model_dump(mode="json", exclude={"cap_inr", "embedding"})
+    data["has_cap"] = r.cap_inr is not None
+    return data
+
+
 @app.get("/api/state")
 def state() -> dict[str, Any]:
     """Everything the map needs in one call."""
@@ -123,6 +130,7 @@ def state() -> dict[str, Any]:
         "predictions": [p.model_dump(mode="json") for p in store.list_predictions()],
         "deals": [d.model_dump(mode="json") for d in store.list_deals()],
         "bundles": [b.model_dump(mode="json") for b in store.list_bundles()],
+        "requests": [public_request(r) for r in store.list_requests()],
         "totals": agents.ledger_summary(store),
     }
 
@@ -156,6 +164,69 @@ async def patch_item(item_id: str, body: ItemPatch) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return public_item(it, _home_ids(store))
+
+
+class AutopilotIn(BaseModel):
+    on: bool
+
+
+@app.post("/api/items/{item_id}/autopilot")
+async def item_autopilot(item_id: str, body: AutopilotIn) -> dict[str, Any]:
+    """The seller turns Autopilot on or off for an item; when on, matching buyers are looked for now."""
+    store, llm = get_store(), get_llm()
+    it = store.get_item(item_id)
+    if not it:
+        raise HTTPException(404, "Item not found")
+    if body.on and it.hazards:
+        raise HTTPException(400, "Suspected hazards go to a licensed handler, so they can't be sold on Autopilot.")
+    if body.on and it.floor_price_inr is None:
+        raise HTTPException(400, "Set your lowest price first, so your agent knows where to stop.")
+
+    async def flow(job_id: str):
+        deals = await agents.set_autopilot(store, llm, settings, agents.Emitter(store, job_id, delay=0.4), item_id, body.on)
+        return {"deal_ids": [d.id for d in deals]}
+
+    return _start_job("autopilot", flow).model_dump(mode="json")
+
+
+class RequestIn(BaseModel):
+    buyer_id: str
+    query: str = Field(min_length=2, max_length=200)
+    lat: float
+    lng: float
+    radius_km: float = Field(10.0, gt=0, le=50)
+    cap_inr: Optional[float] = Field(None, gt=0)
+    auto_approve: bool = False
+
+
+@app.post("/api/requests")
+async def create_request(body: RequestIn) -> dict[str, Any]:
+    """A buyer's standing request: matched against what's listed now and every new scan."""
+    store, llm = get_store(), get_llm()
+    buyer = store.get_participant(body.buyer_id)
+    if not buyer or buyer.role not in ("buyer", "ngo", "dealer"):
+        raise HTTPException(400, "Only buyers, charities and dealers can save a standing request.")
+    if body.auto_approve and not body.cap_inr:
+        raise HTTPException(400, "Give a highest price to approve deals automatically.")
+
+    async def flow(job_id: str):
+        req, deals = await agents.create_request(
+            store, llm, settings, agents.Emitter(store, job_id, delay=0.4), body.buyer_id, body.query,
+            GeoPoint(lat=body.lat, lng=body.lng), body.radius_km, body.cap_inr, body.auto_approve)
+        return {"request_id": req.id, "deal_ids": [d.id for d in deals]}
+
+    return _start_job("request", flow).model_dump(mode="json")
+
+
+@app.post("/api/requests/{request_id}/cancel")
+def cancel_request(request_id: str) -> dict[str, Any]:
+    store = get_store()
+    req = next((r for r in store.list_requests() if r.id == request_id), None)
+    if not req:
+        raise HTTPException(404, "Request not found")
+    req.active = False
+    store.upsert_request(req)
+    return public_request(req)
 
 
 @app.post("/api/items/{item_id}/offer")
