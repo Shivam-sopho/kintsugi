@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { AgentEvent, Job } from "../types";
-import { AGENT_LABEL } from "../labels";
+import { AGENT_LABEL, BUSY, isBusy } from "../labels";
 import { AGENT_MODELS } from "./DemoStory";
 
 const ORDER = ["oracle", "scout", "architect", "seller", "buyer", "bundler", "ledger"];
@@ -47,7 +47,7 @@ export default function MissionControl({ job, events, onSkip }: { job: Job | nul
           </li>
         ))}
         <li ref={end} className="end">
-          {job.status === "running" ? "Working…" : job.status === "error" ? `Stopped: ${job.error}` : "Done."}
+          {job.status === "running" ? "Working…" : job.status === "error" ? (isBusy(job.error) ? BUSY : `Stopped: ${job.error}`) : "Done."}
         </li>
       </ol>
     </section>

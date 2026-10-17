@@ -1,5 +1,5 @@
 import type { AgentEvent, Job } from "../types";
-import { AGENT_LABEL } from "../labels";
+import { BUSY, isBusy, AGENT_LABEL } from "../labels";
 
 interface Props {
   job: Job | null;
@@ -16,7 +16,7 @@ export default function AgentStrip({ job, events, onOpen, onSkip }: Props) {
   const text = running
     ? last?.message ?? "Starting…"
     : job.status === "error"
-      ? `Stopped: ${job.error ?? "something went wrong"}`
+      ? isBusy(job.error) ? BUSY : `Stopped: ${job.error ?? "something went wrong"}`
       : last?.message ?? "Done.";
   return (
     <div className={`agent-line ${running ? "running" : job.status}`}>

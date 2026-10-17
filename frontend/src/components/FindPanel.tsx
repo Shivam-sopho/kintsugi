@@ -5,6 +5,7 @@ import type { AppState, DesignResult, Job, SearchResult } from "../types";
 import { DEMO_CENTER, inr, searchSummary } from "../labels";
 import BigMic from "./BigMic";
 import ItemCard from "./ItemCard";
+import Problem from "./Problem";
 import VoiceButton from "./VoiceButton";
 
 function toBase64(file: File): Promise<{ b64: string; mime: string }> {
@@ -190,7 +191,7 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
           </button>
         </div>
       )}
-      {error && <p className="error" role="alert">{error}</p>}
+      <Problem text={error} />
 
       <details className="more" open={Boolean(results && results.length === 0) || myRequests.length > 0}>
         <summary>Keep looking for me</summary>

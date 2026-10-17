@@ -661,3 +661,8 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .standing .progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 0.35rem 0; }
 .standing .progress span { display: block; height: 100%; background: var(--gold); }
 .standing .actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+
+/* Gemini momentarily busy: a calm note, not an error */
+.busy-note { display: flex; gap: 0.5rem; align-items: flex-start; background: var(--porcelain); border: 1px solid var(--line); border-left: 4px solid var(--gold); color: var(--ink); border-radius: var(--radius-s); padding: 0.6rem 0.75rem; margin: 0.5rem 0; }
+.busy-note .dots { flex: none; margin-top: 0.45rem; }
+.banner.busy-note { margin: 0; border-radius: 0; }

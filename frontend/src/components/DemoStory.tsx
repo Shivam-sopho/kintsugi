@@ -1,5 +1,6 @@
 import type { AgentEvent, AppState, Job } from "../types";
-import { AGENT_LABEL, inr, kg } from "../labels";
+import { AGENT_LABEL, inr, kg, isBusy } from "../labels";
+import Problem from "./Problem";
 import { api } from "../api";
 
 /** Which Gemini model (or plain code) does each agent's work: shown so judges see where AI acts. */
@@ -118,7 +119,7 @@ export default function DemoStory({ job, events, state, onSkip, onShowSteps, onF
               <strong>{AGENT_LABEL[last.agent] ?? last.agent}</strong> {last.message}
             </p>
           )}
-          {failed && <p className="error">Stopped: {job.error}</p>}
+          {failed && <Problem text={isBusy(job.error) ? job.error : `Stopped: ${job.error}`} />}
         </article>
       ) : (
         <article className="story-card done">

@@ -1,5 +1,6 @@
 import type { AgentEvent, AppState, Item, Job } from "../types";
-import { AGENT_LABEL, LANG_LABEL, RUNG_LABEL, TAKER_ROLE, inr, kg, km, sentence } from "../labels";
+import { AGENT_LABEL, LANG_LABEL, RUNG_LABEL, TAKER_ROLE, inr, kg, km, sentence, isBusy } from "../labels";
+import Problem from "./Problem";
 import { journey } from "./Journey";
 
 /**
@@ -179,7 +180,7 @@ export function LiveJourney({ job, events, state, onOpenItem, onShowSteps }: Liv
       </div>
       <p className="small muted">Stage {at + 1} of {STAGES.length}: {STAGES[at].title.toLowerCase()}</p>
       <article className="story-card" aria-live="polite">
-        <h2>{running ? KIND_TITLE[job.kind] ?? "The agents are working" : job.status === "error" ? "Stopped" : DONE_TITLE[job.kind]?.(items.length) ?? "Done"}</h2>
+        <h2>{running ? KIND_TITLE[job.kind] ?? "The agents are working" : job.status === "error" ? (isBusy(job.error) ? "Waiting for Gemini" : "Stopped") : DONE_TITLE[job.kind]?.(items.length) ?? "Done"}</h2>
         <ul className="model-chips" aria-label="Doing the work">
           <li>{STAGES[at].who}: {STAGES[at].model}</li>
         </ul>
@@ -189,7 +190,7 @@ export function LiveJourney({ job, events, state, onOpenItem, onShowSteps }: Liv
             <strong>{AGENT_LABEL[last.agent] ?? last.agent}</strong> {last.message}
           </p>
         )}
-        {job.status === "error" && <p className="error">{job.error}</p>}
+        {job.status === "error" && <Problem text={job.error} />}
       </article>
 
       <ol className="chapter-list">

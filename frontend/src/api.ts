@@ -7,8 +7,15 @@ const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$
 const isNative = Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
 const FILES = (isNative && (import.meta.env.VITE_DOWNLOAD_BASE as string | undefined)?.replace(/\/$/, "")) || BASE;
 
+const BUSY_RETRIES_MS = [3000, 7000]; // when Gemini is busy, wait and ask again before telling anyone
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, init);
+  let res = await fetch(`${BASE}${path}`, init);
+  for (const wait of BUSY_RETRIES_MS) {
+    if (res.status !== 503 && res.status !== 429) break;
+    await new Promise((r) => setTimeout(r, wait));
+    res = await fetch(`${BASE}${path}`, init);
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {

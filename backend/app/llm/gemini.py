@@ -61,15 +61,20 @@ class GeminiLLM:
             response_json_schema=schema,
             temperature=temperature,
         )
-        try:
-            resp = await self.client.aio.models.generate_content(model=model, contents=contents, config=config)
-        except genai_errors.APIError as exc:
-            # The client already retried with backoff. If Gemini's shared capacity for this model is
-            # still busy (429), a person's scan should not fail: Flash does the same job a little less well.
-            if exc.code != 429 or model == self.s.model_fast:
-                raise
-            log.warning("%s is busy (429); using %s for this call", model, self.s.model_fast)
-            resp = await self.client.aio.models.generate_content(model=self.s.model_fast, contents=contents, config=config)
+        # The client already retries with backoff. If Gemini's shared capacity for this model is still
+        # busy (429), a person's scan should not fail: Flash does the same job a little less well, and
+        # waiting a few seconds more usually gets a turn.
+        plan = [(model, 0)] + ([] if model == self.s.model_fast else [(self.s.model_fast, 0)])
+        plan += [(self.s.model_fast, w) for w in BUSY_WAITS_S]
+        for i, (use, wait) in enumerate(plan):
+            await asyncio.sleep(wait)
+            try:
+                resp = await self.client.aio.models.generate_content(model=use, contents=contents, config=config)
+                break
+            except genai_errors.APIError as exc:
+                if not is_busy(exc) or i == len(plan) - 1:
+                    raise
+                log.warning("%s is busy (%s); next try %s", use, exc.code, plan[i + 1][0])
         return _json_from_text(resp.text)
 
     async def scout_media(self, media: list[MediaRef], kind: str, narration_text: str | None) -> dict[str, Any]:
@@ -142,12 +147,20 @@ class GeminiLLM:
 
         async def one(text: str) -> list[float]:
             async with limit:
-                resp = await self.embed_client.aio.models.embed_content(
-                    model=self.s.model_embedding,
-                    contents=text,
-                    config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),
-                )
-                return list(resp.embeddings[0].values)
+                for i, wait in enumerate((0, *BUSY_WAITS_S)):
+                    await asyncio.sleep(wait)
+                    try:
+                        resp = await self.embed_client.aio.models.embed_content(
+                            model=self.s.model_embedding,
+                            contents=text,
+                            config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),
+                        )
+                        return list(resp.embeddings[0].values)
+                    except genai_errors.APIError as exc:
+                        if not is_busy(exc) or i == len(BUSY_WAITS_S):
+                            raise
+                        log.warning("Embedding is busy (%s); trying again", exc.code)
+                raise RuntimeError("unreachable")
 
         vectors = await asyncio.gather(*(one(t) for t in texts))
         if len(vectors) != len(texts):
@@ -252,6 +265,14 @@ class GeminiLLM:
         except Exception as exc:  # speech is optional; the app falls back to the device's voice
             log.warning("Speech failed: %s", exc)
         return None
+
+
+BUSY_WAITS_S = (5, 10)  # extra waits after the client's own retries and the Flash fallback
+
+
+def is_busy(exc: Exception) -> bool:
+    """Gemini's shared capacity is momentarily full (429) or the service is overloaded (503)."""
+    return getattr(exc, "code", None) in (429, 503) or "RESOURCE_EXHAUSTED" in str(exc)
 
 
 EMBED_CONCURRENCY = 6

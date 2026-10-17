@@ -108,3 +108,14 @@ export const TAKER_ROLE: Record<string, string> = {
 
 /** "aluminium sliding window" → "Aluminium sliding window" (Scout writes types in lower case). */
 export const sentence = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** Shown whenever Google's Gemini is momentarily full: calm, and clear that the app is fine. */
+export const BUSY =
+  "Google's Gemini is very busy for a moment, so Kintsugi is waiting its turn. Try again in a minute; nothing you added was lost.";
+
+/** Whether an error just means Gemini (or the connection) is busy, rather than something broken. */
+export const isBusy = (msg?: string | null) =>
+  Boolean(msg) && /very busy|RESOURCE_EXHAUSTED|\b(429|503)\b|Failed to fetch|NetworkError|Load failed/i.test(msg as string);
+
+/** The words to show for a problem: the calm busy message, or the error itself. */
+export const problemText = (msg?: string | null) => (isBusy(msg) ? BUSY : msg ?? "Something went wrong. Please try again.");

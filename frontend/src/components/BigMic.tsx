@@ -1,3 +1,4 @@
+import Problem from "./Problem";
 import { useRecorder } from "../useRecorder";
 
 interface Props {
@@ -35,7 +36,7 @@ export default function BigMic({ label, busyLabel, onAudio }: Props) {
       <p className="big-mic-label" role="status">
         {recording ? `Listening… tap to finish (${seconds}s)` : busy ? busyLabel : label}
       </p>
-      {error && <p className="small error">{error}</p>}
+      <Problem text={error} small />
     </div>
   );
 }

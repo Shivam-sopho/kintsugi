@@ -3,7 +3,7 @@ import { api, audioFileName } from "../api";
 import { preferredLanguage } from "../language";
 import { speak, voiceRepliesOn } from "../speak";
 import type { AppState, AskReply, Job } from "../types";
-import { DEMO_CENTER, LANG_LABEL } from "../labels";
+import { DEMO_CENTER, LANG_LABEL, problemText } from "../labels";
 import BigMic from "./BigMic";
 
 interface Message {
@@ -59,7 +59,7 @@ export default function AskPanel({ state, personaId, onOpenItem, onJob, onGoToDe
       ]);
       if (voiceRepliesOn()) void readAloud(reply, index);
     } catch (e) {
-      setNote(`Couldn't answer: ${(e as Error).message}`);
+      setNote(problemText(`Couldn't answer: ${(e as Error).message}`));
     } finally {
       setBusy(null);
     }
