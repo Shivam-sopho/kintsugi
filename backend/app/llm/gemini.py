@@ -15,6 +15,7 @@ import wave
 from typing import Any, Optional
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from ..config import Settings
@@ -49,19 +50,26 @@ def _json_from_text(text: str) -> Any:
 class GeminiLLM:
     def __init__(self, settings: Settings):
         self.s = settings
-        self.client = genai.Client(vertexai=True, project=settings.gcp_project, location=settings.gcp_location)
+        self.client = genai.Client(vertexai=True, project=settings.gcp_project, location=settings.genai_location)
+        # Gemini Embedding 2 is served only from regions, not the global endpoint.
+        self.embed_client = genai.Client(vertexai=True, project=settings.gcp_project, location=settings.gcp_location)
 
     async def _json(self, model: str, contents: list, system: str, schema: dict, temperature: float = 0.2) -> Any:
-        resp = await self.client.aio.models.generate_content(
-            model=model,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system,
-                response_mime_type="application/json",
-                response_json_schema=schema,
-                temperature=temperature,
-            ),
+        config = types.GenerateContentConfig(
+            system_instruction=system,
+            response_mime_type="application/json",
+            response_json_schema=schema,
+            temperature=temperature,
         )
+        try:
+            resp = await self.client.aio.models.generate_content(model=model, contents=contents, config=config)
+        except genai_errors.APIError as exc:
+            # The client already retried with backoff. If Gemini's shared capacity for this model is
+            # still busy (429), a person's scan should not fail: Flash does the same job a little less well.
+            if exc.code != 429 or model == self.s.model_fast:
+                raise
+            log.warning("%s is busy (429); using %s for this call", model, self.s.model_fast)
+            resp = await self.client.aio.models.generate_content(model=self.s.model_fast, contents=contents, config=config)
         return _json_from_text(resp.text)
 
     async def scout_media(self, media: list[MediaRef], kind: str, narration_text: str | None) -> dict[str, Any]:
@@ -134,7 +142,7 @@ class GeminiLLM:
 
         async def one(text: str) -> list[float]:
             async with limit:
-                resp = await self.client.aio.models.embed_content(
+                resp = await self.embed_client.aio.models.embed_content(
                     model=self.s.model_embedding,
                     contents=text,
                     config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),
@@ -147,7 +155,7 @@ class GeminiLLM:
         return list(vectors)
 
     async def embed_image(self, data: bytes, mime_type: str) -> list[float]:
-        resp = await self.client.aio.models.embed_content(
+        resp = await self.embed_client.aio.models.embed_content(
             model=self.s.model_embedding,
             contents=[types.Part.from_bytes(data=data, mime_type=mime_type)],
             config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),

@@ -337,6 +337,6 @@ def test_gemini_embeds_each_text_separately():
 
     llm = object.__new__(GeminiLLM)
     llm.s = get_settings()
-    llm.client = SimpleNamespace(aio=SimpleNamespace(models=SimpleNamespace(embed_content=embed_content)))
+    llm.embed_client = SimpleNamespace(aio=SimpleNamespace(models=SimpleNamespace(embed_content=embed_content)))
     vectors = asyncio.run(llm.embed_texts(["teak door", "fan", "steel almirah"]))
     assert [v[0] for v in vectors] == [9.0, 3.0, 13.0]
