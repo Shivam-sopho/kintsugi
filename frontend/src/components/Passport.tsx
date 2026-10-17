@@ -11,12 +11,12 @@ const BUYING_ROLES = new Set(["buyer", "ngo", "dealer"]);
 interface Props {
   item: Item;
   state: AppState;
-  onBack: () => void;
+  onBack?: () => void;
   onChanged: () => void;
   onOffer: (itemId: string) => Promise<void>;
 }
 
-export default function Passport({ item, state, onBack, onChanged, onOffer }: Props) {
+export default function Passport({ item, state, onChanged, onOffer }: Props) {
   const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
   const dest = item.destination_id ? people[item.destination_id] : undefined;
   const weight = item.components.reduce((s, c) => s + c.est_weight_kg, 0) * Math.max(item.count, 1);
@@ -59,7 +59,6 @@ export default function Passport({ item, state, onBack, onChanged, onOffer }: Pr
 
   return (
     <article className="passport">
-      <button className="link" onClick={onBack}>Back to site</button>
       <h2>
         {item.type} <span className="count">× {item.count}</span>
       </h2>
@@ -67,7 +66,7 @@ export default function Passport({ item, state, onBack, onChanged, onOffer }: Pr
 
       {item.evidence.length > 0 && (
         <div className="evidence" aria-label="Evidence photos, faces blurred">
-          {item.evidence.map((id) => <img key={id} src={api.evidenceUrl(id)} alt={`${item.type} as filmed`} loading="lazy" />)}
+          {item.evidence.map((id) => <img key={id} src={api.evidenceUrl(id)} alt={`${item.type} as filmed`} />)}
         </div>
       )}
 

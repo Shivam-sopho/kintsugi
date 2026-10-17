@@ -59,3 +59,29 @@ export const kg = (n: number | null | undefined) =>
   n == null ? "–" : `${n >= 100 ? Math.round(n).toLocaleString("en-IN") : n.toFixed(1)} kg`;
 
 export const DEMO_CENTER = { lat: 12.95, lng: 77.63 }; // Bengaluru
+
+// What Kintsugi says out loud after a scan or a search. Written in English; the API reads it in the
+// person's language. Short, so it's quick to hear.
+export function scanSummary(items: import("./types").Item[]): string {
+  if (!items.length) return "Scout couldn't list anything this time. Try again closer up, in good light.";
+  const lines = items.slice(0, 3).map((i) => {
+    const life = i.next_life ? `best next life: ${RUNG_LABEL[i.next_life].toLowerCase()}` : "next life not decided yet";
+    return `${i.type}, ${life}${i.value_max_inr ? `, worth up to ${inr(i.value_max_inr)}` : ""}`;
+  });
+  const hazard = items.find((i) => i.hazards.length);
+  return [
+    `Scout found ${items.length} ${items.length === 1 ? "item" : "items"}.`,
+    ...lines.map((l) => `${l}.`),
+    hazard ? `The ${hazard.type} may be hazardous, so it goes to a licensed handler for testing.` : "",
+    "Tap an item to see where it can go.",
+  ].filter(Boolean).join(" ");
+}
+
+export function searchSummary(results: import("./types").SearchResult[]): string {
+  if (!results.length) return "Nothing nearby matches yet. Try other words, or search with a photo.";
+  const best = results[0];
+  const where = best.distance_km != null ? `, ${best.distance_km} kilometres away` : "";
+  const price = best.item.value_max_inr ? `, about ${inr(best.item.value_max_inr)} each` : "";
+  const n = results.length;
+  return `I found ${n} ${n === 1 ? "match" : "matches"} nearby. The best is ${best.item.type}${where}${price}. Choose the ones you want and the agents will negotiate for you.`;
+}

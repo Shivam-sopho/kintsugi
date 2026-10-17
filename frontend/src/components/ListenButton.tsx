@@ -20,7 +20,7 @@ export default function ListenButton({ text, lang, className = "secondary" }: Pr
     setError(null);
     setState("loading");
     try {
-      await speak(text, lang, () => setState("playing"));
+      await speak(text, lang, { onStart: () => setState("playing") });
     } catch {
       setError("This device has no voice for this language. The text is above.");
     }
