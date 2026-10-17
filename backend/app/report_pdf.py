@@ -349,3 +349,63 @@ def certificate(deal: Deal, entries: list[LedgerEntry], seller: Optional[Partici
                    new_x=XPos.LEFT, new_y=YPos.NEXT)
     pdf.multi_cell(0, 4.4, f"{L['factors']}: {t['factor_source']}.")
     return bytes(pdf.output())
+
+
+# ------------------------------------------------------------------ account certificate
+
+def account_certificate(st: dict, factor_source: str) -> bytes:
+    """An account's circular standing, certified: its level and what it has given a next life."""
+    number = f"KIN-ACC-{st['person_id'].split('_')[-1].upper()}"
+    pdf = _Doc(f"Kintsugi circular standing {number}")
+    pdf.add_page()
+    pdf.set_draw_color(*GOLD)
+    pdf.set_line_width(0.8)
+    pdf.rect(8, 8, pdf.w - 16, pdf.h - 16)
+    pdf.set_line_width(0.3)
+    pdf.rect(10.5, 10.5, pdf.w - 21, pdf.h - 21)
+    if st.get("synthetic") and st["person_id"] != "ppl_me":
+        pdf.ribbon("Sample data")
+    pdf.set_y(20)
+    pdf.brand([f"Certificate {number}", f"Issued {_date(time.time())}", "Circular standing"])
+
+    pdf.ln(10)
+    pdf.set_font("Noto", "", 11)
+    pdf.set_text_color(*SLATE)
+    pdf.cell(0, 6, "This certifies that", align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Noto", "B", 26)
+    pdf.set_text_color(*INK)
+    pdf.cell(0, 14, st["name"], align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Noto", "", 11)
+    pdf.set_text_color(*SLATE)
+    pdf.cell(0, 6, "has earned the circular standing", align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # The seal carries the level
+    size = 62
+    sx, sy = (pdf.w - size) / 2, pdf.get_y() + 6
+    pdf.set_draw_color(*GOLD)
+    pdf.set_fill_color(253, 248, 236)
+    pdf.set_line_width(1.4)
+    pdf.ellipse(sx, sy, size, size, style="DF")
+    pdf.set_line_width(0.3)
+    pdf.ellipse(sx + 3.5, sy + 3.5, size - 7, size - 7)
+    pdf.mark(sx + size / 2 - 5, sy + 9, 10)
+    pdf.set_xy(sx + 6, sy + 24)
+    pdf.set_font("Noto", "B", 13)
+    pdf.set_text_color(*GOLD_INK)
+    pdf.multi_cell(size - 12, 6.5, st["level"] or "Not yet earned", align="C")
+    pdf.set_y(sy + size + 8)
+
+    pdf.stats([(f"{st['items']}", "things given or taken in for a next life"), (_kg(st["kg"]), "kept out of landfill"),
+               (_kg(st["co2e_kg"]), "CO2e avoided")])
+    pdf.rows(["", "Items", "Kept out of landfill", "CO2e avoided"],
+             [["Given a next life (handed over or sold)", str(st["gave"]["items"]), _kg(st["gave"]["kg"]), _kg(st["gave"]["co2e_kg"])],
+              ["Taken in for a next life", str(st["took"]["items"]), _kg(st["took"]["kg"]), _kg(st["took"]["co2e_kg"])]],
+             [76, 20, 42, 40], right=(1, 2, 3))
+    pdf.para(f"{st['handovers']} free hand-overs and {st['sales']} sales settled. Levels: Circular starter from the first "
+             "item; Circular contributor from 5 items or 100 kg; Circular champion from 20 items or 1,000 kg. "
+             "Counted only from settled hand-overs, sales and pickups recorded in the Kintsugi Ledger.", size=8.5)
+    if st.get("next"):
+        pdf.para(f"Next: {st['next']['name']}, {st['next']['to_go']}.", size=8.5, color=GOLD_INK)
+    pdf.ln(2)
+    pdf.para(f"Emission factors: {factor_source}. Settlement is a sandbox: no real money moved.", size=8)
+    return bytes(pdf.output())

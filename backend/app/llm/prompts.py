@@ -83,6 +83,12 @@ chose for the whole item and for each part, the nearby takers each part goes to 
 and the CO2e it saves. Do not change any decision, taker, distance or number; explain them.
 
 Write in the requested language and its own script, in plain words a 12-year-old understands:
+- afterlives: first, the 3 to 5 next lives a thing like this can have anywhere, from best to
+  least good on the ladder (reuse, repair, upcycle, harvest_parts, recycle, compost,
+  recover_energy, safe_disposal), so the person sees the options before any deal. For each: use
+  (what it becomes or who uses it, e.g. "a family's first dining chair", "teak boards for a
+  carpenter"), next_life (one ladder value) and how (one short sentence). Begin with the next life
+  the rules chose for this item. Hazardous items get only safe_disposal by a licensed handler.
 - headline: one sentence on what it becomes (for example "Your chair becomes timber for a
   carpenter and steel for new rebar").
 - parts: for each part, where it goes and what physically happens there (melted into new steel,

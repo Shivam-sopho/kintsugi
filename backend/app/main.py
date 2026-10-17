@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from . import agents
-from . import report_pdf
+from . import report_pdf, standing
 from .certificate import render as render_certificate
 from .config import get_settings
 from .demo import fixtures
@@ -539,6 +539,30 @@ def report(persona_id: Optional[str] = None) -> Response:
     scope = f"Prepared for {people[persona_id].name}" if persona_id else "Everyone on Kintsugi"
     data = report_pdf.impact_report(items, deals, entries, people, scope, agents.ledger_summary(store)["factor_source"])
     return _pdf(data, f"kintsugi-impact-report-{time.strftime('%Y-%m-%d')}.pdf")
+
+
+def _standing(store, person_id: str) -> dict[str, Any]:
+    person = store.get_participant(person_id)
+    if not person:
+        raise HTTPException(404, "No such person")
+    return standing.standing(person, store.list_items(), store.list_deals(), store.list_ledger())
+
+
+@app.get("/api/people/{person_id}/standing")
+def person_standing(person_id: str) -> dict[str, Any]:
+    """This account's circular standing: its level and what it has given or taken a next life."""
+    return _standing(get_store(), person_id)
+
+
+@app.get("/api/people/{person_id}/certificate.pdf")
+def person_certificate(person_id: str) -> Response:
+    """The account's circular standing as a certificate to download."""
+    store = get_store()
+    st = _standing(store, person_id)
+    if not st["level"]:
+        raise HTTPException(404, "No standing earned yet: hand over or sell something first")
+    return _pdf(report_pdf.account_certificate(st, agents.ledger_summary(store)["factor_source"]),
+                f"kintsugi-circular-standing-{person_id}.pdf")
 
 
 @app.get("/api/certificate/{deal_id}.pdf")

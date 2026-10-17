@@ -3,6 +3,7 @@ import { api } from "../api";
 import type { AppState, Item } from "../types";
 import { LANG_LABEL, inr, kg } from "../labels";
 import { PERSONA_ROLES } from "../persona";
+import StandingCard from "./StandingCard";
 import { LANGUAGES, preferredLanguage, setPreferredLanguage } from "../language";
 import ItemCard from "./ItemCard";
 
@@ -53,6 +54,7 @@ export default function ProfilePanel({ state, personaId, onChangePersona, onOpen
           </p>
         </div>
       </div>
+      <StandingCard state={state} personId={personaId} />
       <label>
         Use Kintsugi as
         <select value={personaId} onChange={(e) => onChangePersona(e.target.value)}>
@@ -99,7 +101,7 @@ export default function ProfilePanel({ state, personaId, onChangePersona, onOpen
         </>
       )}
 
-      <h3>Deals ({deals.length})</h3>
+      <h3>Hand-overs and sales ({deals.length})</h3>
       {deals.length ? (
         <ul className="history">
           {deals.map((d) => {
@@ -109,8 +111,8 @@ export default function ProfilePanel({ state, personaId, onChangePersona, onOpen
             return (
               <li key={d.id}>
                 <div className="row between">
-                  <strong>{selling ? "Sold" : "Bought"} {what || "items"}{d.autopilot && <span className="status autopilot">Autopilot</span>}</strong>
-                  <span>{inr(d.final_price_inr)}</span>
+                  <strong>{d.kind === "handover" ? (selling ? "Handed over" : "Took in") : selling ? "Sold" : "Bought"} {what || "items"}{d.autopilot && <span className="status autopilot">Autopilot</span>}</strong>
+                  <span>{d.kind === "handover" ? "Free" : inr(d.final_price_inr)}</span>
                 </div>
                 <span className="small muted">
                   {selling ? "to" : "from"} {other?.name ?? "someone"} · {DEAL_STATUS[d.status] ?? d.status}

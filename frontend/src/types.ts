@@ -58,7 +58,15 @@ export interface Item {
   explanation: Record<string, Explanation>;
 }
 
+export interface Afterlife {
+  use: string;
+  next_life: Rung;
+  how: string;
+  best: boolean; // the next life the rules chose for this one
+}
+
 export interface Explanation {
+  afterlives?: Afterlife[];
   headline: string;
   parts: { part: string; goes_to?: string; happens: string }[];
   you_can: string[];
@@ -214,4 +222,19 @@ export interface Transcript {
   language: string;
   english: string;
   amount_inr?: number;
+}
+
+export interface Standing {
+  person_id: string;
+  name: string;
+  level: string | null;
+  next: { name: string; items: number; kg: number; to_go: string } | null;
+  gave: { items: number; kg: number; co2e_kg: number };
+  took: { items: number; kg: number; co2e_kg: number };
+  sales: number;
+  handovers: number;
+  earned_inr: number;
+  co2e_kg: number;
+  kg: number;
+  items: number;
 }

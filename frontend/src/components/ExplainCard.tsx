@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { Explanation, Item } from "../types";
+import { RUNG_COLOR, RUNG_LABEL, sentence } from "../labels";
+import { RungIcon } from "./Icons";
 import ListenButton from "./ListenButton";
 import { LANGUAGES, languageName, preferredLanguage } from "../language";
 
-const EXPLAIN_VERSION = "v2"; // matches the backend's cache key
+const EXPLAIN_VERSION = "v3"; // matches the backend's cache key
 const YOU_CAN: Record<string, string> = {
   en: "You can", hi: "आप क्या कर सकते हैं", kn: "ನೀವು ಮಾಡಬಹುದಾದದ್ದು", ta: "நீங்கள் செய்யக்கூடியவை",
   id: "Yang bisa Anda lakukan", ms: "Apa yang anda boleh lakukan", th: "สิ่งที่คุณทำได้", vi: "Bạn có thể",
@@ -42,11 +44,12 @@ export default function ExplainCard({ item }: { item: Item }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.id, item.explanation, lang]);
 
-  const readOut = data ? [data.headline, ...data.parts.map((p) => `${p.part}: ${p.happens}`), data.why].join(" ") : "";
+  const ideas = data?.afterlives ?? [];
+  const readOut = data ? [...ideas.map((a) => `${a.use}.`), data.headline, ...data.parts.map((p) => `${p.part}: ${p.happens}`), data.why].join(" ") : "";
   return (
     <section className="explain" aria-live="polite">
       <div className="explain-head">
-        <h3>What becomes of it</h3>
+        <h3>What a {item.type} can become</h3>
         <div className="lang-chips" role="group" aria-label="Language">
           {quick.map((code) => (
             <button key={code} type="button" className={lang === code ? "on" : ""} aria-pressed={lang === code} onClick={() => setLang(code)}>
@@ -67,6 +70,19 @@ export default function ExplainCard({ item }: { item: Item }) {
       {error && <p className="small error">{error}</p>}
       {data && (
         <div lang={lang}>
+          {ideas.length > 0 && (
+            <ol className="afterlives" aria-label="Possible next lives, best first">
+              {ideas.map((a, i) => (
+                <li key={i} className={a.best ? "best" : ""} style={{ ["--rung" as string]: RUNG_COLOR[a.next_life] }}>
+                  <span className="rung-tag"><RungIcon rung={a.next_life} /> {RUNG_LABEL[a.next_life]}</span>
+                  <strong>{sentence(a.use)}</strong>
+                  <span className="small muted">{a.how}</span>
+                  {a.best && <span className="best-note">Best for yours{item.next_life_reason ? `: ${item.next_life_reason}` : ""}</span>}
+                </li>
+              ))}
+            </ol>
+          )}
+          <h4 className="yours">What becomes of yours</h4>
           <p className="explain-headline">{data.headline}</p>
           <ol className="flow-list">
             {data.parts.map((p, i) => (

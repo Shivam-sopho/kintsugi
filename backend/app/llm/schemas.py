@@ -100,6 +100,19 @@ DESIGN_SCHEMA = {
 EXPLAIN_SCHEMA = {
     "type": "object",
     "properties": {
+        "afterlives": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "use": {"type": "string"},
+                    "next_life": {"type": "string", "enum": ["reuse", "repair", "upcycle", "harvest_parts", "recycle",
+                                                             "compost", "recover_energy", "safe_disposal"]},
+                    "how": {"type": "string"},
+                },
+                "required": ["use", "next_life", "how"],
+            },
+        },
         "headline": {"type": "string"},
         "parts": {
             "type": "array",
@@ -112,7 +125,7 @@ EXPLAIN_SCHEMA = {
         "you_can": {"type": "array", "items": {"type": "string"}},
         "why": {"type": "string"},
     },
-    "required": ["headline", "parts", "you_can", "why"],
+    "required": ["afterlives", "headline", "parts", "you_can", "why"],
 }
 
 ASK_SCHEMA = {
