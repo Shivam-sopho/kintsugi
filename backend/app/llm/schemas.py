@@ -93,6 +93,12 @@ DESIGN_SCHEMA = {
     "required": ["concept", "selected", "render_prompt"],
 }
 
+TRANSLATE_SCHEMA = {
+    "type": "object",
+    "properties": {"text": {"type": "string", "description": "The message in the target language"}},
+    "required": ["text"],
+}
+
 MESSAGES_SCHEMA = {
     "type": "object",
     "properties": {

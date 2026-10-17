@@ -244,3 +244,72 @@ def test_pricing_gives_up_on_a_stalled_search(monkeypatch):
     prices = asyncio.run(llm.price_items([{"type": "teak chair"}], "Bengaluru"))
     assert prices == [{"value_min_inr": None, "value_max_inr": None, "repair_cost_inr": None, "sources": []}]
 
+
+
+def test_spoken_summary_is_translated_before_speaking(client, monkeypatch):
+    from types import SimpleNamespace
+    from urllib.parse import unquote
+
+    from app import main
+    from app.llm.gemini import pcm_to_wav
+
+    said = []
+
+    async def translate(text, lang):
+        return f"[{lang}] {text}"
+
+    async def speech(text, lang):
+        said.append((text, lang))
+        return pcm_to_wav(b"\x00\x00" * 240)
+
+    monkeypatch.setattr(main, "get_llm", lambda: SimpleNamespace(translate=translate, speech=speech))
+    main._speech_cache.clear()
+    r = client.post("/api/speak", json={"text": "Scout found 2 items.", "lang": "kn", "translate": True})
+    assert r.status_code == 200
+    assert unquote(r.headers["x-spoken-text"]) == "[kn] Scout found 2 items."
+    assert said == [("[kn] Scout found 2 items.", "kn")]
+    main._speech_cache.clear()
+
+
+def test_offline_summary_keeps_the_english_for_the_device_voice(client):
+    from urllib.parse import unquote
+
+    r = client.post("/api/speak", json={"text": "Scout found 2 items.", "lang": "hi", "translate": True})
+    assert r.status_code == 204
+    assert unquote(r.headers["x-spoken-text"]) == "Scout found 2 items."
+
+
+def test_judge_mode_never_sends_its_empty_sample_media_to_the_live_model():
+    """In live mode the demo's videos and notice are empty placeholders; Gemini must not get them."""
+    import asyncio
+
+    from app.config import get_settings
+    from app.llm.mock import MockLLM
+    from app.models import Job
+
+    calls = []
+
+    class Live(MockLLM):
+        async def scout_media(self, *a, **k):
+            raise AssertionError("sample video sent to the live model")
+
+        async def oracle_document(self, *a, **k):
+            raise AssertionError("sample notice sent to the live model")
+
+        async def price_items(self, *a, **k):
+            raise AssertionError("sample prices asked of the live model")
+
+        async def negotiation_message(self, *a, **k):
+            calls.append("negotiation_message")
+            return await super().negotiation_message(*a, **k)
+
+        async def embed_texts(self, texts):
+            calls.append("embed_texts")
+            return await super().embed_texts(texts)
+
+    settings = get_settings()
+    store = get_store()
+    job = Job(kind="judge_mode")
+    store.upsert_job(job)
+    result = asyncio.run(agents.judge_mode(store, Live(settings), settings, job.id))
+    assert result["deal_id"] and "negotiation_message" in calls and "embed_texts" in calls

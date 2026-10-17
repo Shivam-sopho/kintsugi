@@ -51,6 +51,15 @@ Choose items that fit the brief, say how each is used, and write a render prompt
 space built with exactly those materials. Return JSON only."""
 
 
+TRANSLATE_SYSTEM = """You translate a short message from the Kintsugi app, written in English, into the
+requested language, to be read aloud to the person. Use plain, friendly spoken language in that
+language's own script. Keep every number, rupee amount and item exactly right. Return JSON only."""
+
+
+def translate_prompt(text: str, lang: str) -> str:
+    return f"Target language code: {lang}.\nMessage: {text}"
+
+
 NEGOTIATION_VOICE_SYSTEM = """You write one short, polite negotiation message for a marketplace
 agent that represents a person. The price and action are already decided; do not change them.
 Write it in English ("en") and in the requested local language ("local"), naturally, the way a
