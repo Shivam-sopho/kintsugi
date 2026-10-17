@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
-import { speak } from "../speak";
+import ListenButton from "./ListenButton";
 import type { AppState, Item } from "../types";
 import { LANG_LABEL, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, inr, kg } from "../labels";
 import VoiceButton from "./VoiceButton";
@@ -163,7 +163,7 @@ export default function Passport({ item, state, onBack, onChanged, onOffer }: Pr
           <ol lang={stepLang}>
             {item.take_apart[stepLang].map((s, i) => <li key={i}>{s}</li>)}
           </ol>
-          <button className="secondary" onClick={() => speak(item.take_apart[stepLang].join(" "), stepLang)}>Listen</button>
+          <ListenButton text={item.take_apart[stepLang].join(" ")} lang={stepLang} />
         </section>
       )}
 

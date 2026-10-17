@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import agents
 from .certificate import render as render_certificate
@@ -185,6 +186,33 @@ async def transcribe(file: UploadFile = File(...), hint: str = Form("notes")) ->
     """Voice input in any language: returns the transcript, its language and an English translation."""
     audio = to_media_ref(file.filename or "voice.webm", await file.read(), file.content_type or "audio/webm", settings)
     return await get_llm().transcribe(audio, hint)
+
+
+class SpeakIn(BaseModel):
+    text: str = Field(min_length=1, max_length=1500)
+    lang: str = Field("en", max_length=8)
+
+
+# Each line takes Gemini a few seconds, so repeat taps are served from memory.
+_speech_cache: OrderedDict[tuple[str, str], bytes] = OrderedDict()
+SPEECH_CACHE_SIZE = 200
+
+
+@app.post("/api/speak")
+async def speak(body: SpeakIn) -> Response:
+    """Read text aloud with Gemini TTS. 204 means no audio (offline), so the app uses the device's voice."""
+    key = (body.lang, body.text)
+    audio = _speech_cache.get(key)
+    if audio is None:
+        audio = await get_llm().speech(body.text, body.lang)
+        if audio is None:
+            return Response(status_code=204)
+        _speech_cache[key] = audio
+        if len(_speech_cache) > SPEECH_CACHE_SIZE:
+            _speech_cache.popitem(last=False)
+    else:
+        _speech_cache.move_to_end(key)
+    return Response(audio, media_type="audio/wav", headers={"Cache-Control": "private, max-age=86400"})
 
 
 @app.post("/api/jobs/{job_id}/skip")

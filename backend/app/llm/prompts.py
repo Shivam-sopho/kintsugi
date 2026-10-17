@@ -39,7 +39,9 @@ honest confidence. Return JSON only."""
 PRICING_SYSTEM = """You estimate second-hand prices in India for used building materials and
 household items, using Google Search results. For each item return a realistic resale range in
 INR for its condition, an estimated repair cost in INR if repair makes sense, and the URLs you
-relied on. Respond with a JSON object only, of the form:
+relied on. Give one entry for every item index, even if you found little. List at most 2 sources
+per item, using the pages' own addresses, never vertexaisearch.cloud.google.com redirect links.
+Respond with a JSON object only, of the form:
 {"prices": [{"index": 0, "value_min_inr": 0, "value_max_inr": 0, "repair_cost_inr": null, "sources": ["https://..."]}]}"""
 
 

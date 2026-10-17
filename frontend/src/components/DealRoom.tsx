@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../api";
 import type { AppState, Deal, NegotiationTurn } from "../types";
 import { LANG_LABEL, inr } from "../labels";
-import { speak } from "../speak";
+import ListenButton from "./ListenButton";
 
 const ACTION: Record<NegotiationTurn["action"], string> = {
   offer: "Offer",
@@ -115,7 +115,7 @@ function Phone({ title, lang, side, turns }: { title: string; lang: string; side
               <span>{text}</span>
               <span className="price">{inr(t.price_inr)}</span>
               {mine && t.guardrail_applied && <span className="guard small">{t.guardrail_note}</span>}
-              <button className="listen" onClick={() => speak(text, t.messages[lang] ? lang : "en")} aria-label="Listen">Listen</button>
+              <ListenButton className="listen" text={text} lang={t.messages[lang] ? lang : "en"} />
             </li>
           );
         })}
