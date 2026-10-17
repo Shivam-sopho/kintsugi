@@ -23,10 +23,13 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export const api = {
-  /** Gemini's spoken audio for a line, or null when the API has none (offline mode). */
-  speech: async (text: string, lang: string): Promise<Blob | null> => {
-    const res = await fetch(`${BASE}/api/speak`, json({ text, lang }));
-    return res.status === 200 ? res.blob() : null;
+  /** Gemini's spoken audio for a line (null when the API has none, in offline mode) and the words
+   *  spoken. With `translate`, English text is read in `lang`. */
+  speech: async (text: string, lang: string, translate = false): Promise<{ audio: Blob | null; spoken: string }> => {
+    const res = await fetch(`${BASE}/api/speak`, json({ text, lang, translate }));
+    const header = res.headers.get("X-Spoken-Text");
+    const spoken = header ? decodeURIComponent(header) : text;
+    return { audio: res.status === 200 ? await res.blob() : null, spoken };
   },
   state: () => call<AppState>("/api/state"),
   job: (id: string) => call<Job>(`/api/jobs/${id}`),

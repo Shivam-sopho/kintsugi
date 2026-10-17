@@ -1,23 +1,17 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useJobs } from "./useJobs";
+import { setVoiceReplies, voiceRepliesOn } from "./speak";
 import MapView, { type Layers } from "./components/MapView";
 import MapPanel from "./components/MapPanel";
-import ScanPanel from "./components/ScanPanel";
-import FindPanel from "./components/FindPanel";
+import HomePanel from "./components/HomePanel";
 import DealRoom from "./components/DealRoom";
 import MissionControl from "./components/MissionControl";
 import ImpactPanel from "./components/ImpactPanel";
+import Passport from "./components/Passport";
+import Sheet from "./components/Sheet";
 
-type Tab = "map" | "scan" | "find" | "deal" | "agents" | "impact";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "map", label: "Map" },
-  { id: "scan", label: "Scan" },
-  { id: "find", label: "Find" },
-  { id: "deal", label: "Deal" },
-  { id: "agents", label: "Agents" },
-  { id: "impact", label: "Impact" },
-];
+type Tab = "home" | "map" | "deals" | "impact";
 
 const LAYER_LABEL: Record<keyof Layers, string> = {
   future: "Coming up",
@@ -26,22 +20,34 @@ const LAYER_LABEL: Record<keyof Layers, string> = {
   deals: "Deals",
 };
 
+// Simple line icons for the bottom bar (24px grid, stroke follows the text colour).
+const ICON: Record<Tab, ReactNode> = {
+  home: <path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" />,
+  map: <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14" />,
+  deals: <path d="M4 5h16v10H9l-5 4zM8 9h8M8 12h5" />,
+  impact: <path d="M5 19V11M12 19V5M19 19v-6" />,
+};
+const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Deals", impact: "Impact" };
+
+type SheetState = { kind: "item"; id: string } | { kind: "agents" } | null;
+
 export default function App() {
   const { state, job, events, error, refresh, track } = useJobs();
-  const [tab, setTab] = useState<Tab>("map");
+  const [tab, setTab] = useState<Tab>("home");
   const [layers, setLayers] = useState<Layers>({ future: true, materials: true, destinations: true, deals: true });
   const [siteId, setSiteId] = useState<string | null>(null);
   const [predictionId, setPredictionId] = useState<string | null>(null);
-  const [itemId, setItemId] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<SheetState>(null);
+  const [voice, setVoice] = useState(voiceRepliesOn());
   const demoRunning = job?.kind === "judge_mode" && job.status === "running";
+  const negotiating = state?.deals.some((d) => d.status === "negotiating" || d.status === "agreed");
 
   const runDemo = async () => {
     try {
       const j = await api.judgeMode();
       track(j, () => setTab("impact"));
       setSiteId(null);
-      setItemId(null);
-      setTab("agents");
+      setSheet({ kind: "agents" });
     } catch (e) {
       alert((e as Error).message);
     }
@@ -50,19 +56,28 @@ export default function App() {
   const offer = async (itemId: string) => {
     const j = await api.offerItem(itemId);
     track(j);
-    setTab("deal");
+    setSheet(null);
+    setTab("deals");
   };
 
   const skipDemo = async () => {
     if (job) await api.skip(job.id).catch(() => undefined);
   };
 
+  const openItem = (id: string) => setSheet({ kind: "item", id });
   const openSite = (id: string) => {
     setSiteId(id);
     setPredictionId(null);
-    setItemId(null);
     setTab("map");
   };
+
+  const toggleVoice = () => {
+    setVoiceReplies(!voice);
+    setVoice(!voice);
+  };
+
+  const sheetItem = sheet?.kind === "item" ? state?.items.find((i) => i.id === sheet.id) : undefined;
+  const mapPanelEmpty = !siteId && !predictionId;
 
   return (
     <div className="app">
@@ -72,14 +87,23 @@ export default function App() {
           <p>Google Maps for the circular economy</p>
         </div>
         {state?.mock_mode && <span className="badge" title="Running on sample data with no live AI calls">Sample data</span>}
-        <button className="primary gold" onClick={runDemo} disabled={demoRunning}>
+        <button className={`voice-toggle ${voice ? "on" : ""}`} onClick={toggleVoice} aria-pressed={voice}
+                title={voice ? "Kintsugi reads its answers aloud" : "Answers are shown, not read aloud"}>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
+            {voice ? <path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
+                   : <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}
+          </svg>
+          <span>{voice ? "Voice on" : "Voice off"}</span>
+        </button>
+        <button className="demo-btn" onClick={runDemo} disabled={demoRunning}>
           {demoRunning ? "Demo running…" : "Run demo"}
         </button>
       </header>
 
       {error && <p className="banner error" role="alert">{error}</p>}
 
-      <main className="layout">
+      <main className={`layout tab-${tab}`}>
         <div className="map-wrap">
           {state && (
             <MapView
@@ -90,7 +114,6 @@ export default function App() {
               onSelectPrediction={(id) => {
                 setPredictionId(id);
                 setSiteId(null);
-                setItemId(null);
                 setTab("map");
               }}
             />
@@ -109,54 +132,70 @@ export default function App() {
           </div>
         </div>
 
-        <aside className="panel">
-          <nav className="tabs" role="tablist">
-            {TABS.map((t) => (
-              <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
-                {t.label}
-                {t.id === "agents" && job?.status === "running" && <i className="live-dot" aria-label="running" />}
-              </button>
-            ))}
-          </nav>
+        <section className={`panel ${tab === "map" && mapPanelEmpty ? "map-empty" : ""}`}>
           <div className="panel-body" key={tab}>
             {!state ? (
               <p className="muted">Loading…</p>
+            ) : tab === "home" ? (
+              <HomePanel
+                state={state}
+                job={job}
+                events={events}
+                onJob={track}
+                onOpenItem={openItem}
+                onOpenAgents={() => setSheet({ kind: "agents" })}
+                onSkip={skipDemo}
+                onDealStarted={() => setTab("deals")}
+                onRunDemo={runDemo}
+                demoRunning={demoRunning}
+              />
             ) : tab === "map" ? (
               <MapPanel
                 state={state}
                 siteId={siteId}
                 predictionId={predictionId}
-                itemId={itemId}
-                onSelectItem={setItemId}
+                itemId={null}
+                onSelectItem={(id) => id && openItem(id)}
                 onRunDemo={runDemo}
                 demoRunning={demoRunning}
                 onChanged={refresh}
                 onOffer={offer}
-              />
-            ) : tab === "scan" ? (
-              <ScanPanel state={state} onJob={(j, cb) => { track(j, cb); }} onScanned={openSite} />
-            ) : tab === "find" ? (
-              <FindPanel
-                state={state}
-                onJob={track}
-                onDealStarted={() => setTab("deal")}
-                onOpenItem={(id) => {
-                  const it = state.items.find((i) => i.id === id);
-                  if (it) setSiteId(it.site_id);
-                  setItemId(id);
-                  setTab("map");
+                onClose={() => {
+                  setSiteId(null);
+                  setPredictionId(null);
                 }}
               />
-            ) : tab === "deal" ? (
+            ) : tab === "deals" ? (
               <DealRoom state={state} onChanged={refresh} />
-            ) : tab === "agents" ? (
-              <MissionControl job={job} events={events} onSkip={skipDemo} />
             ) : (
               <ImpactPanel state={state} />
             )}
           </div>
-        </aside>
+        </section>
       </main>
+
+      <nav className="bottom-nav" aria-label="Sections">
+        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
+          <button key={t} className={tab === t ? "on" : ""} aria-current={tab === t ? "page" : undefined} onClick={() => setTab(t)}>
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
+              {ICON[t]}
+            </svg>
+            <span>{TAB_LABEL[t]}</span>
+            {t === "deals" && negotiating && <i className="live-dot" aria-label="deal in progress" />}
+          </button>
+        ))}
+      </nav>
+
+      {sheet?.kind === "item" && sheetItem && state && (
+        <Sheet title={sheetItem.type} onClose={() => setSheet(null)}>
+          <Passport key={sheetItem.id} item={sheetItem} state={state} onBack={() => setSheet(null)} onChanged={refresh} onOffer={offer} />
+        </Sheet>
+      )}
+      {sheet?.kind === "agents" && (
+        <Sheet title="What the agents did" onClose={() => setSheet(null)}>
+          <MissionControl job={job} events={events} onSkip={skipDemo} />
+        </Sheet>
+      )}
     </div>
   );
 }

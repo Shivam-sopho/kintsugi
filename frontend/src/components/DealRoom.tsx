@@ -16,6 +16,7 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
   const deals = [...state.deals].sort((a, b) => b.created_at - a.created_at);
   const [dealId, setDealId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<"seller" | "buyer">("seller");
   const [error, setError] = useState<string | null>(null);
   const deal: Deal | undefined = deals.find((d) => d.id === dealId) ?? deals[0];
 
@@ -23,7 +24,7 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
     return (
       <section>
         <h2>Deal room</h2>
-        <p className="muted">No deals yet. Pick items in Find and let the agents negotiate, or run the demo.</p>
+        <p className="muted">No deals yet. On Home, choose I need something, pick what you want and let the agents negotiate. Or open an item and offer it to a buyer.</p>
       </section>
     );
   }
@@ -60,7 +61,15 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
       </div>
       <p className="muted">{items.map((i) => `${i!.count} × ${i!.type}`).join(", ")}</p>
 
-      <div className="phones">
+      <div className="mode-switch phone-switch" role="tablist" aria-label="Whose phone">
+        <button role="tab" aria-selected={view === "seller"} className={view === "seller" ? "on" : ""} onClick={() => setView("seller")}>
+          {seller?.name ?? "Seller"}, {LANG_LABEL[sellerLang] ?? sellerLang}
+        </button>
+        <button role="tab" aria-selected={view === "buyer"} className={view === "buyer" ? "on" : ""} onClick={() => setView("buyer")}>
+          {buyer?.name ?? "Buyer"}, {LANG_LABEL[buyerLang] ?? buyerLang}
+        </button>
+      </div>
+      <div className={`phones show-${view}`}>
         <Phone title={seller?.name ?? "Seller"} lang={sellerLang} side="seller" turns={deal.transcript} />
         <Phone title={buyer?.name ?? "Buyer"} lang={buyerLang} side="buyer" turns={deal.transcript} />
       </div>
@@ -100,7 +109,7 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
 
 function Phone({ title, lang, side, turns }: { title: string; lang: string; side: "seller" | "buyer"; turns: NegotiationTurn[] }) {
   return (
-    <div className="phone" lang={lang}>
+    <div className={`phone ${side}`} lang={lang}>
       <header>
         <strong>{title}</strong>
         <span className="small muted block">sees everything in {LANG_LABEL[lang] ?? lang}</span>

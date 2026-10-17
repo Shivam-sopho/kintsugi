@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { api } from "../api";
+import { say } from "../speak";
 import type { AppState, DesignResult, Job, SearchResult } from "../types";
-import { DEMO_CENTER, RUNG_COLOR, RUNG_LABEL, inr } from "../labels";
+import { DEMO_CENTER, inr, searchSummary } from "../labels";
+import BigMic from "./BigMic";
+import ItemCard from "./ItemCard";
 import VoiceButton from "./VoiceButton";
 
 function toBase64(file: File): Promise<{ b64: string; mime: string }> {
@@ -20,9 +23,11 @@ interface Props {
   onOpenItem: (id: string) => void;
 }
 
+/** "I need something": say or show what you need, pick from what's nearby, let the agents negotiate. */
 export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [spoken, setSpoken] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [buyerId, setBuyerId] = useState("ppl_ananya");
   const [cap, setCap] = useState("");
@@ -47,11 +52,26 @@ export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: P
     }
   };
 
-  const searchText = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return setError("Type what you're looking for, in any language.");
-    run("search", async () => setResults(await api.search(query, DEMO_CENTER)));
+  const show = (found: SearchResult[], lang: string) => {
+    setResults(found);
+    setPicked(new Set());
+    setSpoken(null);
+    void say(searchSummary(found), lang, (t) => lang !== "en" && setSpoken(t));
   };
+
+  const searchText = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!query.trim()) return setError("Say or type what you're looking for, in any language.");
+    run("Searching…", async () => show(await api.search(query, DEMO_CENTER), "en"));
+  };
+
+  const onVoice = (blob: Blob) =>
+    run("Listening…", async () => {
+      const t = await api.transcribe(blob, "search");
+      setQuery(t.text);
+      setBusy("Searching…");
+      show(await api.search(t.text, DEMO_CENTER), t.language || "en");
+    });
 
   const searchPhoto = (file: File | undefined) => {
     if (!file) return;
@@ -59,7 +79,7 @@ export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: P
     form.append("file", file);
     form.append("lat", String(DEMO_CENTER.lat));
     form.append("lng", String(DEMO_CENTER.lng));
-    run("search", async () => setResults(await api.searchImage(form)));
+    run("Looking at your photo…", async () => show(await api.searchImage(form), "en"));
   };
 
   const toggle = (id: string) =>
@@ -72,8 +92,8 @@ export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: P
   const startDeal = () => {
     const ids = [...picked];
     const sellers = new Set(ids.map((id) => state.items.find((i) => i.id === id)?.seller_id));
-    if (!ids.length) return setError("Pick at least one item.");
-    if (sellers.size > 1) return setError("Pick items from one seller per deal.");
+    if (!ids.length) return setError("Choose at least one item.");
+    if (sellers.size > 1) return setError("Choose items from one seller per deal.");
     run("deal", async () => {
       const job = await api.startDeal(ids, buyerId, cap ? Number(cap) : undefined);
       onJob(job);
@@ -98,105 +118,93 @@ export default function FindPanel({ state, onJob, onDealStarted, onOpenItem }: P
     });
   };
 
+  const searching = busy && busy !== "deal" && busy !== "design" ? busy : null;
   return (
-    <div className="stack">
-      <form className="stack" onSubmit={searchText}>
-        <h2>Find reclaimed materials</h2>
-        <label>
-          Describe it in any language, or search with a photo
-          <div className="row">
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="teak doors, सागौन के दरवाज़े, pintu kayu jati" />
-            <button className="secondary" disabled={busy === "search"}>Search</button>
-          </div>
-        </label>
-        <div className="row wrap">
-          <VoiceButton hint="search" label="Say it" onResult={(t) => { setQuery(t.text); run("search", async () => setResults(await api.search(t.text, DEMO_CENTER))); }} />
-          <label className="capture-btn quiet slim">
-            <input type="file" accept="image/*" onChange={(e) => searchPhoto(e.target.files?.[0])} />
-            Search by photo
-          </label>
-        </div>
+    <div className="flow">
+      <BigMic label="Tap and say what you need, in any language" busyLabel={searching} onAudio={onVoice} />
+
+      <form className="search-row" onSubmit={searchText}>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="teak doors, सागौन के दरवाज़े" aria-label="What you need" />
+        <button className="secondary" disabled={Boolean(searching)}>Search</button>
       </form>
+      <label className="capture-btn quiet slim">
+        <input type="file" accept="image/*" onChange={(e) => searchPhoto(e.target.files?.[0])} />
+        Search with a photo
+      </label>
 
       {results && (
-        <ul className="item-list">
-          {results.length === 0 && <li className="muted">Nothing nearby matches yet. Try a scan or the demo.</li>}
-          {results.map((r) => (
-            <li key={r.item.id} className="pick">
-              <input type="checkbox" checked={picked.has(r.item.id)} onChange={() => toggle(r.item.id)} aria-label={`Pick ${r.item.type}`} />
-              <button className="item-row" onClick={() => onOpenItem(r.item.id)}>
-                <span className="swatch" style={{ background: r.item.next_life ? RUNG_COLOR[r.item.next_life] : "#B1B5BC" }} />
-                <span className="grow">
-                  <strong>{r.item.type}</strong> × {r.item.count}
-                  <span className="small muted block">
-                    {r.item.next_life ? RUNG_LABEL[r.item.next_life] : ""}, {inr(r.item.value_min_inr)}–{inr(r.item.value_max_inr)} each
-                    {r.distance_km != null ? `, ${r.distance_km} km away` : ""}
-                  </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <section className="results" aria-live="polite">
+          <h3>{results.length ? `${results.length} nearby` : "Nothing nearby yet"}</h3>
+          {spoken && <p className="spoken">{spoken}</p>}
+          <ul className="cards">
+            {results.map((r) => (
+              <ItemCard key={r.item.id} item={r.item} distanceKm={r.distance_km} onOpen={() => onOpenItem(r.item.id)}
+                        picked={picked.has(r.item.id)} onPick={() => toggle(r.item.id)} />
+            ))}
+          </ul>
+          {results.length > 0 && picked.size === 0 && <p className="small muted">Tick the items you want, then let the agents negotiate.</p>}
+        </section>
       )}
 
       {picked.size > 0 && (
         <div className="deal-box">
           <label>
-            Buyer
+            Buying as
             <select value={buyerId} onChange={(e) => setBuyerId(e.target.value)}>
-              {buyers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              {buyers.map((b) => <option key={b.id} value={b.id}>{b.name}{b.synthetic ? " (sample)" : ""}</option>)}
             </select>
           </label>
           <label>
-            Private budget cap, ₹ (optional)
-            <input inputMode="numeric" value={cap} onChange={(e) => setCap(e.target.value.replace(/\D/g, ""))} placeholder="Buyer's saved cap" />
+            Your highest price, ₹ (only your agent will know it)
+            <input inputMode="numeric" value={cap} onChange={(e) => setCap(e.target.value.replace(/\D/g, ""))} placeholder="Optional" />
           </label>
-          <button className="primary" onClick={startDeal} disabled={busy === "deal"}>
+          <button className="primary gold wide" onClick={startDeal} disabled={busy === "deal"}>
             Let the agents negotiate {picked.size} item{picked.size > 1 ? "s" : ""}
           </button>
         </div>
       )}
-
-      <form className="stack" onSubmit={runDesign}>
-        <h2>Design from what exists</h2>
-        <label>
-          Describe the space
-          <input value={brief} onChange={(e) => setBrief(e.target.value)} />
-        </label>
-        <VoiceButton hint="brief" label="Describe it by voice" onResult={(t) => setBrief(t.text)} />
-        <label className="capture-btn quiet slim">
-          <input type="file" accept="image/*" onChange={(e) => setInspiration(e.target.files?.[0] ?? null)} />
-          {inspiration ? `Inspiration: ${inspiration.name}` : "Add a sketch or inspiration photo (optional)"}
-        </label>
-        <label>
-          Budget, ₹
-          <input inputMode="numeric" value={budget} onChange={(e) => setBudget(e.target.value.replace(/\D/g, ""))} />
-        </label>
-        <button className="secondary" disabled={busy === "design"}>{busy === "design" ? "Architect is designing…" : "Design it"}</button>
-      </form>
-
-      {design && (
-        <section className="design">
-          {design.render_png_b64 ? (
-            <img src={`data:image/png;base64,${design.render_png_b64}`} alt={design.render_prompt} />
-          ) : (
-            <div className="moodboard" aria-label="Materials board">
-              {design.lines.map((l) => <span key={l.item_id}>{l.type}</span>)}
-            </div>
-          )}
-          <p>{design.concept}</p>
-          <ul className="bom">
-            {design.lines.map((l) => (
-              <li key={l.item_id}>
-                <span>{l.quantity} × {l.type}: {l.use}</span>
-                <span>{inr(l.cost_inr)}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="small muted">Estimated {inr(design.total_inr)} in reclaimed materials{!design.render_png_b64 ? ". Photo render appears in live mode." : "."}</p>
-        </section>
-      )}
       {error && <p className="error" role="alert">{error}</p>}
+
+      <details className="more" open={Boolean(design)}>
+        <summary>Design a space from what's nearby</summary>
+        <form className="stack" onSubmit={runDesign}>
+          <label>
+            Describe the space
+            <input value={brief} onChange={(e) => setBrief(e.target.value)} />
+          </label>
+          <VoiceButton hint="brief" label="Describe it by voice" onResult={(t) => setBrief(t.text)} />
+          <label className="capture-btn quiet slim">
+            <input type="file" accept="image/*" onChange={(e) => setInspiration(e.target.files?.[0] ?? null)} />
+            {inspiration ? `Inspiration: ${inspiration.name}` : "Add a sketch or inspiration photo (optional)"}
+          </label>
+          <label>
+            Budget, ₹
+            <input inputMode="numeric" value={budget} onChange={(e) => setBudget(e.target.value.replace(/\D/g, ""))} />
+          </label>
+          <button className="secondary" disabled={busy === "design"}>{busy === "design" ? "Architect is designing…" : "Design it"}</button>
+        </form>
+        {design && (
+          <section className="design">
+            {design.render_png_b64 ? (
+              <img src={`data:image/png;base64,${design.render_png_b64}`} alt={design.render_prompt} />
+            ) : (
+              <div className="moodboard" aria-label="Materials board">
+                {design.lines.map((l) => <span key={l.item_id}>{l.type}</span>)}
+              </div>
+            )}
+            <p>{design.concept}</p>
+            <ul className="bom">
+              {design.lines.map((l) => (
+                <li key={l.item_id}>
+                  <span>{l.quantity} × {l.type}: {l.use}</span>
+                  <span>{inr(l.cost_inr)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="small muted">Estimated {inr(design.total_inr)} in reclaimed materials{!design.render_png_b64 ? ". Photo render appears in live mode." : "."}</p>
+          </section>
+        )}
+      </details>
     </div>
   );
 }
