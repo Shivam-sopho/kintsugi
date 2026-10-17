@@ -33,6 +33,11 @@ ALIASES: dict[str, str] = {
     "kapda": "textile", "कपड़ा": "textile", "kain": "textile",
     "paper": "paper", "cardboard": "paper",
     "electronics": "electronics", "e-waste": "electronics", "wiring": "copper",
+    # organic (compost or biogas)
+    "organic": "organic", "food": "organic", "food waste": "organic", "kitchen waste": "organic",
+    "garden waste": "organic", "leaves": "organic", "vegetable": "organic", "fruit": "organic",
+    "coconut": "organic", "cow dung": "organic", "biomass": "organic", "wet waste": "organic",
+    "गीला कचरा": "organic", "खाद": "organic", "ಹಸಿ ಕಸ": "organic",
 }
 
 

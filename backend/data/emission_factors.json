@@ -16,15 +16,17 @@
     "textile": 5.0,
     "paper": 1.0,
     "electronics": 2.0,
+    "organic": 0.5,
     "mixed": 1.0
   },
-  "_credit_note": "Share of a material's embodied carbon counted as avoided for each next life. ASSUMPTIONS: reuse avoids making a new item; recycling avoids roughly half; energy recovery and disposal avoid none. Tune and cite before the demo.",
+  "_credit_note": "Share of a material's embodied carbon counted as avoided for each next life. ASSUMPTIONS: reuse avoids making a new item; recycling avoids roughly half; composting or biogas is credited with the landfill methane it avoids (the organic factor, about 0.5 kg CO2e per kg of food waste, is an assumption to cite); energy recovery and disposal avoid none. Tune and cite before the demo.",
   "rung_credit": {
     "reuse": 1.0,
     "repair": 0.9,
     "upcycle": 0.8,
     "harvest_parts": 0.8,
     "recycle": 0.5,
+    "compost": 1.0,
     "recover_energy": 0.0,
     "safe_disposal": 0.0
   }

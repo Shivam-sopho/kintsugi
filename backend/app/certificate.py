@@ -44,16 +44,16 @@ LABELS = {
 
 RUNGS = {
     "hi": {"reuse": "फिर से इस्तेमाल", "repair": "मरम्मत", "upcycle": "अपसाइक्लिंग", "harvest_parts": "पुर्ज़े निकालना",
-           "recycle": "रीसाइक्लिंग", "recover_energy": "ऊर्जा प्राप्ति", "safe_disposal": "सुरक्षित निपटान"},
+           "recycle": "रीसाइक्लिंग", "compost": "खाद या बायोगैस", "recover_energy": "ऊर्जा प्राप्ति", "safe_disposal": "सुरक्षित निपटान"},
     "kn": {"reuse": "ಮರುಬಳಕೆ", "repair": "ದುರಸ್ತಿ", "upcycle": "ಅಪ್‌ಸೈಕ್ಲಿಂಗ್", "harvest_parts": "ಭಾಗಗಳ ಮರುಪಡೆಯುವಿಕೆ",
-           "recycle": "ಮರುಸಂಸ್ಕರಣೆ", "recover_energy": "ಶಕ್ತಿ ಮರುಪಡೆಯುವಿಕೆ", "safe_disposal": "ಸುರಕ್ಷಿತ ವಿಲೇವಾರಿ"},
+           "recycle": "ಮರುಸಂಸ್ಕರಣೆ", "compost": "ಗೊಬ್ಬರ ಅಥವಾ ಬಯೋಗ್ಯಾಸ್", "recover_energy": "ಶಕ್ತಿ ಮರುಪಡೆಯುವಿಕೆ", "safe_disposal": "ಸುರಕ್ಷಿತ ವಿಲೇವಾರಿ"},
 }
 
 MATERIALS = {
     "hi": {"wood": "लकड़ी", "steel": "स्टील", "copper": "तांबा", "aluminium": "एल्युमिनियम", "glass": "काँच",
-           "ceramic": "सिरेमिक", "plastic": "प्लास्टिक", "textile": "कपड़ा", "foam": "फ़ोम", "paper": "कागज़"},
+           "ceramic": "सिरेमिक", "plastic": "प्लास्टिक", "textile": "कपड़ा", "foam": "फ़ोम", "paper": "कागज़", "organic": "जैविक कचरा", "electronics": "इलेक्ट्रॉनिक्स"},
     "kn": {"wood": "ಮರ", "steel": "ಉಕ್ಕು", "copper": "ತಾಮ್ರ", "aluminium": "ಅಲ್ಯೂಮಿನಿಯಂ", "glass": "ಗಾಜು",
-           "ceramic": "ಸೆರಾಮಿಕ್", "plastic": "ಪ್ಲಾಸ್ಟಿಕ್", "textile": "ಬಟ್ಟೆ", "foam": "ಫೋಮ್", "paper": "ಕಾಗದ"},
+           "ceramic": "ಸೆರಾಮಿಕ್", "plastic": "ಪ್ಲಾಸ್ಟಿಕ್", "textile": "ಬಟ್ಟೆ", "foam": "ಫೋಮ್", "paper": "ಕಾಗದ", "organic": "ಜೈವಿಕ ತ್ಯಾಜ್ಯ", "electronics": "ಎಲೆಕ್ಟ್ರಾನಿಕ್ಸ್"},
 }
 
 

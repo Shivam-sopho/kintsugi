@@ -27,6 +27,17 @@ class MemoryStore:
             self.jobs: dict[str, Job] = {}
             self.events: dict[str, list[AgentEvent]] = {}
 
+    def delete_docs(self, collection: str, ids: list[str]) -> None:
+        """Remove some records (judge mode clears only its own sample data)."""
+        drop = set(ids)
+        with self._lock:
+            if collection == "ledger":
+                self.ledger = [e for e in self.ledger if e.id not in drop]
+                return
+            table = getattr(self, collection)
+            for i in drop:
+                table.pop(i, None)
+
     # participants
     def list_participants(self) -> list[Participant]:
         return list(self.participants.values())

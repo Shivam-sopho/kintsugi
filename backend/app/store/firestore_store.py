@@ -44,6 +44,11 @@ class FirestoreStore:
             for snap in self.db.collection(col).limit(500).stream():
                 snap.reference.delete()
 
+    def delete_docs(self, collection: str, ids: list[str]) -> None:
+        """Remove some records (judge mode clears only its own sample data)."""
+        for i in ids:
+            self.db.collection(collection).document(i).delete()
+
     # participants
     def list_participants(self) -> list[Participant]:
         return self._all("participants", Participant)
