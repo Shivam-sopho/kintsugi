@@ -55,6 +55,14 @@ export interface Item {
   autopilot: boolean;
   evidence: string[];
   take_apart: Record<string, string[]>;
+  explanation: Record<string, Explanation>;
+}
+
+export interface Explanation {
+  headline: string;
+  parts: { part: string; goes_to?: string; happens: string }[];
+  you_can: string[];
+  why: string;
 }
 
 export interface Site {
@@ -111,6 +119,7 @@ export interface Deal {
   final_price_inr: number | null;
   settlement: { label: string; payment_mandate: Record<string, unknown> } | null;
   autopilot: boolean;
+  kind: "sale" | "handover";
   created_at: number;
 }
 

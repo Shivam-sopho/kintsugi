@@ -4,7 +4,7 @@ import ErrorBoundary from "./ErrorBoundary";
 import type { AppState, GeoPoint, Item, Rung } from "../types";
 import { DEMO_CENTER, RUNG_COLOR, RUNG_ORDER } from "../labels";
 
-export type Layers = { future: boolean; materials: boolean; destinations: boolean; deals: boolean };
+export type Layers = { flows: boolean; future: boolean; materials: boolean; destinations: boolean; deals: boolean };
 
 interface Props {
   state: AppState;
@@ -32,6 +32,14 @@ export interface Seam {
   from: GeoPoint;
   to: GeoPoint;
   kind: "deal" | "route";
+}
+
+/** A line from a listed thing to a taker its parts go to, coloured by that next life. */
+export interface Flow {
+  id: string;
+  from: GeoPoint;
+  to: GeoPoint;
+  rung: Rung;
 }
 
 export function useMapModel(state: AppState) {
@@ -73,7 +81,22 @@ export function useMapModel(state: AppState) {
         prev = s.location;
       }
     }
-    return { sites, seams };
+    // The circular flows: every listed thing to each taker its parts go to.
+    const flows: Flow[] = [];
+    const seen = new Set<string>();
+    for (const it of state.items) {
+      const routes = it.destination_id && it.next_life
+        ? [{ dest: it.destination_id, rung: it.next_life }]
+        : it.components.filter((c) => c.destination_id && c.next_life).map((c) => ({ dest: c.destination_id!, rung: c.next_life! }));
+      for (const r of routes) {
+        const taker = people[r.dest];
+        const key = `${it.site_id}|${r.dest}|${r.rung}`;
+        if (!taker || seen.has(key)) continue;
+        seen.add(key);
+        flows.push({ id: key, from: it.location, to: taker.location, rung: r.rung });
+      }
+    }
+    return { sites, seams, flows };
   }, [state]);
 }
 
@@ -89,7 +112,7 @@ function pinStyle(p: SitePin, selected: boolean): React.CSSProperties {
 }
 
 function GoogleMapView({ state, layers, selectedSiteId, onSelectSite, onSelectPrediction }: Props) {
-  const { sites, seams } = useMapModel(state);
+  const { sites, seams, flows } = useMapModel(state);
   return (
     <APIProvider apiKey={MAPS_KEY!}>
       <Map
@@ -100,6 +123,10 @@ function GoogleMapView({ state, layers, selectedSiteId, onSelectSite, onSelectPr
         disableDefaultUI
         className="map-canvas"
       >
+        {layers.flows &&
+          flows.map((f) => (
+            <Polyline key={f.id} path={[f.from, f.to]} strokeColor={RUNG_COLOR[f.rung]} strokeWeight={4} strokeOpacity={0.9} geodesic />
+          ))}
         {layers.deals &&
           seams.map((s) => (
             <Polyline
@@ -149,7 +176,7 @@ const PLACES: { name: string; lat: number; lng: number }[] = [
 
 /** Offline map used when no Maps key is set: same layers, projected to fit the panel. */
 function SchematicMap({ state, layers, selectedSiteId, onSelectSite, onSelectPrediction }: Props) {
-  const { sites, seams } = useMapModel(state);
+  const { sites, seams, flows } = useMapModel(state);
   const wrap = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
   useEffect(() => {
@@ -189,6 +216,10 @@ function SchematicMap({ state, layers, selectedSiteId, onSelectSite, onSelectPre
         {PLACES.map((p) => (
           <text key={p.name} className="place" x={x(p)} y={y(p) + 34} textAnchor="middle">{p.name}</text>
         ))}
+        {layers.flows &&
+          flows.map((f) => (
+            <line key={f.id} className="flow" stroke={RUNG_COLOR[f.rung]} x1={x(f.from)} y1={y(f.from)} x2={x(f.to)} y2={y(f.to)} />
+          ))}
         {layers.deals &&
           seams.map((s) => (
             <line

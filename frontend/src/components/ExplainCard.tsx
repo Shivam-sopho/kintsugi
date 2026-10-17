@@ -1,0 +1,83 @@
+import { useEffect, useState } from "react";
+import { api } from "../api";
+import type { Explanation, Item } from "../types";
+import ListenButton from "./ListenButton";
+
+const EXPLAIN_VERSION = "v2"; // matches the backend's cache key
+const YOU_CAN: Record<string, string> = { en: "You can", hi: "आप क्या कर सकते हैं", kn: "ನೀವು ಮಾಡಬಹುದಾದದ್ದು" };
+const LANGS: [string, string][] = [["en", "English"], ["hi", "हिन्दी"], ["kn", "ಕನ್ನಡ"]];
+
+/** "What becomes of it": Gemini explains, in plain words and the person's language, where each
+ *  part goes and what happens to it there. The routes themselves were decided by the rules. */
+export default function ExplainCard({ item }: { item: Item }) {
+  const first = LANGS.some(([c]) => c === item.language) ? item.language : "en";
+  const [lang, setLang] = useState(first);
+  const cachedFor = (l: string) => item.explanation?.[`${EXPLAIN_VERSION}:${l}`];
+  const [data, setData] = useState<Explanation | null>(cachedFor(first) ?? null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setError(null);
+    const cached = cachedFor(lang);
+    if (cached) {
+      setData(cached);
+      return;
+    }
+    setData(null);
+    api.explain(item.id, lang)
+      .then((d) => alive && setData(d))
+      .catch((e) => alive && setError(`Couldn't explain it right now (${(e as Error).message}).`));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id, item.explanation, lang]);
+
+  const readOut = data ? [data.headline, ...data.parts.map((p) => `${p.part}: ${p.happens}`), data.why].join(" ") : "";
+  return (
+    <section className="explain" aria-live="polite">
+      <div className="explain-head">
+        <h3>What becomes of it</h3>
+        <div className="lang-chips" role="group" aria-label="Language">
+          {LANGS.map(([code, label]) => (
+            <button key={code} type="button" className={lang === code ? "on" : ""} aria-pressed={lang === code} onClick={() => setLang(code)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {!data && !error && (
+        <div className="explain-loading">
+          <span className="dots" aria-hidden="true"><i /><i /><i /></span> Gemini is working out what each part becomes…
+        </div>
+      )}
+      {error && <p className="small error">{error}</p>}
+      {data && (
+        <div lang={lang}>
+          <p className="explain-headline">{data.headline}</p>
+          <ol className="flow-list">
+            {data.parts.map((p, i) => (
+              <li key={i}>
+                <span className="flow-part">{p.part}</span>
+                {p.goes_to && <span className="flow-to">{p.goes_to}</span>}
+                <span className="flow-happens">{p.happens}</span>
+              </li>
+            ))}
+          </ol>
+          {data.you_can.length > 0 && (
+            <>
+              <h4>{YOU_CAN[lang] ?? YOU_CAN.en}</h4>
+              <ul className="you-can">{data.you_can.map((t, i) => <li key={i}>{t}</li>)}</ul>
+            </>
+          )}
+          <p className="why">{data.why}</p>
+          <div className="row between">
+            <ListenButton text={readOut} lang={lang} />
+            <span className="gemini-chip">Written by Gemini 2.5 Flash from the routes the rules chose</span>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}

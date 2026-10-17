@@ -1,4 +1,4 @@
-import type { AgentEvent, AppState, AskReply, Deal, Item, Job, SearchResult, Transcript } from "./types";
+import type { AgentEvent, AppState, AskReply, Deal, Explanation, Item, Job, SearchResult, Transcript } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "";
 
@@ -33,6 +33,8 @@ export const api = {
   },
   state: () => call<AppState>("/api/state"),
   ask: (form: FormData) => call<AskReply>("/api/ask", { method: "POST", body: form }),
+  explain: (id: string, lang: string) => call<Explanation>(`/api/items/${id}/explain?lang=${lang}`),
+  handover: (id: string) => call<Job>(`/api/items/${id}/handover`, { method: "POST" }),
   itemAutopilot: (id: string, on: boolean) => call<Job>(`/api/items/${id}/autopilot`, json({ on })),
   createRequest: (body: { buyer_id: string; query: string; lat: number; lng: number; radius_km: number; cap_inr?: number; auto_approve: boolean }) =>
     call<Job>("/api/requests", json(body)),

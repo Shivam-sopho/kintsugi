@@ -23,8 +23,8 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
   if (!deal) {
     return (
       <section>
-        <h2>Deal room</h2>
-        <p className="muted">No deals yet. On Home, choose I need something, pick what you want and let the agents negotiate. Or open an item and offer it to a buyer.</p>
+        <h2>Handovers</h2>
+        <p className="muted">Nothing handed over yet. Open an item and choose how it goes: hand it over for free to a recycler, municipal centre, compost unit or charity, or sell it to a buyer.</p>
       </section>
     );
   }
@@ -35,6 +35,34 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
   const sellerLang = seller?.language ?? "en";
   const buyerLang = buyer?.language ?? "en";
   const items = deal.item_ids.map((id) => state.items.find((i) => i.id === id)).filter(Boolean);
+
+  if (deal.kind === "handover") {
+    const it = items[0];
+    const routes = it ? [...new Set([it.destination_id, ...it.components.map((c) => c.destination_id)].filter(Boolean) as string[])] : [];
+    return (
+      <section className="dealroom">
+        <div className="row between"><h2>Handovers</h2>
+          {deals.length > 1 && (
+            <select value={deal.id} onChange={(e) => setDealId(e.target.value)} aria-label="Choose a handover">
+              {deals.map((d) => <option key={d.id} value={d.id}>{d.kind === "handover" ? "Handed over" : "Sale"}: {d.item_ids.map((id) => state.items.find((i) => i.id === id)?.type).filter(Boolean).join(", ")}</option>)}
+            </select>
+          )}
+        </div>
+        <article className="handover-card">
+          <span className="status ok">Handed over, no money involved</span>
+          <h3>{it ? `${it.count > 1 ? `${it.count} × ` : ""}${it.type}` : "Item"}</h3>
+          <ul className="takers">
+            {routes.map((id) => (
+              <li key={id}><span className="grow"><strong>{people[id]?.name ?? id}</strong>
+                <span className="small muted block">{(it?.components ?? []).filter((c) => (c.destination_id ?? it?.destination_id) === id).map((c) => c.name).join(", ") || "the whole item"}</span></span></li>
+            ))}
+          </ul>
+          {it?.co2_avoided_kg != null && <p><strong>{it.co2_avoided_kg} kg CO2e</strong> avoided, recorded in the ledger.</p>}
+          <a className="secondary button" href={api.certificateUrl(deal.id, sellerLang)} target="_blank" rel="noreferrer">Impact certificate</a>
+        </article>
+      </section>
+    );
+  }
 
   const approve = async () => {
     setBusy(true);
@@ -52,10 +80,14 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
   return (
     <section className="dealroom">
       <div className="row between">
-        <h2>Deal room</h2>
+        <h2>Handovers</h2>
         {deals.length > 1 && (
-          <select value={deal.id} onChange={(e) => setDealId(e.target.value)} aria-label="Choose deal">
-            {deals.map((d) => <option key={d.id} value={d.id}>{d.id}</option>)}
+          <select value={deal.id} onChange={(e) => setDealId(e.target.value)} aria-label="Choose a handover">
+            {deals.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.kind === "handover" ? "Handed over" : "Sale"}: {d.item_ids.map((id) => state.items.find((i) => i.id === id)?.type).filter(Boolean).join(", ") || d.id}
+              </option>
+            ))}
           </select>
         )}
       </div>

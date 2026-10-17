@@ -1,5 +1,4 @@
 import type { AppState, Item } from "../types";
-import { RUNG_LABEL } from "../labels";
 
 interface Step {
   label: string;
@@ -21,7 +20,7 @@ export function journey(item: Item, state: AppState): { steps: Step[]; next: str
     { label: "Valued", done: item.value_max_inr != null || item.hazards.length > 0 },
     { label: "Next life chosen", done: item.next_life != null },
     { label: "Taker found", done: hasTaker },
-    { label: item.hazards.length ? "Handed over" : "Deal or pickup", done: Boolean(deal) || finished },
+    { label: "Handed over", done: Boolean(deal) || finished },
     { label: "Impact recorded", done: finished },
   ];
 
@@ -30,14 +29,14 @@ export function journey(item: Item, state: AppState): { steps: Step[]; next: str
   else if (item.hazards.length)
     next = taker ? `A licensed handler, ${taker.name}, collects it for professional testing. It is never reused.`
       : "It needs a licensed handler for professional testing. It is never reused.";
-  else if (deal?.status === "agreed") next = "A price is agreed. It settles once the buyer approves: see Deals.";
-  else if (deal) next = "The agents are negotiating right now: see Deals.";
+  else if (deal?.status === "agreed") next = "A price is agreed. It settles once the buyer approves: see Handovers.";
+  else if (deal) next = "The agents are negotiating right now: see Handovers.";
   else if (!item.verified) next = "Check what Scout saw below, then tap Looks right or Correct it.";
   else if (taker && ["buyer", "ngo", "dealer"].includes(taker.role))
     next = item.autopilot ? `Your agent is ready to sell to matching buyers, starting with ${taker.name}.`
-      : `Offer it to ${taker.name}, or set your lowest price and let your agent sell it.`;
+      : `Read what it becomes below, then hand it over for free or sell it to ${taker.name}.`;
   else if (hasTaker)
-    next = `Its parts go to ${partTakers.size} nearby ${partTakers.size === 1 ? "taker" : "takers"} for ${item.next_life ? RUNG_LABEL[item.next_life].toLowerCase() : "a next life"}; a dealer pickup is arranged when there's enough nearby.`;
+    next = `Its parts go to ${partTakers.size} nearby ${partTakers.size === 1 ? "taker" : "takers"}. Read what each becomes below, then hand it over.`;
   else next = "No taker nearby yet. Kintsugi keeps looking, and tells you when one appears.";
   return { steps, next };
 }
