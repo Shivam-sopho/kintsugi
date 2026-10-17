@@ -4,6 +4,7 @@ export type Rung =
   | "upcycle"
   | "harvest_parts"
   | "recycle"
+  | "compost"
   | "recover_energy"
   | "safe_disposal";
 
@@ -71,6 +72,9 @@ export interface Participant {
   language: string;
   location: GeoPoint;
   synthetic: boolean;
+  accepts_types: string[];
+  accepts_materials: string[];
+  place_id: string | null;
 }
 
 export interface Prediction {

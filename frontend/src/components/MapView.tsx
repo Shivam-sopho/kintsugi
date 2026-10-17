@@ -121,8 +121,8 @@ function GoogleMapView({ state, layers, selectedSiteId, onSelectSite, onSelectPr
             </AdvancedMarker>
           ))}
         {layers.materials &&
-          sites.map((s) => (
-            <AdvancedMarker key={s.id} position={s.location} onClick={() => onSelectSite(s.id)} title={s.name}>
+          spread(sites).map(({ s, at }) => (
+            <AdvancedMarker key={s.id} position={at} onClick={() => onSelectSite(s.id)} title={s.name}>
               <span className="site-pin" style={pinStyle(s, s.id === selectedSiteId)}>
                 {s.items.length}
                 {s.hazard && <i className="hazard-dot" aria-label="hazard" />}
@@ -243,4 +243,28 @@ function SchematicMap({ state, layers, selectedSiteId, onSelectSite, onSelectPre
       <p className="map-note">Schematic view. Add a Google Maps key to see the real map.</p>
     </div>
   );
+}
+
+/** Pins closer than about 300 m overlap at city zoom: fan them out in a small ring (display only;
+ *  home locations are already approximate). */
+function spread<T extends { location: { lat: number; lng: number } }>(points: T[]): { s: T; at: { lat: number; lng: number } }[] {
+  const out: { s: T; at: { lat: number; lng: number } }[] = [];
+  const groups: T[][] = [];
+  for (const p of points) {
+    const g = groups.find((grp) => Math.abs(grp[0].location.lat - p.location.lat) < 0.003 && Math.abs(grp[0].location.lng - p.location.lng) < 0.003);
+    if (g) g.push(p);
+    else groups.push([p]);
+  }
+  for (const g of groups) {
+    if (g.length === 1) {
+      out.push({ s: g[0], at: g[0].location });
+      continue;
+    }
+    const c = g[0].location;
+    g.forEach((p, i) => {
+      const a = (2 * Math.PI * i) / g.length;
+      out.push({ s: p, at: { lat: c.lat + 0.004 * Math.sin(a), lng: c.lng + 0.004 * Math.cos(a) } });
+    });
+  }
+  return out;
 }

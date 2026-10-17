@@ -1,5 +1,5 @@
 import type { Item } from "../types";
-import { RUNG_COLOR, RUNG_LABEL, inr, kg } from "../labels";
+import { RUNG_COLOR, RUNG_LABEL, inr, kg, sentence } from "../labels";
 import { RungIcon } from "./Icons";
 
 interface Props {
@@ -21,7 +21,7 @@ export default function ItemCard({ item, onOpen, distanceKm, picked, onPick }: P
       )}
       <button type="button" className="item-card-body" onClick={onOpen}>
         <span className="item-card-title">
-          {item.type}
+          {sentence(item.type)}
           {item.count > 1 && <span className="muted"> × {item.count}</span>}
         </span>
         <span className="item-card-meta">

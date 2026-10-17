@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useJobs } from "./useJobs";
 import { setVoiceReplies, voiceRepliesOn } from "./speak";
+import { sentence } from "./labels";
 import MapView, { type Layers } from "./components/MapView";
 import MapPanel from "./components/MapPanel";
 import HomePanel from "./components/HomePanel";
@@ -12,6 +13,8 @@ import Passport from "./components/Passport";
 import Sheet from "./components/Sheet";
 import { Logo } from "./components/Icons";
 import ProfilePanel from "./components/ProfilePanel";
+import DemoStory from "./components/DemoStory";
+import NearbyList from "./components/NearbyList";
 import { loadPersona, savePersona } from "./persona";
 
 type Tab = "home" | "map" | "deals" | "impact";
@@ -32,7 +35,7 @@ const ICON: Record<Tab, ReactNode> = {
 };
 const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Deals", impact: "Impact" };
 
-type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | null;
+type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | { kind: "story" } | null;
 
 export default function App() {
   const { state, job, events, error, refresh, track } = useJobs();
@@ -43,6 +46,7 @@ export default function App() {
   const [sheet, setSheet] = useState<SheetState>(null);
   const [voice, setVoice] = useState(voiceRepliesOn());
   const [personaId, setPersonaId] = useState(loadPersona());
+  const [mapView, setMapView] = useState<"map" | "list">("map");
   const persona = state?.participants.find((p) => p.id === personaId);
   const demoRunning = job?.kind === "judge_mode" && job.status === "running";
   const negotiating = state?.deals.some((d) => d.status === "negotiating" || d.status === "agreed");
@@ -50,9 +54,9 @@ export default function App() {
   const runDemo = async () => {
     try {
       const j = await api.judgeMode();
-      track(j, () => setTab("impact"));
+      track(j);
       setSiteId(null);
-      setSheet({ kind: "agents" });
+      setSheet({ kind: "story" });
     } catch (e) {
       alert((e as Error).message);
     }
@@ -112,7 +116,7 @@ export default function App() {
 
       {error && <p className="banner error" role="alert">{error}</p>}
 
-      <main className={`layout tab-${tab}`}>
+      <main className={`layout tab-${tab === "map" && mapView === "list" ? "maplist" : tab}`}>
         <div className="map-wrap">
           {state && (
             <MapView
@@ -128,6 +132,7 @@ export default function App() {
             />
           )}
           <div className="layer-toggles" role="group" aria-label="Map layers">
+            <button className="chip view-toggle" onClick={() => { setMapView("list"); setTab("map"); }}>Show as list</button>
             {(Object.keys(layers) as (keyof Layers)[]).map((k) => (
               <button
                 key={k}
@@ -141,7 +146,7 @@ export default function App() {
           </div>
         </div>
 
-        <section className={`panel ${tab === "map" && mapPanelEmpty ? "map-empty" : ""}`}>
+        <section className={`panel ${tab === "map" && mapView === "map" && mapPanelEmpty ? "map-empty" : ""}`}>
           <div className="panel-body" key={tab}>
             {!state ? (
               <p className="muted">Loading…</p>
@@ -153,13 +158,15 @@ export default function App() {
                 personaId={personaId}
                 onJob={track}
                 onOpenItem={openItem}
-                onOpenAgents={() => setSheet({ kind: "agents" })}
+                onOpenAgents={() => setSheet(job?.kind === "judge_mode" ? { kind: "story" } : { kind: "agents" })}
                 onSkip={skipDemo}
                 onDealStarted={() => setTab("deals")}
                 onRunDemo={runDemo}
                 demoRunning={demoRunning}
                 onChanged={refresh}
               />
+            ) : tab === "map" && mapView === "list" ? (
+              <NearbyList state={state} onOpenItem={openItem} onShowMap={() => setMapView("map")} />
             ) : tab === "map" ? (
               <MapPanel
                 state={state}
@@ -198,7 +205,7 @@ export default function App() {
       </nav>
 
       {sheet?.kind === "item" && sheetItem && state && (
-        <Sheet title={sheetItem.type} onClose={() => setSheet(null)}>
+        <Sheet title={sentence(sheetItem.type)} onClose={() => setSheet(null)}>
           <Passport key={sheetItem.id} item={sheetItem} state={state} onBack={() => setSheet(null)} onChanged={refresh} onOffer={offer} onJob={track} />
         </Sheet>
       )}
@@ -212,6 +219,21 @@ export default function App() {
               setPersonaId(id);
             }}
             onOpenItem={openItem}
+          />
+        </Sheet>
+      )}
+      {sheet?.kind === "story" && job?.kind === "judge_mode" && (
+        <Sheet title="The one-minute story" onClose={() => setSheet(null)}>
+          <DemoStory
+            job={job}
+            events={events}
+            state={state}
+            onSkip={skipDemo}
+            onShowSteps={() => setSheet({ kind: "agents" })}
+            onFinish={(t) => {
+              setSheet(null);
+              setTab(t);
+            }}
           />
         </Sheet>
       )}

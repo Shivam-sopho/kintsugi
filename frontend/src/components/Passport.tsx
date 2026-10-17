@@ -2,9 +2,11 @@ import { useState } from "react";
 import { api } from "../api";
 import ListenButton from "./ListenButton";
 import type { AppState, Item, Job } from "../types";
-import { LANG_LABEL, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, inr, kg } from "../labels";
+import { LANG_LABEL, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, inr, kg, sentence } from "../labels";
 import VoiceButton from "./VoiceButton";
 import { RungIcon } from "./Icons";
+import Journey from "./Journey";
+import TakersList from "./TakersList";
 
 const CONDITION: Record<Item["condition"], string> = { A: "Like new", B: "Good", C: "Worn", D: "Broken" };
 const BUYING_ROLES = new Set(["buyer", "ngo", "dealer"]);
@@ -62,9 +64,10 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
   return (
     <article className="passport">
       <h2>
-        {item.type} <span className="count">× {item.count}</span>
+        {sentence(item.type)} <span className="count">× {item.count}</span>
       </h2>
       <p className="muted">{item.description}</p>
+      <Journey item={item} state={state} />
 
       {item.evidence.length > 0 && (
         <div className="evidence" aria-label="Evidence photos, faces blurred">
@@ -198,6 +201,9 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
           <ListenButton text={item.take_apart[stepLang].join(" ")} lang={stepLang} />
         </section>
       )}
+
+      <h3>Who can take it, nearest first</h3>
+      <TakersList state={state} from={item.location} item={item} />
 
       <h3>Parts and materials</h3>
       <table className="parts">
