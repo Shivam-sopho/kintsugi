@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     model_fast: str = "gemini-2.5-flash"  # translation, short summaries, grounding
     model_image: str = "gemini-2.5-flash-image"  # design renders
     model_embedding: str = "gemini-embedding-2-preview"
+    model_tts: str = "gemini-2.5-flash-tts"  # Listen: reads steps and deal messages aloud
+    tts_voice: str = "Kore"
     embedding_dim: int = 768  # reduced via Matryoshka; must match the Firestore vector index
 
     # Google Maps Platform (Places + Geocoding), server-side key

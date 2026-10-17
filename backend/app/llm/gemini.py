@@ -6,9 +6,12 @@ Not yet exercised against the live API (written without credentials). On Day 1, 
 
 from __future__ import annotations
 
+import asyncio
+import io
 import json
 import logging
 import re
+import wave
 from typing import Any, Optional
 
 from google import genai
@@ -74,25 +77,42 @@ class GeminiLLM:
             f"{i}. {it['type']} (condition {it.get('condition', 'C')}, {it.get('description', '')})"
             for i, it in enumerate(items)
         )
-        # Search grounding is used without a response schema; the JSON is parsed from text.
-        resp = await self.client.aio.models.generate_content(
-            model=self.s.model_fast,
-            contents=[f"City: {city}. Items:\n{lines}"],
-            config=types.GenerateContentConfig(
-                system_instruction=prompts.PRICING_SYSTEM,
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.1,
-            ),
-        )
+        # Search grounding is used without a response schema; the JSON is parsed from text. Grounded
+        # replies are sometimes empty or prose only, so try twice, then leave the items unpriced
+        # rather than fail the whole scan.
+        parsed: list[dict[str, Any]] = []
         grounded_urls: list[str] = []
-        try:
-            meta = resp.candidates[0].grounding_metadata
-            for chunk in (meta.grounding_chunks or []) if meta else []:
-                if chunk.web and chunk.web.uri:
-                    grounded_urls.append(chunk.web.uri)
-        except (AttributeError, IndexError):
-            pass
-        parsed = _json_from_text(resp.text).get("prices", [])
+        for attempt in (1, 2):
+            try:
+                resp = await asyncio.wait_for(
+                    self.client.aio.models.generate_content(
+                        model=self.s.model_fast,
+                        contents=[f"City: {city}. Items:\n{lines}"],
+                        config=types.GenerateContentConfig(
+                            system_instruction=prompts.PRICING_SYSTEM,
+                            tools=[types.Tool(google_search=types.GoogleSearch())],
+                            temperature=0.1,
+                            thinking_config=types.ThinkingConfig(thinking_budget=PRICING_THINKING_BUDGET),
+                        ),
+                    ),
+                    timeout=PRICING_TIMEOUT_S,
+                )
+            except asyncio.TimeoutError:
+                log.warning("Pricing attempt %d took over %ds", attempt, PRICING_TIMEOUT_S)
+                continue
+            try:
+                parsed = _json_from_text(resp.text).get("prices", [])
+            except (ValueError, AttributeError) as exc:
+                log.warning("Pricing reply %d had no JSON (%s): %r", attempt, exc, (resp.text or "")[:300])
+                continue
+            try:
+                meta = resp.candidates[0].grounding_metadata
+                for chunk in (meta.grounding_chunks or []) if meta else []:
+                    if chunk.web and chunk.web.uri:
+                        grounded_urls.append(chunk.web.uri)
+            except (AttributeError, IndexError):
+                pass
+            break
         by_index = {p.get("index"): p for p in parsed}
         out = []
         for i in range(len(items)):
@@ -170,3 +190,48 @@ class GeminiLLM:
         except Exception as exc:  # rendering is optional; never break the flow
             log.warning("Render failed: %s", exc)
         return None
+
+    async def speech(self, text: str, lang: str) -> Optional[bytes]:
+        try:
+            resp = await self.client.aio.models.generate_content(
+                model=self.s.model_tts,
+                contents=text,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        language_code=SPEECH_LOCALES.get(lang, lang),
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.s.tts_voice)
+                        ),
+                    ),
+                ),
+            )
+            for part in resp.candidates[0].content.parts:
+                if part.inline_data and part.inline_data.data:
+                    return pcm_to_wav(part.inline_data.data, _sample_rate(part.inline_data.mime_type))
+        except Exception as exc:  # speech is optional; the app falls back to the device's voice
+            log.warning("Speech failed: %s", exc)
+        return None
+
+
+PRICING_TIMEOUT_S = 45  # per attempt; a scan should never wait minutes on a price search
+PRICING_THINKING_BUDGET = 512
+
+SPEECH_LOCALES = {"en": "en-IN", "hi": "hi-IN", "kn": "kn-IN", "ta": "ta-IN", "id": "id-ID", "ja": "ja-JP"}
+
+
+def _sample_rate(mime_type: str | None, default: int = 24000) -> int:
+    """Gemini TTS returns raw 16-bit PCM, e.g. "audio/L16;codec=pcm;rate=24000"."""
+    match = re.search(r"rate=(\d+)", mime_type or "")
+    return int(match.group(1)) if match else default
+
+
+def pcm_to_wav(pcm: bytes, sample_rate: int = 24000) -> bytes:
+    """Wrap mono 16-bit PCM in a WAV header so any browser can play it."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sample_rate)
+        w.writeframes(pcm)
+    return buf.getvalue()

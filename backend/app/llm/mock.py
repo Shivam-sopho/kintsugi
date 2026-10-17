@@ -117,3 +117,6 @@ class MockLLM:
 
     async def render(self, prompt: str) -> Optional[bytes]:
         return None
+
+    async def speech(self, text: str, lang: str) -> Optional[bytes]:
+        return None  # offline: the app falls back to the device's own voice
