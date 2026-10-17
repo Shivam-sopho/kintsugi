@@ -31,7 +31,7 @@ TAKE_APART_RUNGS = {Rung.HARVEST_PARTS, Rung.RECYCLE, Rung.RECOVER_ENERGY}
 
 RUNG_LABEL = {
     Rung.REUSE: "reuse", Rung.REPAIR: "repair", Rung.UPCYCLE: "upcycle", Rung.HARVEST_PARTS: "harvest parts",
-    Rung.RECYCLE: "recycle", Rung.RECOVER_ENERGY: "recover energy", Rung.SAFE_DISPOSAL: "safe disposal",
+    Rung.RECYCLE: "recycle", Rung.COMPOST: "compost or biogas", Rung.RECOVER_ENERGY: "recover energy", Rung.SAFE_DISPOSAL: "safe disposal",
 }
 
 
@@ -331,7 +331,23 @@ def _routes(store: Store, it: Item) -> list[dict[str, Any]]:
     return out
 
 
-EXPLAIN_VERSION = "v2"  # bump when the explanation prompt changes, so cached ones are rewritten
+EXPLAIN_VERSION = "v3"  # bump when the explanation prompt changes, so cached ones are rewritten
+
+
+def check_afterlives(ideas: list[dict[str, Any]], it: Item) -> list[dict[str, Any]]:
+    """The possible next lives Gemini lists, kept honest by code: known rungs only, nothing but
+    safe disposal for hazards, best first by the ladder, and the rules' choice marked as best."""
+    order = [r.value for r in Rung]
+    ideas = [dict(i) for i in ideas if i.get("next_life") in order and i.get("use")]
+    if it.hazards:
+        ideas = [i for i in ideas if i["next_life"] == Rung.SAFE_DISPOSAL.value]
+    chosen = it.next_life.value if it.next_life else None
+    if chosen and not any(i["next_life"] == chosen for i in ideas):
+        ideas.insert(0, {"use": RUNG_LABEL.get(it.next_life, chosen).capitalize(), "next_life": chosen, "how": it.next_life_reason})
+    ideas.sort(key=lambda i: (i["next_life"] != chosen, order.index(i["next_life"])))
+    for i in ideas:
+        i["best"] = i["next_life"] == chosen
+    return ideas[:5]
 
 
 async def explain_item(store: Store, llm: LLM, item_id: str, lang: str) -> dict[str, Any]:
@@ -348,6 +364,7 @@ async def explain_item(store: Store, llm: LLM, item_id: str, lang: str) -> dict[
         "next_life": it.next_life.value.replace("_", " ") if it.next_life else None,
         "why_this_next_life": it.next_life_reason, "co2e_saved_kg": it.co2_avoided_kg, "parts": _routes(store, it),
     }, lang)
+    out["afterlives"] = check_afterlives(out.get("afterlives") or [], it)
     it.explanation[key] = out
     store.upsert_items([it])
     return out

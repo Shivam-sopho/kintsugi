@@ -80,6 +80,7 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
         {sentence(item.type)} <span className="count">× {item.count}</span>
       </h2>
       <p className="muted">{item.description}</p>
+      <ExplainCard item={item} />
       <LifeStory item={item} state={state} />
 
       {item.evidence.length > 0 && (
@@ -124,8 +125,6 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
           </div>
         </div>
       )}
-
-      <ExplainCard item={item} />
 
       <section className="next-life">
         <h3>Its next life, decided by the rules</h3>

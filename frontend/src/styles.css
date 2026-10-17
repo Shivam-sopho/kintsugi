@@ -643,3 +643,21 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .story-progress span.you { background: repeating-linear-gradient(90deg, var(--gold) 0 6px, transparent 6px 10px); }
 .chapter-list li.you { color: var(--gold-ink); font-weight: 600; }
 .chapter-list li.you::before { border-color: var(--gold); color: var(--gold-ink); }
+
+/* Possible next lives, best first, before any deal */
+.afterlives { list-style: none; padding: 0; margin: 0.4rem 0 0.9rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.afterlives li { display: flex; flex-direction: column; gap: 0.15rem; border: 1px solid var(--line); border-left: 4px solid var(--rung); border-radius: var(--radius-s); padding: 0.55rem 0.7rem; background: var(--paper); }
+.afterlives li.best { border-color: var(--gold); border-left-color: var(--rung); box-shadow: 0 0 0 2px rgba(184, 137, 43, 0.15); }
+.afterlives .rung-tag { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; font-weight: 600; color: var(--rung); }
+.afterlives .best-note { font-size: 0.8rem; color: var(--gold-ink); }
+.afterlives .best-note::first-line { font-weight: 600; }
+.explain h4.yours { margin: 0.4rem 0 0.2rem; font-size: 0.85rem; color: var(--slate); }
+
+/* Circular standing on a profile */
+.standing { border: 1px solid var(--gold); border-radius: var(--radius-m); background: var(--paper); padding: 0.9rem; margin: 0.9rem 0; display: grid; grid-template-columns: 64px 1fr; gap: 0.8rem; align-items: center; }
+.standing .seal { width: 64px; height: 64px; border-radius: 50%; border: 3px double var(--gold); display: grid; place-items: center; background: #fdf8ec; }
+.standing.none .seal { border-color: var(--line); background: var(--porcelain); filter: grayscale(1); opacity: 0.7; }
+.standing h3 { margin: 0; font-family: var(--display); }
+.standing .progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 0.35rem 0; }
+.standing .progress span { display: block; height: 100%; background: var(--gold); }
+.standing .actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }

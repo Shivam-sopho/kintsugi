@@ -126,7 +126,14 @@ class MockLLM:
                    "safe disposal": "is tested and disposed of safely by a licensed handler"}
         parts = [{"part": p["part"], "goes_to": p.get("goes_to") or "", "happens": happens.get(p.get("next_life") or "", "waits for a taker")}
                  for p in item.get("parts", [])]
+        decided = (item.get("next_life") or "recycle").replace(" ", "_")
+        options = ["safe_disposal"] if item.get("hazards") else [decided, *[r for r in ("reuse", "repair", "upcycle", "recycle") if r != decided]][:4]
+        ideas = {"reuse": f"Someone else uses the {item['type']} as it is", "repair": "A repairer fixes it and it is used again",
+                 "upcycle": "An upcycler makes it into something new", "harvest_parts": "Good parts become spares for others",
+                 "recycle": "Its materials become new material", "compost": "It becomes compost or biogas",
+                 "recover_energy": "It is burned for energy", "safe_disposal": "A licensed handler tests it and disposes of it safely"}
         return {
+            "afterlives": [{"use": ideas.get(r, r), "next_life": r, "how": f"It {happens.get(r.replace('_', ' '), 'waits for a taker')}."} for r in options],
             "headline": f"Your {item['type']} gets a next life: {item.get('next_life') or 'still being decided'}.",
             "parts": parts,
             "you_can": ["Keep it out of the regular bin.", "Separate the parts if you can.", "Hand it over to the taker shown."],
