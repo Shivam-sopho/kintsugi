@@ -577,3 +577,4 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .ask .big-mic-btn { width: 84px; height: 84px; }
 .crash { max-width: 26rem; margin: 20vh auto 0; padding: 0 16px; text-align: center; }
 .crash h1 { font-family: var(--display); }
+.listen-again { display: inline-block; margin-top: 0.3rem; font-size: 0.85rem; }
