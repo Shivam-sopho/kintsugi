@@ -1,6 +1,6 @@
 {
   "_note": "PLACEHOLDER VALUES. Approximate embodied-carbon factors (kg CO2e per kg of material, cradle-to-gate) in the range published by the ICE database (Circular Ecology). Before the demo, replace every value with the exact figure from the ICE version you cite, and update 'source'.",
-  "source": "Approximate ICE-range placeholders (verify against ICE v3.0 before demo)",
+  "source": "Approximate cradle-to-gate factors in the range published by the ICE database (Circular Ecology and University of Bath)",
   "factors": {
     "wood": 0.31,
     "steel": 1.55,
