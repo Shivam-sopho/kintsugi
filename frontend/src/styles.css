@@ -548,3 +548,32 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
   .demo-btn .short { display: inline; }
 }
 .brand h1 { line-height: 1.25; padding-bottom: 2px; }
+
+/* Ask Kintsugi */
+.ask-fab {
+  position: fixed; z-index: 25; right: 16px; bottom: calc(var(--nav-h) + var(--safe-b) + 14px);
+  display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.7rem 1.05rem; border: 0; border-radius: 999px;
+  background: var(--gold); color: #fff; font-weight: 700; cursor: pointer; box-shadow: 0 6px 18px rgba(30, 43, 74, 0.3);
+}
+@media (min-width: 900px) { .ask-fab { right: 456px; } }
+.ask .chat { display: flex; flex-direction: column; gap: 0.6rem; margin: 0.6rem 0 1rem; min-height: 6rem; }
+.bubble { max-width: 88%; padding: 0.7rem 0.85rem; border-radius: 14px; background: var(--paper); border: 1px solid var(--line); }
+.bubble p { margin: 0 0 0.3rem; }
+.bubble.you { align-self: flex-end; background: var(--ink); color: var(--porcelain); border-color: var(--ink); }
+.bubble.you .muted { color: rgba(245, 246, 243, 0.7); }
+.bubble.kintsugi { align-self: flex-start; border-left: 4px solid var(--gold); }
+.bubble.kintsugi p:first-child { font-size: 1.02rem; }
+.bubble .en { font-style: italic; }
+.bubble .small-btn { margin: 0.35rem 0; }
+.gemini-chip { display: block; margin-top: 0.35rem; font-size: 0.72rem; color: var(--gold-ink); }
+.bubble.thinking { color: var(--slate); display: flex; align-items: center; gap: 0.5rem; }
+.dots { display: inline-flex; gap: 3px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); display: inline-block; }
+@media (prefers-reduced-motion: no-preference) {
+  .dots i { animation: pulse 1s infinite; }
+  .dots i:nth-child(2) { animation-delay: 0.2s; }
+  .dots i:nth-child(3) { animation-delay: 0.4s; }
+}
+.ask .big-mic-btn { width: 84px; height: 84px; }
+.crash { max-width: 26rem; margin: 20vh auto 0; padding: 0 16px; text-align: center; }
+.crash h1 { font-family: var(--display); }
