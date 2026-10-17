@@ -20,7 +20,7 @@ from google.genai import types
 from ..config import Settings
 from . import prompts
 from .base import MediaRef
-from .schemas import DESIGN_SCHEMA, MESSAGES_SCHEMA, ORACLE_SCHEMA, SCOUT_SCHEMA, TAKE_APART_SCHEMA, TRANSCRIBE_SCHEMA, TRANSLATE_SCHEMA
+from .schemas import DESIGN_SCHEMA, MESSAGES_SCHEMA, ORACLE_SCHEMA, SCOUT_SCHEMA, TAKE_APART_SCHEMA, TRANSCRIBE_SCHEMA, TRANSLATE_SCHEMA, ASK_SCHEMA
 
 log = logging.getLogger(__name__)
 
@@ -202,6 +202,15 @@ class GeminiLLM:
             log.warning("Render failed: %s", exc)
         return None
 
+    async def ask(self, question: str, history: list[dict[str, str]], context: dict[str, Any], lang: str) -> dict[str, Any]:
+        turns = "\n".join(f"{t.get('role', 'user')}: {t.get('text', '')}" for t in history[-6:])
+        name = LANGUAGE_NAMES.get(lang, lang)
+        prompt = (f"CONTEXT (JSON):\n{json.dumps(context, ensure_ascii=False)}\n\nEarlier in this conversation:\n"
+                  f"{turns or '(nothing yet)'}\n\n"
+                  f"Person says: {question.strip() or '(nothing yet: greet them and make one useful suggestion)'}\n\n"
+                  f"Write \"answer\" in {name} ({lang}), whatever language the context or profile uses.")
+        return await self._json(self.s.model_fast, [prompt], prompts.ASK_SYSTEM, ASK_SCHEMA, 0.4)
+
     async def translate(self, text: str, lang: str) -> str:
         if lang == "en":
             return text
@@ -235,6 +244,8 @@ class GeminiLLM:
 EMBED_CONCURRENCY = 6
 PRICING_TIMEOUT_S = 45  # per attempt; a scan should never wait minutes on a price search
 PRICING_THINKING_BUDGET = 512
+
+LANGUAGE_NAMES = {"en": "English", "hi": "Hindi", "kn": "Kannada", "ta": "Tamil", "id": "Bahasa Indonesia", "ja": "Japanese"}
 
 SPEECH_LOCALES = {"en": "en-IN", "hi": "hi-IN", "kn": "kn-IN", "ta": "ta-IN", "id": "id-ID", "ja": "ja-JP"}
 

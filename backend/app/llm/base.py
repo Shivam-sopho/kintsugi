@@ -50,6 +50,11 @@ class LLM(Protocol):
     async def render(self, prompt: str) -> Optional[bytes]:
         """Return PNG/JPEG bytes, or None if rendering is unavailable."""
 
+    async def ask(self, question: str, history: list[dict[str, str]], context: dict[str, Any], lang: str) -> dict[str, Any]:
+        """Ask Kintsugi: answer from the person's context in their language, with one suggested
+        action. Return {"answer", "answer_en", "language", "action": {"type", ...}}. An empty
+        question asks for a proactive greeting and suggestion."""
+
     async def translate(self, text: str, lang: str) -> str:
         """Return the English `text` in language `lang`, for reading aloud (unchanged for English)."""
 
