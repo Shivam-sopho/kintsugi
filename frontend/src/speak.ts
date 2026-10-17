@@ -3,12 +3,28 @@ import { api } from "./api";
 
 const LOCALE: Record<string, string> = { en: "en-IN", hi: "hi-IN", kn: "kn-IN", ta: "ta-IN", id: "id-ID", ja: "ja-JP" };
 
-// An empty WAV, played inside the tap so the browser lets the real audio play once it arrives.
+// An empty WAV. Phones only let a page start sound from a tap, so the first tap anywhere plays
+// this on the one shared player; after that, replies that arrive seconds later can play on it.
 const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
 const VOICE_KEY = "kintsugi.voiceReplies";
 
-let playing: HTMLAudioElement | null = null;
+let player: HTMLAudioElement | null = null;
+let unlocked = false;
+let turn = 0; // each reading gets a number; a newer reading cancels older ones still loading
 const fetched = new Map<string, { url: string | null; spoken: string }>(); // Gemini audio already fetched
+
+function shared(): HTMLAudioElement {
+  if (!player) player = new Audio();
+  return player;
+}
+
+/** Call from a tap: unlocks the shared player so later replies can be heard. */
+export function unlockAudio(): void {
+  if (unlocked) return;
+  const a = shared();
+  a.src = SILENT_WAV;
+  a.play().then(() => (unlocked = true)).catch(() => undefined);
+}
 
 /** Whether Kintsugi reads its answers aloud on its own (the speaker switch in the top bar). */
 export function voiceRepliesOn(): boolean {
@@ -28,10 +44,10 @@ export function setVoiceReplies(on: boolean): void {
   if (!on) void stopSpeaking();
 }
 
-/** Stop whatever is being read. */
+/** Stop whatever is being read, and anything still loading. */
 export async function stopSpeaking(): Promise<void> {
-  playing?.pause();
-  playing = null;
+  turn += 1;
+  player?.pause();
   try {
     await TextToSpeech.stop();
   } catch {
@@ -48,13 +64,12 @@ interface Options {
 /**
  * Read text aloud in the given language with Gemini's voice (from the API), falling back to the
  * device's own voice when the API has no audio, for example in offline mode. Resolves when reading
- * ends or is stopped. Throws if neither voice is available.
+ * ends or is stopped. Throws if neither voice can play.
  */
 export async function speak(text: string, lang: string, opts: Options = {}): Promise<void> {
-  const audio = new Audio(SILENT_WAV);
-  audio.play().catch(() => undefined);
+  unlockAudio(); // when called straight from a tap, this is what lets the sound play later
   await stopSpeaking();
-  playing = audio;
+  const mine = turn;
 
   const key = `${lang}|${opts.translate ? 1 : 0}|${text}`;
   let hit = fetched.get(key);
@@ -63,19 +78,20 @@ export async function speak(text: string, lang: string, opts: Options = {}): Pro
     hit = { url: res?.audio ? URL.createObjectURL(res.audio) : null, spoken: res?.spoken ?? text };
     if (hit.url) fetched.set(key, hit);
   }
-  if (playing !== audio) return; // another reading started while this one was loading
+  if (mine !== turn) return; // another reading started while this one was loading
   opts.onSpoken?.(hit.spoken);
 
   if (hit.url) {
+    const audio = shared();
     audio.src = hit.url;
     const ended = new Promise<void>((resolve) => {
       audio.onended = audio.onpause = () => resolve();
     });
     await audio.play();
+    unlocked = true;
     opts.onStart?.();
     return ended;
   }
-  playing = null;
   opts.onStart?.();
   // Offline the words stay English, so read them with an English voice.
   const voiceLang = opts.translate && hit.spoken === text ? "en" : lang;

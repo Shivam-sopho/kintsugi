@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useJobs } from "./useJobs";
-import { setVoiceReplies, voiceRepliesOn } from "./speak";
+import { setVoiceReplies, unlockAudio, voiceRepliesOn } from "./speak";
 import { sentence } from "./labels";
 import MapView, { type Layers } from "./components/MapView";
 import MapPanel from "./components/MapPanel";
@@ -90,7 +90,7 @@ export default function App() {
   const mapPanelEmpty = !siteId && !predictionId;
 
   return (
-    <div className="app">
+    <div className="app" onPointerDownCapture={unlockAudio}>
       <header className="topbar">
         <div className="brand">
           <Logo size={30} />

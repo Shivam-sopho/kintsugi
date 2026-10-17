@@ -28,7 +28,10 @@ export default function AskPanel({ state, personaId, onOpenItem, onJob, onGoToDe
   const [text, setText] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [voice, setVoice] = useState<{ index: number; state: "preparing" | "speaking" } | null>(null);
   const end = useRef<HTMLDivElement>(null);
+  const count = useRef(0); // messages shown so far, current even inside async handlers
+  count.current = messages.length;
   const persona = state.participants.find((p) => p.id === personaId);
 
   useEffect(() => {
@@ -47,16 +50,28 @@ export default function AskPanel({ state, personaId, onOpenItem, onJob, onGoToDe
     setBusy(audio ? "Listening…" : messages.length ? "Thinking…" : "Looking at your items, deals and takers nearby…");
     try {
       const reply = await api.ask(form);
+      const index = count.current + (reply.heard ? 1 : 0);
       setMessages((prev) => [
         ...prev,
         ...(reply.heard ? [{ from: "you" as const, text: reply.heard.text, en: reply.heard.english }] : []),
-        { from: "kintsugi", text: reply.answer, en: reply.answer_en, reply },
+        { from: "kintsugi" as const, text: reply.answer, en: reply.answer_en, reply },
       ]);
-      if (voiceRepliesOn()) void speak(reply.answer, reply.language).catch(() => undefined);
+      if (voiceRepliesOn()) void readAloud(reply, index);
     } catch (e) {
       setNote(`Couldn't answer: ${(e as Error).message}`);
     } finally {
       setBusy(null);
+    }
+  };
+
+  const readAloud = async (reply: AskReply, index: number) => {
+    setVoice({ index, state: "preparing" });
+    try {
+      await speak(reply.answer, reply.language, { onStart: () => setVoice({ index, state: "speaking" }) });
+    } catch {
+      setNote("Tap Listen to hear the answer.");
+    } finally {
+      setVoice((v) => (v?.index === index ? null : v));
     }
   };
 
@@ -114,6 +129,9 @@ export default function AskPanel({ state, personaId, onOpenItem, onJob, onGoToDe
                     {m.reply.action.label || "Do it"}
                   </button>
                 )}
+                <button type="button" className="link listen-again" onClick={() => void readAloud(m.reply!, i)}>
+                  {voice?.index === i ? (voice.state === "preparing" ? "Preparing the voice…" : "Speaking…") : "Play again"}
+                </button>
                 <span className="gemini-chip">
                   {modelName(m.reply.used.model)} · looked at {m.reply.used.items} of your items, {m.reply.used.takers} takers nearby
                   {m.reply.heard?.language && m.reply.heard.language !== "en" ? ` · understood ${LANG_LABEL[m.reply.heard.language] ?? m.reply.heard.language}` : ""}
