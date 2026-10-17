@@ -5,9 +5,19 @@ import type { AppState, Item, Job } from "../types";
 import { LANG_LABEL, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, inr, kg, sentence } from "../labels";
 import VoiceButton from "./VoiceButton";
 import { RungIcon } from "./Icons";
-import Journey from "./Journey";
+import LifeStory from "./LifeStory";
 import TakersList from "./TakersList";
 import ExplainCard from "./ExplainCard";
+import { say } from "../speak";
+import { preferredLanguage } from "../language";
+
+/** What Kintsugi says once something is handed over: where it went and what it saved. */
+function handedOverLine(item: Item, takers: string[]): string {
+  const weight = item.components.reduce((s, c) => s + c.est_weight_kg, 0) * Math.max(item.count, 1);
+  const kept = weight * (item.recovered_fraction ?? 1);
+  return `Handed over. The ${item.type} goes to ${takers.join(" and ")}. That keeps ${kg(kept)} out of landfill `
+    + `and avoids ${kg(item.co2_avoided_kg)} of CO2e. Your certificate is in Handovers.`;
+}
 
 const CONDITION: Record<Item["condition"], string> = { A: "Like new", B: "Good", C: "Worn", D: "Broken" };
 const BUYING_ROLES = new Set(["buyer", "ngo", "dealer"]);
@@ -70,7 +80,7 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
         {sentence(item.type)} <span className="count">× {item.count}</span>
       </h2>
       <p className="muted">{item.description}</p>
-      <Journey item={item} state={state} />
+      <LifeStory item={item} state={state} />
 
       {item.evidence.length > 0 && (
         <div className="evidence" aria-label="Evidence photos, faces blurred">
@@ -143,7 +153,13 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
                 : "No taker nearby yet. Kintsugi keeps looking and tells you when one appears."}
             </p>
             <button className="primary wide" disabled={busy === "handover" || !routeNames.length}
-                    onClick={() => run("handover", async () => { const job = await api.handover(item.id); onJob?.(job, onChanged); })}>
+                    onClick={() => run("handover", async () => {
+                      const job = await api.handover(item.id);
+                      onJob?.(job, (done) => {
+                        onChanged();
+                        if (done.status === "done") void say(handedOverLine(item, routeNames), preferredLanguage() ?? item.language);
+                      });
+                    })}>
               {busy === "handover" ? "Arranging…" : item.hazards.length ? "Hand it to the licensed handler" : "Hand it over"}
             </button>
           </div>

@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { api } from "../api";
 import type { AppState, Item } from "../types";
 import { LANG_LABEL, inr, kg } from "../labels";
 import { PERSONA_ROLES } from "../persona";
+import { LANGUAGES, preferredLanguage, setPreferredLanguage } from "../language";
 import ItemCard from "./ItemCard";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -24,6 +26,7 @@ interface Props {
 
 /** One person's history: what they listed, what they bought and sold, and the carbon it saved. */
 export default function ProfilePanel({ state, personaId, onChangePersona, onOpenItem }: Props) {
+  const [lang, setLang] = useState(preferredLanguage() ?? "");
   const people = state.participants.filter((p) => PERSONA_ROLES.has(p.role) && p.synthetic);
   const me = state.participants.find((p) => p.id === personaId);
   const byId = Object.fromEntries(state.participants.map((p) => [p.id, p]));
@@ -57,6 +60,13 @@ export default function ProfilePanel({ state, personaId, onChangePersona, onOpen
         </select>
       </label>
       <p className="small muted">Scans are listed as this person, and deals are made as them. There are no accounts in this prototype.</p>
+      <label>
+        Kintsugi talks to me in
+        <select value={lang} onChange={(e) => { setLang(e.target.value); setPreferredLanguage(e.target.value || null); }}>
+          <option value="">The language I speak to it</option>
+          {LANGUAGES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+        </select>
+      </label>
 
       <div className="stat-grid">
         <div><span className="num">{kg(listedKg)}</span><span className="lbl">listed for a next life</span></div>

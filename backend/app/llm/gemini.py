@@ -250,9 +250,11 @@ EMBED_CONCURRENCY = 6
 PRICING_TIMEOUT_S = 45  # per attempt; a scan should never wait minutes on a price search
 PRICING_THINKING_BUDGET = 512
 
-LANGUAGE_NAMES = {"en": "English", "hi": "Hindi", "kn": "Kannada", "ta": "Tamil", "id": "Bahasa Indonesia", "ja": "Japanese"}
+LANGUAGE_NAMES = {"en": "English", "hi": "Hindi", "kn": "Kannada", "ta": "Tamil", "id": "Bahasa Indonesia",
+                  "ms": "Bahasa Melayu", "th": "Thai", "vi": "Vietnamese", "fil": "Filipino", "ja": "Japanese"}
 
-SPEECH_LOCALES = {"en": "en-IN", "hi": "hi-IN", "kn": "kn-IN", "ta": "ta-IN", "id": "id-ID", "ja": "ja-JP"}
+SPEECH_LOCALES = {"en": "en-IN", "hi": "hi-IN", "kn": "kn-IN", "ta": "ta-IN", "id": "id-ID", "ms": "ms-MY",
+                  "th": "th-TH", "vi": "vi-VN", "fil": "fil-PH", "ja": "ja-JP"}
 
 
 def _sample_rate(mime_type: str | None, default: int = 24000) -> int:

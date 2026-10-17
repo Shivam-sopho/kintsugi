@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Geolocation } from "@capacitor/geolocation";
+import { preferredLanguage } from "../language";
 import { api, audioFileName } from "../api";
 import { compressForUpload, MAX_UPLOAD_BYTES, megabytes } from "../compress";
 import { say } from "../speak";
@@ -66,7 +67,7 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
   useEffect(() => {
     if (!resultSite || announced.current === resultSite) return;
     announced.current = resultSite;
-    const lang = results[0]?.language || "en";
+    const lang = preferredLanguage() ?? (results[0]?.language || "en");
     setSpoken(null);
     void say(scanSummary(results), lang, (t) => lang !== "en" && setSpoken(t));
   }, [resultSite, results]);

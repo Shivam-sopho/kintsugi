@@ -63,7 +63,7 @@ button.primary, button.secondary, a.button {
   display: inline-block; text-align: center; text-decoration: none;
   border-radius: var(--radius-s); padding: 0.6rem 1rem; font-weight: 600; cursor: pointer; border: 1px solid transparent;
 }
-button.primary { background: var(--ink); color: var(--porcelain); }
+button.primary, a.button.primary { background: var(--ink); color: var(--porcelain); }
 button.primary.gold { background: var(--gold); color: #fff; }
 button.secondary, a.button.secondary { background: var(--paper); border-color: var(--ink); color: var(--ink); }
 button:disabled { opacity: 0.55; cursor: default; }
@@ -614,3 +614,32 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .handover-card { background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--celadon); border-radius: var(--radius-m); padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; align-items: flex-start; }
 .handover-card h3 { margin: 0; font-family: var(--display); }
 .handover-card .takers { width: 100%; }
+
+/* An item's second life, stage by stage (the same stages the demo story walks through) */
+.life-story { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 0.8rem 0.9rem 0.4rem; margin: 0.6rem 0 0.9rem; }
+.life-story .story-progress { margin-bottom: 0.55rem; }
+.life-story .journey-next { border-top: 0; padding-top: 0; margin-bottom: 0.6rem; }
+.life-stages { list-style: none; padding: 0; margin: 0; position: relative; }
+.life-stages li { display: grid; grid-template-columns: 16px 1fr; gap: 0.7rem; position: relative; padding-bottom: 0.75rem; }
+.life-stages li:not(:last-child)::before { content: ""; position: absolute; left: 7px; top: 18px; bottom: 0; width: 2px; background: var(--line); }
+.life-stages li.done:not(:last-child)::before { background: var(--celadon); }
+.life-stages .dot { width: 16px; height: 16px; border-radius: 50%; margin-top: 2px; background: var(--paper); border: 2px solid var(--line); }
+.life-stages li.done .dot { background: var(--celadon); border-color: var(--celadon); }
+.life-stages li.now .dot { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 0 4px rgba(184, 137, 43, 0.2); }
+.life-stages strong { display: block; font-size: 0.95rem; }
+.life-stages li.later strong { color: var(--slate); font-weight: 600; }
+.life-stages .by { display: block; font-size: 0.72rem; color: var(--gold-ink); margin-top: 0.05rem; }
+.life-stages p { margin: 0.2rem 0 0; font-size: 0.88rem; color: var(--slate); }
+.life-stages li.now p { color: var(--ink); }
+@media (prefers-reduced-motion: no-preference) { .life-stages li.now .dot { animation: pulse 1.2s infinite; } }
+.live-journey h3 { margin-top: 1rem; }
+
+/* Report downloads */
+.downloads { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.8rem 0 1rem; }
+.downloads .small { flex-basis: 100%; margin: 0; }
+
+.lang-chips { flex-wrap: wrap; justify-content: flex-end; }
+.lang-chips select { border: 1px solid var(--line); background: var(--porcelain); border-radius: 999px; padding: 0.15rem 0.5rem; font-size: 0.8rem; color: var(--slate); width: auto; }
+.story-progress span.you { background: repeating-linear-gradient(90deg, var(--gold) 0 6px, transparent 6px 10px); }
+.chapter-list li.you { color: var(--gold-ink); font-weight: 600; }
+.chapter-list li.you::before { border-color: var(--gold); color: var(--gold-ink); }

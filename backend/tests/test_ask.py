@@ -54,3 +54,13 @@ def test_the_reply_follows_the_language_of_the_question():
     assert agents.reply_language("मेरे टाइल्स का क्या होगा?", "en") == "hi"
     assert agents.reply_language("ಇ-ತ್ಯಾಜ್ಯ ಎಲ್ಲಿ ಕೊಡಬಹುದು?", "en") == "kn"
     assert agents.reply_language("", "kn") == "kn"  # the greeting uses the profile's language
+
+
+def test_southeast_asian_questions_are_answered_in_their_language():
+    assert agents.reply_language("Barang saya ini bisa dibawa ke mana?", "en") == "id"
+    assert agents.reply_language("Barang saya ini bisa dibawa ke mana?", "ms") == "ms"
+    assert agents.reply_language("ตู้ไม้เก่าของฉันจะไปไหน", "en") == "th"
+    assert agents.reply_language("Cái tủ gỗ cũ của tôi sẽ đi đâu?", "en") == "vi"
+    assert agents.reply_language("Saan ko po dadalhin ang mga lumang upuan?", "en") == "fil"
+    assert agents.reply_language("Where can my old door go?", "id") == "en"
+    assert agents.reply_language("古い椅子はどこに持っていけますか？", "en") == "ja"

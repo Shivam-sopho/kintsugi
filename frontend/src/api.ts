@@ -2,6 +2,11 @@ import type { AgentEvent, AppState, AskReply, Deal, Explanation, Item, Job, Sear
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "";
 
+// Files to download (PDFs). Inside the Android app, a link to another host opens in the phone's
+// browser, which can save a PDF; the app's own web view can't, so files come from the API's own host.
+const isNative = Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
+const FILES = (isNative && (import.meta.env.VITE_DOWNLOAD_BASE as string | undefined)?.replace(/\/$/, "")) || BASE;
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, init);
   if (!res.ok) {
@@ -53,6 +58,8 @@ export const api = {
   deal: (id: string) => call<Deal>(`/api/deals/${id}`),
   approve: (id: string) => call<Deal>(`/api/deals/${id}/approve`, { method: "POST" }),
   certificateUrl: (id: string, lang = "en") => `${BASE}/api/certificate/${id}?lang=${lang}`,
+  certificatePdfUrl: (id: string, lang = "en") => `${FILES}/api/certificate/${id}.pdf?lang=${lang}`,
+  reportPdfUrl: (personaId?: string) => `${FILES}/api/report.pdf${personaId ? `?persona_id=${encodeURIComponent(personaId)}` : ""}`,
   patchItem: (id: string, patch: Partial<{ count: number; condition: string; verified: boolean; floor_price_inr: number }>) =>
     call<Item>(`/api/items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }),
   offerItem: (id: string) => call<Job>(`/api/items/${id}/offer`, { method: "POST" }),

@@ -7,6 +7,7 @@ Oracle → Scout → Architect → Market (seller, buyer, bundler) → Ledger.
 from __future__ import annotations
 
 import asyncio
+import re
 import base64
 from typing import Any, Optional
 
@@ -119,6 +120,9 @@ async def scout_ingest(
     for it, p in zip(items, prices):
         it.value_min_inr, it.value_max_inr = p.get("value_min_inr"), p.get("value_max_inr")
         it.repair_cost_inr, it.price_sources = p.get("repair_cost_inr"), p.get("sources", [])
+    priced = sum(1 for i in items if i.value_max_inr)
+    if items and not quiet:
+        await emit("scout", "priced", f"Valued {priced} of {len(items)} with resale price ranges and their sources")
 
     participants = store.list_participants()
     discovered = await maps.find_destinations(site.location, settings)
@@ -439,17 +443,37 @@ def ask_context(store: Store, persona_id: str, near_default: GeoPoint) -> dict[s
     }
 
 
-SCRIPTS = (("hi", 0x0900, 0x097F), ("kn", 0x0C80, 0x0CFF), ("ta", 0x0B80, 0x0BFF))
+SCRIPTS = (("hi", 0x0900, 0x097F), ("kn", 0x0C80, 0x0CFF), ("ta", 0x0B80, 0x0BFF), ("th", 0x0E00, 0x0E7F),
+           ("ja", 0x3040, 0x30FF))
+KANJI = (0x4E00, 0x9FFF)  # Chinese characters: Japanese here, as kana questions usually include them
+# Southeast Asian languages written in Latin letters: told apart by their everyday words.
+VIETNAMESE_LETTERS = set("ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ")
+LATIN_WORDS = {
+    "id": {"apa", "yang", "saya", "ini", "itu", "bagaimana", "barang", "untuk", "dengan", "tidak", "bisa", "ke", "di", "mana", "berapa", "punya", "kursi", "lemari"},
+    "fil": {"ang", "ng", "mga", "ko", "sa", "paano", "ito", "ano", "saan", "magkano", "akin", "ba", "po", "upuan", "aparador"},
+}
 
 
 def reply_language(question: str, fallback: str) -> str:
-    """Answer in the language of the question (by its script); with no question, the profile's."""
+    """Answer in the language of the question (by its script, or for Latin letters its common
+    words); with no question, the profile's."""
     letters = [ch for ch in question if ch.isalpha()]
     if not letters:
         return fallback
     for code, lo, hi in SCRIPTS:
         if sum(lo <= ord(ch) <= hi for ch in letters) > len(letters) / 2:
             return code
+    kana_or_kanji = sum(0x3040 <= ord(ch) <= 0x30FF or KANJI[0] <= ord(ch) <= KANJI[1] for ch in letters)
+    if kana_or_kanji > len(letters) / 2:
+        return "ja"
+    if sum(ch.lower() in VIETNAMESE_LETTERS for ch in letters) >= 2:
+        return "vi"
+    words = set(re.findall(r"[a-z]+", question.lower()))
+    hits = {code: len(words & vocab) for code, vocab in LATIN_WORDS.items()}
+    best = max(hits, key=hits.get)
+    if hits[best] >= 2:
+        # Malay and Indonesian share most everyday words: keep the profile's choice between them.
+        return fallback if best == "id" and fallback in ("id", "ms") else best
     return "en" if sum(ch.isascii() for ch in letters) > len(letters) / 2 else fallback
 
 
