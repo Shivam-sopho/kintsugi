@@ -14,7 +14,8 @@ class Settings(BaseSettings):
 
     # Google Cloud
     gcp_project: str = ""
-    gcp_location: str = "us-central1"
+    gcp_location: str = "us-central1"  # Firestore, Storage and the embedding model (not served globally)
+    genai_location: str = "global"  # Gemini generation: the global endpoint routes around busy regions (fewer 429s)
     gcs_bucket: str = ""  # uploads go here in live mode (gs://<bucket>/uploads/...)
 
     # Storage backend: "memory" (default, seeded with demo data) or "firestore"

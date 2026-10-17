@@ -58,6 +58,13 @@ if settings.a2a_enabled:
 _tasks: set[asyncio.Task] = set()
 
 
+def friendly_error(exc: Exception) -> str:
+    """What a person sees when a job fails: plain words, not a raw API error."""
+    if getattr(exc, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(exc):
+        return "Gemini is very busy right now. Please try again in a minute; nothing you added was lost."
+    return str(exc)
+
+
 def _start_job(kind: str, coro_factory) -> Job:
     """Run an agent flow in the background; the client polls the job and its events."""
     store = get_store()
@@ -70,7 +77,7 @@ def _start_job(kind: str, coro_factory) -> Job:
             job.status, job.result = "done", result or {}
         except Exception as exc:  # surface the error to the UI instead of failing silently
             log.exception("Job %s failed", job.id)
-            job.status, job.error = "error", str(exc)
+            job.status, job.error = "error", friendly_error(exc)
         store.upsert_job(job)
 
     task = asyncio.create_task(runner())
