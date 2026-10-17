@@ -118,6 +118,22 @@ class MockLLM:
     async def render(self, prompt: str) -> Optional[bytes]:
         return None
 
+    async def ask(self, question: str, history: list[dict[str, str]], context: dict[str, Any], lang: str) -> dict[str, Any]:
+        # Offline: a plain answer built from the context, with the obvious next step.
+        items = context.get("your_items", [])
+        open_items = [i for i in items if i.get("status") == "available"]
+        if not open_items:
+            text = "You haven't listed anything yet. Tap the mic on Home and tell me what you're getting rid of."
+            return {"answer": text, "answer_en": text, "language": "en", "action": {"type": "none"}}
+        it = open_items[0]
+        taker = it.get("goes_to")
+        text = (f"You have {len(open_items)} item{'s' if len(open_items) != 1 else ''} waiting. "
+                f"The {it['type']} is best for {it.get('next_life', 'a next life')}"
+                + (f", with {taker['name']} {taker['distance_km']} km away." if taker else "."))
+        action = ({"type": "offer_item", "item_id": it["id"], "label": f"Offer it to {taker['name']}"}
+                  if taker and taker.get("buys") else {"type": "open_item", "item_id": it["id"], "label": "Open it"})
+        return {"answer": text, "answer_en": text, "language": "en", "action": action}
+
     async def translate(self, text: str, lang: str) -> str:
         return text  # offline: no translation, the English is read as it is
 

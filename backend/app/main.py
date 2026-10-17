@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections import OrderedDict
 from contextlib import asynccontextmanager
@@ -258,6 +259,30 @@ async def transcribe(file: UploadFile = File(...), hint: str = Form("notes")) ->
     """Voice input in any language: returns the transcript, its language and an English translation."""
     audio = to_media_ref(file.filename or "voice.webm", await file.read(), file.content_type or "audio/webm", settings)
     return await get_llm().transcribe(audio, hint)
+
+
+@app.post("/api/ask")
+async def ask(
+    persona_id: str = Form("ppl_me"),
+    question: str = Form(""),
+    history: str = Form("[]"),
+    lang: str = Form("en"),
+    file: Optional[UploadFile] = File(None),
+) -> dict[str, Any]:
+    """Ask Kintsugi by voice or text. With a recording, Gemini transcribes it first; the reply is
+    in the person's language with one suggested action they can confirm."""
+    store, llm = get_store(), get_llm()
+    heard = None
+    if file is not None:
+        audio = to_media_ref(file.filename or "ask.webm", await file.read(), file.content_type or "audio/webm", settings)
+        heard = await llm.transcribe(audio, "ask")
+        question, lang = heard.get("text", ""), heard.get("language") or lang
+    try:
+        turns = [t for t in json.loads(history) if isinstance(t, dict)][-6:]
+    except ValueError:
+        turns = []
+    out = await agents.ask_kintsugi(store, llm, settings, persona_id, question[:500], turns, lang)
+    return {**out, "heard": heard}
 
 
 class SpeakIn(BaseModel):

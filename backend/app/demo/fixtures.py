@@ -17,7 +17,7 @@ CAFE_INDIRANAGAR = GeoPoint(lat=12.9719, lng=77.6412)
 def participants() -> list[Participant]:
     return [
         # The person using the app (scans default to them as the seller)
-        Participant(id="ppl_me", name="You", role="homeowner", language="en", location=CAFE_INDIRANAGAR),
+        Participant(id="ppl_me", name="You", role="homeowner", language="en", location=GeoPoint(lat=12.9205, lng=77.6390)),
         Participant(
             id="ppl_ramesh", name="Ramesh Scrap Traders", role="dealer", language="hi",
             location=GeoPoint(lat=12.9406, lng=77.6290),

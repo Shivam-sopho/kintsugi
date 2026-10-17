@@ -97,6 +97,27 @@ DESIGN_SCHEMA = {
     "required": ["concept", "selected", "render_prompt"],
 }
 
+ASK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "answer": {"type": "string", "description": "The spoken reply, in the person's language and script"},
+        "answer_en": {"type": "string", "description": "The same reply in English"},
+        "language": {"type": "string", "description": "BCP-47 code of the reply, e.g. hi, kn, en"},
+        "action": {
+            "type": "object",
+            "description": "One suggested action for the person to confirm, or type none",
+            "properties": {
+                "type": {"type": "string", "enum": ["none", "offer_item", "autopilot_on", "keep_looking", "open_item"]},
+                "item_id": {"type": "string"},
+                "query": {"type": "string", "description": "For keep_looking: what to look for"},
+                "label": {"type": "string", "description": "Short button text in the person's language"},
+            },
+            "required": ["type"],
+        },
+    },
+    "required": ["answer", "answer_en", "language", "action"],
+}
+
 TRANSLATE_SCHEMA = {
     "type": "object",
     "properties": {"text": {"type": "string", "description": "The message in the target language"}},

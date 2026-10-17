@@ -310,6 +310,113 @@ async def run_autopilot(
     return deals
 
 
+# ---------------------------------------------------------------- Ask Kintsugi
+
+BUYING_ROLES = ("buyer", "ngo", "dealer")
+ASK_ACTIONS = ("none", "offer_item", "autopilot_on", "keep_looking", "open_item")
+
+
+def ask_context(store: Store, persona_id: str, near_default: GeoPoint) -> dict[str, Any]:
+    """What Gemini may know when answering: this person's items, deals and requests, takers and
+    listings nearby, and city impact. Private lowest and highest prices are never included."""
+    people = {p.id: p for p in store.list_participants()}
+    me = people.get(persona_id)
+    items = [i for i in store.list_items() if i.seller_id == persona_id]
+    here = me.location if me else (items[0].location if items else near_default)
+
+    def taker(it: Item) -> Optional[dict[str, Any]]:
+        dest = people.get(it.destination_id) if it.destination_id else None
+        if dest is None:
+            return None
+        return {"name": dest.name, "role": dest.role, "distance_km": round(haversine_km(it.location, dest.location), 1),
+                "buys": dest.role in BUYING_ROLES}
+
+    def value(it: Item) -> Optional[str]:
+        return f"₹{it.value_min_inr:,.0f}-₹{it.value_max_inr:,.0f} each" if it.value_max_inr else None
+
+    your_items = [{
+        "id": it.id, "type": it.type, "count": it.count, "condition": it.condition, "status": it.status,
+        "next_life": it.next_life.value.replace("_", " ") if it.next_life else None,
+        "why": (it.next_life_reason or "")[:240], "value": value(it), "co2e_saved_kg": it.co2_avoided_kg,
+        "hazards": it.hazards, "autopilot_on": it.autopilot, "has_lowest_price": it.floor_price_inr is not None,
+        "goes_to": taker(it),
+    } for it in items]
+    deals = []
+    for d in store.list_deals():
+        if persona_id not in (d.seller_id, d.buyer_id):
+            continue
+        other = people.get(d.buyer_id if d.seller_id == persona_id else d.seller_id)
+        deals.append({"selling": d.seller_id == persona_id, "with": other.name if other else None, "status": d.status,
+                      "price_inr": d.final_price_inr, "autopilot": d.autopilot,
+                      "items": [x.type for x in (store.get_item(i) for i in d.item_ids) if x]})
+    requests = [{"looking_for": r.query, "within_km": r.radius_km, "approves_automatically": r.auto_approve}
+                for r in store.list_requests() if r.buyer_id == persona_id and r.active]
+    takers = sorted(
+        ({"name": p.name, "role": p.role, "distance_km": round(haversine_km(here, p.location), 1),
+          "takes": (p.accepts_types + p.accepts_materials)[:6]}
+         for p in people.values() if p.role not in ("homeowner",) and p.id != persona_id),
+        key=lambda t: t["distance_km"])[:10]
+    nearby = sorted(
+        ({"id": it.id, "type": it.type, "count": it.count, "value": value(it), "seller": people[it.seller_id].name
+          if it.seller_id in people else "a neighbour", "distance_km": round(haversine_km(here, it.location), 1)}
+         for it in store.list_items() if it.status == "available" and it.seller_id != persona_id and not it.hazards),
+        key=lambda x: x["distance_km"])[:8]
+    t = ledger_summary(store)
+    return {
+        "you": {"name": me.name if me else "You", "role": me.role if me else "homeowner",
+                "language": me.language if me else "en", "can_buy": bool(me and me.role in BUYING_ROLES)},
+        "your_items": your_items, "your_deals": deals, "your_requests": requests,
+        "takers_nearby": takers, "listed_nearby": nearby,
+        "city_impact": {"kg_kept_out_of_landfill": t.get("mass_diverted_kg"), "kg_co2e_avoided": t.get("co2_avoided_kg"),
+                        "rupees_recovered": t.get("value_recovered_inr")},
+    }
+
+
+SCRIPTS = (("hi", 0x0900, 0x097F), ("kn", 0x0C80, 0x0CFF), ("ta", 0x0B80, 0x0BFF))
+
+
+def reply_language(question: str, fallback: str) -> str:
+    """Answer in the language of the question (by its script); with no question, the profile's."""
+    letters = [ch for ch in question if ch.isalpha()]
+    if not letters:
+        return fallback
+    for code, lo, hi in SCRIPTS:
+        if sum(lo <= ord(ch) <= hi for ch in letters) > len(letters) / 2:
+            return code
+    return "en" if sum(ch.isascii() for ch in letters) > len(letters) / 2 else fallback
+
+
+async def ask_kintsugi(
+    store: Store, llm: LLM, settings: Settings, persona_id: str, question: str,
+    history: list[dict[str, str]], lang: str,
+) -> dict[str, Any]:
+    """One turn of Ask Kintsugi. Gemini answers from the context and suggests one action; code
+    keeps the action to things this person can actually do."""
+    ctx = ask_context(store, persona_id, GeoPoint(lat=12.95, lng=77.63))
+    lang = reply_language(question, lang)
+    out = await llm.ask(question, history, ctx, lang)
+    if lang == "en" and reply_language(out.get("answer", ""), "en") != "en" and out.get("answer_en"):
+        out["answer"] = out["answer_en"]  # asked in English: answer in English
+    out["language"] = lang
+    action = out.get("action") or {"type": "none"}
+    mine = {i["id"]: i for i in ctx["your_items"]}
+    nearby = {i["id"] for i in ctx["listed_nearby"]}
+    kind = action.get("type") if action.get("type") in ASK_ACTIONS else "none"
+    item = mine.get(action.get("item_id", ""))
+    if kind == "offer_item" and not (item and item["status"] == "available" and item["goes_to"] and item["goes_to"]["buys"]):
+        kind = "none"
+    if kind == "autopilot_on" and not (item and item["status"] == "available" and not item["hazards"]):
+        kind = "none"
+    if kind == "open_item" and action.get("item_id") not in mine and action.get("item_id") not in nearby:
+        kind = "none"
+    if kind == "keep_looking" and not (ctx["you"]["can_buy"] and (action.get("query") or "").strip()):
+        kind = "none"
+    out["action"] = {**action, "type": kind}
+    out["used"] = {"model": settings.model_fast, "items": len(ctx["your_items"]), "takers": len(ctx["takers_nearby"]),
+                   "deals": len(ctx["your_deals"]), "listed_nearby": len(ctx["listed_nearby"])}
+    return out
+
+
 # ---------------------------------------------------------------- Oracle
 
 async def oracle_ingest(store: Store, llm: LLM, settings: Settings, emit: Emitter, doc: MediaRef) -> list[Prediction]:
