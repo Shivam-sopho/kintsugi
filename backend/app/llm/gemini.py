@@ -128,12 +128,23 @@ class GeminiLLM:
         return out
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        resp = await self.client.aio.models.embed_content(
-            model=self.s.model_embedding,
-            contents=texts,
-            config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),
-        )
-        return [list(e.values) for e in resp.embeddings]
+        # Gemini Embedding 2 is multimodal: a list of contents is embedded as ONE input, so each
+        # text gets its own call (a few at a time) to get one vector per text.
+        limit = asyncio.Semaphore(EMBED_CONCURRENCY)
+
+        async def one(text: str) -> list[float]:
+            async with limit:
+                resp = await self.client.aio.models.embed_content(
+                    model=self.s.model_embedding,
+                    contents=text,
+                    config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),
+                )
+                return list(resp.embeddings[0].values)
+
+        vectors = await asyncio.gather(*(one(t) for t in texts))
+        if len(vectors) != len(texts):
+            raise ValueError("Embedding count does not match the texts")
+        return list(vectors)
 
     async def embed_image(self, data: bytes, mime_type: str) -> list[float]:
         resp = await self.client.aio.models.embed_content(
@@ -221,6 +232,7 @@ class GeminiLLM:
         return None
 
 
+EMBED_CONCURRENCY = 6
 PRICING_TIMEOUT_S = 45  # per attempt; a scan should never wait minutes on a price search
 PRICING_THINKING_BUDGET = 512
 
