@@ -321,3 +321,22 @@ def test_judge_mode_never_sends_its_empty_sample_media_to_the_live_model():
     asyncio.run(agents.judge_mode(store, Live(live), live, job.id))
     assert store.list_items() and all(i.synthetic for i in store.list_items())
     assert all(p.synthetic for p in store.list_predictions())
+
+
+def test_gemini_embeds_each_text_separately():
+    """Gemini Embedding 2 folds a list of contents into one vector; each text needs its own vector."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.config import get_settings
+    from app.llm.gemini import GeminiLLM
+
+    async def embed_content(model, contents, config):
+        assert isinstance(contents, str)
+        return SimpleNamespace(embeddings=[SimpleNamespace(values=[float(len(contents)), 1.0])])
+
+    llm = object.__new__(GeminiLLM)
+    llm.s = get_settings()
+    llm.client = SimpleNamespace(aio=SimpleNamespace(models=SimpleNamespace(embed_content=embed_content)))
+    vectors = asyncio.run(llm.embed_texts(["teak door", "fan", "steel almirah"]))
+    assert [v[0] for v in vectors] == [9.0, 3.0, 13.0]
