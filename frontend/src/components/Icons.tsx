@@ -22,6 +22,7 @@ const RUNG_PATH: Record<Rung, string> = {
   upcycle: "M12 19V5M6 11l6-6 6 6M5 21h14",
   harvest_parts: "M4 4h7v7H4zM13 4h7v7h-7zM13 13h7v7h-7zM7.5 14v6M4.5 17h6",
   recycle: "M6.4 15.3A6.5 6.5 0 0 1 15.3 6.4M17.6 8.7a6.5 6.5 0 0 1-8.9 8.9M15.3 3.5l.9 3.2-3.2.7M8.7 20.5l-.9-3.2 3.2-.7",
+  compost: "M5 19c0-8 6-13 14-14-1 8-6 14-14 14zM5 19l7-7",
   recover_energy: "M13 3 5 14h6l-1 7 8-11h-6z",
   safe_disposal: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4",
 };

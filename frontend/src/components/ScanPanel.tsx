@@ -11,9 +11,22 @@ import ItemCard from "./ItemCard";
 interface Props {
   state: AppState;
   sellerId: string;
+  situation?: Situation;
   onJob: (job: Job, onDone?: (j: Job) => void) => void;
   onOpenItem: (id: string) => void;
 }
+
+export type Situation = "moving" | "renovating" | "demolishing";
+
+/** The three moments when homes and buildings shed the most: each sets up the scan and a tip. */
+export const SITUATIONS: Record<Situation, { label: string; kind: "home" | "building"; name: string; tip: string }> = {
+  moving: { label: "Moving home", kind: "home", name: "My home",
+    tip: "Film each thing you won't take with you: furniture, appliances, utensils. Say what's broken." },
+  renovating: { label: "Renovating", kind: "home", name: "My renovation",
+    tip: "Film what's coming out: doors, windows, tiles, fittings, wiring. Tap tiles near the mic to check for hollow ones." },
+  demolishing: { label: "Demolishing a building", kind: "building", name: "My site",
+    tip: "Walk slowly through every room. Scout lists each door, window, fitting and fixture, and flags suspected hazards." },
+};
 
 /** Says why location failed: browsers give a numeric code, the Android plugin a message. */
 function locationProblem(err: unknown): string {
@@ -27,7 +40,7 @@ function locationProblem(err: unknown): string {
 }
 
 /** "I have something": talk, film or photograph it, and Scout lists it and finds each part's next life. */
-export default function ScanPanel({ state, sellerId, onJob, onOpenItem }: Props) {
+export default function ScanPanel({ state, sellerId, situation = "moving", onJob, onOpenItem }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [kind, setKind] = useState<"home" | "building">("home");
   const [name, setName] = useState("");
@@ -40,6 +53,12 @@ export default function ScanPanel({ state, sellerId, onJob, onOpenItem }: Props)
   const [resultSite, setResultSite] = useState<string | null>(null);
   const [spoken, setSpoken] = useState<string | null>(null);
   const announced = useRef<string | null>(null);
+
+  // The situation chosen on Home sets what kind of scan this is.
+  useEffect(() => {
+    setKind(SITUATIONS[situation].kind);
+    setName("");
+  }, [situation]);
 
   const results = resultSite ? state.items.filter((i) => i.site_id === resultSite) : [];
 
@@ -87,7 +106,7 @@ export default function ScanPanel({ state, sellerId, onJob, onOpenItem }: Props)
     const form = new FormData();
     ready.forEach((f) => form.append("files", f));
     form.append("kind", kind);
-    form.append("name", name || (kind === "home" ? "My home" : "My site"));
+    form.append("name", name || SITUATIONS[situation].name);
     form.append("lat", String(where.lat));
     form.append("lng", String(where.lng));
     form.append("seller_id", sellerId);
@@ -128,6 +147,7 @@ export default function ScanPanel({ state, sellerId, onJob, onOpenItem }: Props)
   return (
     <div className="flow">
       <BigMic label="Tap and tell Kintsugi what you have, in any language" busyLabel={busy} onAudio={onVoice} />
+      <p className="tip small">{SITUATIONS[situation].tip}</p>
 
       <div className="capture">
         <label className="capture-btn">

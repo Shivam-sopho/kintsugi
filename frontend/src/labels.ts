@@ -6,6 +6,7 @@ export const RUNG_ORDER: Rung[] = [
   "upcycle",
   "harvest_parts",
   "recycle",
+  "compost",
   "recover_energy",
   "safe_disposal",
 ];
@@ -16,6 +17,7 @@ export const RUNG_LABEL: Record<Rung, string> = {
   upcycle: "Upcycle",
   harvest_parts: "Harvest parts",
   recycle: "Recycle",
+  compost: "Compost or biogas",
   recover_energy: "Recover energy",
   safe_disposal: "Safe disposal",
 };
@@ -27,6 +29,7 @@ export const RUNG_COLOR: Record<Rung, string> = {
   upcycle: "#B8892B",
   harvest_parts: "#5E8E7A",
   recycle: "#6E9E8A",
+  compost: "#7E9A5B",
   recover_energy: "#8C939E",
   safe_disposal: "#B1B5BC",
 };
@@ -85,3 +88,19 @@ export function searchSummary(results: import("./types").SearchResult[]): string
   const n = results.length;
   return `I found ${n} ${n === 1 ? "match" : "matches"} nearby. The best is ${best.item.type}${where}${price}. Choose the ones you want and the agents will negotiate for you.`;
 }
+
+/** Straight-line distance in km. */
+export function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const r = (d: number) => (d * Math.PI) / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+
+export const TAKER_ROLE: Record<string, string> = {
+  buyer: "Buyer", ngo: "Charity", dealer: "Scrap dealer", repairer: "Repairer", upcycler: "Upcycler",
+  recycler: "Recycler", government: "Government", composter: "Compost or biogas", energy_facility: "Energy recovery",
+  hazard_handler: "Licensed hazard handler",
+};
+
+/** "aluminium sliding window" → "Aluminium sliding window" (Scout writes types in lower case). */
+export const sentence = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
