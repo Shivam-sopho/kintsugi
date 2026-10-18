@@ -19,6 +19,7 @@ export default function S1Planet() {
       </Sequence>
       <Sequence from={s(6)} durationInFrames={s(2)}>
         <Footage file="01b_street_dump.mp4" />
+        {CLIPS["01b_street_dump.mp4"].ai && <Badge text="AI-generated" corner="tr" tone="ai" />}
         <Source text="Source: UNEP Global Waste Management Outlook 2024" />
       </Sequence>
 
