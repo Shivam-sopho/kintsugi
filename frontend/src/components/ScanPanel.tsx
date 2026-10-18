@@ -3,11 +3,12 @@ import { preferredLanguage } from "../language";
 import { api, audioFileName } from "../api";
 import { compressForUpload, MAX_UPLOAD_BYTES, megabytes } from "../compress";
 import { say } from "../speak";
-import type { AppState, Job } from "../types";
+import type { AgentEvent, AppState, Job } from "../types";
 import { scanSummary } from "../labels";
 import { getWhere, locateMe, useWhere } from "../where";
 import CityPicker from "./CityPicker";
 import BigMic from "./BigMic";
+import LiveScan from "./LiveScan";
 import Problem from "./Problem";
 import ItemCard from "./ItemCard";
 
@@ -17,6 +18,8 @@ interface Props {
   situation?: Situation;
   onJob: (job: Job, onDone?: (j: Job) => void) => void;
   onOpenItem: (id: string) => void;
+  job?: Job | null; // the job being tracked, to show the scan live
+  events?: AgentEvent[];
 }
 
 export type Situation = "moving" | "renovating" | "demolishing";
@@ -33,7 +36,7 @@ export const SITUATIONS: Record<Situation, { label: string; kind: "home" | "buil
 
 /** Says why location failed: browsers give a numeric code, the Android plugin a message. */
 /** "I have something": talk, film or photograph it, and Scout lists it and finds each part's next life. */
-export default function ScanPanel({ state, sellerId, situation = "moving", onJob, onOpenItem }: Props) {
+export default function ScanPanel({ state, sellerId, situation = "moving", onJob, onOpenItem, job = null, events = [] }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [kind, setKind] = useState<"home" | "building">("home");
   const [name, setName] = useState("");
@@ -140,6 +143,11 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
   return (
     <div className="flow">
       <BigMic label="Tap and tell Kintsugi what you have, in any language" busyLabel={busy} onAudio={onVoice} />
+      <LiveScan
+        job={job}
+        events={events}
+        preparing={busy && !(job?.kind === "scan" && job.status === "running") ? (busy.startsWith("Scout") ? "Uploading to Scout…" : busy) : null}
+      />
       <p className="tip small">{SITUATIONS[situation].tip}</p>
 
       <div className="capture">
