@@ -27,6 +27,14 @@ export function useJobs() {
     refresh();
   }, [refresh]);
 
+  // A live market: buyers' agents can open negotiations at any time, so look again every few seconds.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 8000);
+    return () => clearInterval(t);
+  }, [refresh]);
+
   const track = useCallback((j: Job, onDone?: (j: Job) => void) => {
     lastTs.current = 0;
     setEvents([]);

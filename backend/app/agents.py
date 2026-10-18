@@ -7,6 +7,7 @@ Oracle → Scout → Architect → Market (seller, buyer, bundler) → Ledger.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import base64
 from typing import Any, Optional
@@ -26,6 +27,8 @@ from .models import (
 from .a2a_seller import A2ASeller, lot_summary, seller_terms
 from .negotiation import BuyerBrain, LocalSeller, SellerBrain, negotiate, sandbox_settlement
 from .store.base import Store
+
+log = logging.getLogger(__name__)
 
 TAKE_APART_RUNGS = {Rung.HARVEST_PARTS, Rung.RECYCLE, Rung.RECOVER_ENERGY}
 
@@ -286,13 +289,13 @@ async def run_autopilot(
             if item_ids is not None and it.id not in item_ids:
                 continue
             if (it.status != "available" or not it.embedding or it.hazards or it.seller_id == req.buyer_id
-                    or it.id in req.matched_item_ids):
+                    or it.id in req.matched_item_ids or not it.value_max_inr):  # nothing to sell: a free hand-over
                 continue
             score = _cosine(req.embedding or [], it.embedding)
             dist = haversine_km(req.location, it.location)
             if score < settings.autopilot_min_score or dist > req.radius_km:
                 continue
-            if not it.autopilot:
+            if not it.autopilot and not settings.live_market:
                 if it.id in req.notified_item_ids:
                     continue
                 req.notified_item_ids.append(it.id)
@@ -302,11 +305,19 @@ async def run_autopilot(
                 continue
             req.matched_item_ids.append(it.id)
             store.upsert_request(req)
-            await emit("market", "autopilot", f"Autopilot: {it.type} fits {buyer.name}'s request \"{req.query}\", "
-                       f"{dist:.1f} km away. Both agents start negotiating.")
-            deal = await negotiate_deal(store, llm, settings, emit, [it.id], buyer.id, budget_cap_inr=req.cap_inr,
-                                        autopilot=True)
-            if deal.status == "agreed" and req.auto_approve:
+            if it.autopilot:
+                await emit("market", "autopilot", f"Autopilot: {it.type} fits {buyer.name}'s request \"{req.query}\", "
+                           f"{dist:.1f} km away. Both agents start negotiating.")
+            else:
+                await emit("market", "offer", f"{buyer.name}'s agent wants the {it.type} ({dist:.1f} km away) and opens a "
+                           "negotiation with the seller's agent. The seller accepts or declines the price they reach.")
+            try:
+                deal = await negotiate_deal(store, llm, settings, emit, [it.id], buyer.id, budget_cap_inr=req.cap_inr,
+                                            autopilot=True, seller_accepted=it.autopilot, request_id=req.id)
+            except ValueError as exc:  # someone else got there first
+                log.info("Skipped a market match: %s", exc)
+                continue
+            if deal.status == "agreed" and req.auto_approve and deal.seller_accepted:
                 await emit("buyer", "autopilot", f"The price is within {buyer.name}'s auto-approve limit, "
                            "so the buyer agent approves.", deal_id=deal.id)
                 deal = await approve_deal(store, emit, deal.id)
@@ -621,7 +632,8 @@ async def architect_design(
 
 async def negotiate_deal(
     store: Store, llm: LLM, settings: Settings, emit: Emitter, item_ids: list[str], buyer_id: str,
-    budget_cap_inr: Optional[float] = None, autopilot: bool = False,
+    budget_cap_inr: Optional[float] = None, autopilot: bool = False, seller_accepted: bool = True,
+    request_id: Optional[str] = None,
 ) -> Deal:
     """The buyer's agent negotiates with the seller's agent. Over A2A by default, so the seller's
     floor stays inside the seller agent; the buyer's cap stays here with the buyer agent."""
@@ -644,7 +656,8 @@ async def negotiate_deal(
     seller_lang = seller.language if seller else "en"
     summary = lot_summary(items)
 
-    deal = Deal(item_ids=[i.id for i in items], seller_id=seller_id, buyer_id=buyer_id, autopilot=autopilot)
+    deal = Deal(item_ids=[i.id for i in items], seller_id=seller_id, buyer_id=buyer_id, autopilot=autopilot,
+                seller_accepted=seller_accepted, request_id=request_id)
     for i in items:
         i.status = "in_deal"
     store.upsert_items(items)
@@ -683,15 +696,70 @@ async def negotiate_deal(
             i.status = "available"
         store.upsert_items(items)
     store.upsert_deal(deal)
-    await emit("market", deal.status, f"Agreed at ₹{result.final_price:,.0f}; waiting for {buyer.name} to approve"
+    waiting = buyer.name if seller_accepted else (seller.name if seller else "the seller")
+    verb = "approve" if seller_accepted else "accept"
+    await emit("market", deal.status, f"Agreed at ₹{result.final_price:,.0f}; waiting for {waiting} to {verb}"
                if result.final_price else "No deal: the limits did not overlap", deal_id=deal.id)
     return deal
+
+
+async def accept_deal(store: Store, emit: Emitter, deal_id: str) -> Deal:
+    """The seller says yes to the price the agents reached. If the buyer's request approves
+    automatically within its private limit, the deal settles at once; otherwise the buyer approves."""
+    deal = store.get_deal(deal_id)
+    if deal is None or deal.status != "agreed" or deal.seller_accepted:
+        raise ValueError("This deal is not waiting for the seller")
+    deal.seller_accepted = True
+    store.upsert_deal(deal)
+    seller = store.get_participant(deal.seller_id)
+    await emit("seller", "accepted", f"{seller.name if seller else 'The seller'} accepts ₹{deal.final_price_inr:,.0f}", deal_id=deal.id)
+    req = next((r for r in store.list_requests() if r.id == deal.request_id), None)
+    if req and req.auto_approve and req.cap_inr and (deal.final_price_inr or 0) <= req.cap_inr:
+        await emit("buyer", "autopilot", "The price is within the buyer's auto-approve limit, so the buyer agent approves.",
+                   deal_id=deal.id)
+        return await approve_deal(store, emit, deal.id)
+    return deal
+
+
+async def decline_deal(store: Store, emit: Emitter, deal_id: str) -> Deal:
+    """The seller says no: the items are listed again, and that buyer doesn't ask for them again."""
+    deal = store.get_deal(deal_id)
+    if deal is None or deal.status != "agreed" or deal.seller_accepted:
+        raise ValueError("This deal is not waiting for the seller")
+    deal.status = "no_deal"
+    store.upsert_deal(deal)
+    items = [i for i in (store.get_item(x) for x in deal.item_ids) if i]
+    for i in items:
+        i.status = "available"
+    store.upsert_items(items)
+    await emit("seller", "declined", "The seller declined; the items are listed again", deal_id=deal.id)
+    return deal
+
+
+async def seed_market(store: Store, llm: LLM) -> list[StandingRequest]:
+    """Sample buyers who are always looking (sample data), so listing something starts a real
+    negotiation. They react only to things listed from now on, never to what is already there."""
+    have = {(r.buyer_id, r.query) for r in store.list_requests() if r.active}
+    existing = [i.id for i in store.list_items()]
+    made = []
+    for buyer_id, query, cap, auto in fixtures.MARKET_REQUESTS:
+        buyer = store.get_participant(buyer_id)
+        if buyer is None or (buyer_id, query) in have:
+            continue
+        req = StandingRequest(buyer_id=buyer_id, query=query, location=buyer.location, radius_km=20.0,
+                              cap_inr=cap, auto_approve=auto, synthetic=True, matched_item_ids=list(existing))
+        req.embedding = (await llm.embed_texts([query]))[0]
+        store.upsert_request(req)
+        made.append(req)
+    return made
 
 
 async def approve_deal(store: Store, emit: Emitter, deal_id: str) -> Deal:
     deal = store.get_deal(deal_id)
     if deal is None or deal.status != "agreed" or deal.final_price_inr is None:
         raise ValueError("Deal is not waiting for approval")
+    if not deal.seller_accepted:
+        raise ValueError("Waiting for the seller to accept this price first")
     items = [i for i in (store.get_item(x) for x in deal.item_ids) if i]
     total_value = sum((i.value_max_inr or 0) * i.count for i in items) or 1.0
     lines = [{"item_id": i.id, "type": i.type, "quantity": i.count} for i in items]

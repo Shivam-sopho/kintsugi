@@ -713,3 +713,9 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .before-landfill li + li { margin-top: 0.2rem; }
 .journey2 .life-stages li.done p { font-size: 0.82rem; }
 .journey2 .life-stages li.later { padding-bottom: 0.5rem; }
+
+/* Offers from buyers' agents */
+.offer-banner { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid rgba(184, 137, 43, 0.4); background: #fdf8ec; color: var(--ink); padding: 0.6rem 1rem; cursor: pointer; font: inherit; }
+.offer-banner::after { content: " →"; color: var(--gold-ink); font-weight: 700; }
+.offer-box { background: #fdf8ec; border: 1px solid rgba(184, 137, 43, 0.4); border-left: 4px solid var(--gold); border-radius: var(--radius-s); padding: 0.75rem; }
+.offer-box p { margin: 0 0 0.6rem; }

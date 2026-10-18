@@ -1,6 +1,6 @@
 # Next steps
 
-Status on Sat 17 Oct 2026: the app is live in Gemini mode at **https://kintsugi-ai-builder-cup-2026.web.app** (Cloud Run `kintsugi-api` + Firebase Hosting, project `kintsugi-ai-builder-cup-2026`, Firestore, Cloud Storage, Maps). 62 backend tests pass; every screen was checked on an Android emulator, including 360 px wide with large system fonts. What's left needs people: the video, the deck, and optional real-world data.
+Status on Sat 17 Oct 2026: the app is live in Gemini mode at **https://kintsugi-ai-builder-cup-2026.web.app** (Cloud Run `kintsugi-api` + Firebase Hosting, project `kintsugi-ai-builder-cup-2026`, Firestore, Cloud Storage, Maps). 68 backend tests pass; every screen was checked on an Android emulator, including 360 px wide with large system fonts. What's left needs people: the video, the deck, and optional real-world data.
 
 Deadline: submit by Sun 18 Oct 2026 (confirm the exact time and time zone on aibuildercup.com).
 
@@ -26,6 +26,7 @@ Keys go in `.env` files (git-ignored), never in chat if you can avoid it.
 | Standing | Each account earns a circular standing (Circular starter, contributor, champion) from settled hand-overs, sales and pickups, with a downloadable certificate |
 | Languages | English, Hindi, Kannada, Tamil, Bahasa Indonesia, Bahasa Melayu, Thai, Vietnamese, Filipino and Japanese for explanations, Ask Kintsugi and spoken replies; a language setting in the profile; results are read aloud without tapping Listen |
 | Market | Seller agent over A2A, buyer agent with a private cap, bilingual turns with Listen (Gemini TTS); one-tap offer; Autopilot: sellers let their agent sell within a private lowest price, buyers save standing requests and can approve automatically within a private highest price; neighbourhood pickup bundles; sandbox settlement shaped like AP2 |
+| Live market | Sample buyers (a café, a housing NGO, a dealer) keep standing requests; when anyone lists something they want, the buyer's agent opens a negotiation with the seller's agent at once, live in Handovers. Nothing is sold until the seller accepts (unless they turned on Autopilot); the buyer's agent then approves within its private limit. Things with no resale value go to free hand-overs instead. `LIVE_MARKET=true` on the deployed API |
 | People | Profiles for the sample personas: items, deals, standing requests, kg listed, CO2e that can be avoided and CO2e recorded, money earned or spent |
 | Ledger | Per-material CO2e and value with sources; potential and recorded impact; hallmarked A4 certificate with a gold seal, in English, Hindi and Kannada |
 | Demo | Run demo opens a seven-chapter story with plain captions, the Gemini models at work, progress and a recap; skippable; it clears only its own sample data, so people's data survives; one demo at a time |

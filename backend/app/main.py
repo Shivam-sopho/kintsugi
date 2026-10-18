@@ -39,6 +39,11 @@ async def lifespan(_: FastAPI):
     if not store.list_participants():
         agents.seed_participants(store)
         store.upsert_predictions(fixtures.predictions())
+    if settings.live_market:  # sample buyers keep looking, so new listings meet a real negotiation
+        try:
+            await agents.seed_market(store, get_llm())
+        except Exception:  # never block start-up on it
+            log.exception("Could not seed the market's sample buyers")
     yield
 
 
@@ -77,6 +82,13 @@ async def gemini_error(request, exc: genai_errors.APIError):
     if is_busy(exc):
         return JSONResponse({"detail": BUSY_MESSAGE, "busy": True}, status_code=503, headers={"Retry-After": "5"})
     return JSONResponse({"detail": "Gemini couldn't do that one. Please try again."}, status_code=502)
+
+
+async def _market(job_id: str, item_ids: list[str]) -> dict[str, Any]:
+    """Buyers' agents look at newly listed things and open negotiations, live."""
+    store, llm = get_store(), get_llm()
+    deals = await agents.run_autopilot(store, llm, settings, agents.Emitter(store, job_id, delay=settings.demo_step_delay), item_ids=item_ids)
+    return {"deal_ids": [d.id for d in deals]}
 
 
 def _start_job(kind: str, coro_factory) -> Job:
@@ -418,8 +430,15 @@ async def scan(
 
     async def flow(job_id: str):
         emit = agents.Emitter(store, job_id)
-        items = await agents.scout_scan(store, llm, settings, emit, media, site, seller_id, narration_text)
-        return {"site_id": site.id, "item_ids": [i.id for i in items]}
+        live = settings.live_market
+        items = await agents.scout_scan(store, llm, settings, emit, media, site, seller_id, narration_text,
+                                        autopilot=not live)
+        out = {"site_id": site.id, "item_ids": [i.id for i in items]}
+        if live and items:  # buyers' agents negotiate after the scan, so its results show at once
+            ids = [i.id for i in items]
+            market = _start_job("market", lambda mid: _market(mid, ids))
+            out["market_job_id"] = market.id
+        return out
 
     return _start_job("scan", flow).model_dump(mode="json")
 
@@ -503,6 +522,28 @@ def get_deal(deal_id: str) -> dict[str, Any]:
     deal = get_store().get_deal(deal_id)
     if not deal:
         raise HTTPException(404, "Deal not found")
+    return deal.model_dump(mode="json")
+
+
+@app.post("/api/deals/{deal_id}/accept")
+async def accept(deal_id: str) -> dict[str, Any]:
+    """The seller accepts the price the agents reached."""
+    store = get_store()
+    try:
+        deal = await agents.accept_deal(store, agents.Emitter(store, new_id("job")), deal_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return deal.model_dump(mode="json")
+
+
+@app.post("/api/deals/{deal_id}/decline")
+async def decline(deal_id: str) -> dict[str, Any]:
+    """The seller declines; the items are listed again."""
+    store = get_store()
+    try:
+        deal = await agents.decline_deal(store, agents.Emitter(store, new_id("job")), deal_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return deal.model_dump(mode="json")
 
 

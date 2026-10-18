@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useJobs } from "./useJobs";
 import { setVoiceReplies, unlockAudio, voiceRepliesOn } from "./speak";
-import { sentence, isBusy, problemText } from "./labels";
+import { inr, sentence, isBusy, problemText } from "./labels";
 import MapView, { type Layers } from "./components/MapView";
 import MapPanel from "./components/MapPanel";
 import HomePanel from "./components/HomePanel";
@@ -40,7 +40,7 @@ const ICON: Record<Tab, ReactNode> = {
 const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Handovers", impact: "Impact" };
 
 // Jobs that move someone's own things along their second life: shown live as its stages.
-const LIVE_KINDS = new Set(["scan", "handover", "deal", "autopilot", "request"]);
+const LIVE_KINDS = new Set(["scan", "handover", "deal", "autopilot", "request", "market"]);
 
 type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | { kind: "story" } | { kind: "ask" } | { kind: "live" } | null;
 
@@ -57,6 +57,8 @@ export default function App() {
   const persona = state?.participants.find((p) => p.id === personaId);
   const demoRunning = job?.kind === "judge_mode" && job.status === "running";
   const negotiating = state?.deals.some((d) => d.status === "negotiating" || d.status === "agreed");
+  // Prices buyers' agents agreed for this person's things, waiting for their yes.
+  const offers = state?.deals.filter((d) => d.seller_id === personaId && d.status === "agreed" && !d.seller_accepted) ?? [];
 
   const runDemo = async () => {
     try {
@@ -121,6 +123,12 @@ export default function App() {
         </button>
       </header>
 
+      {offers.length > 0 && tab !== "deals" && (
+        <button className="banner offer-banner" onClick={() => setTab("deals")}>
+          <strong>{offers.length === 1 ? "An offer is waiting for you" : `${offers.length} offers are waiting for you`}.</strong>{" "}
+          {state?.participants.find((p) => p.id === offers[0].buyer_id)?.name}'s agent agreed {inr(offers[0].final_price_inr)} with yours. See it
+        </button>
+      )}
       {error && <p className={`banner ${isBusy(error) ? "busy-note" : "error"}`} role="status">{isBusy(error) ? "Reconnecting to Kintsugi… it picks up where it left off." : error}</p>}
 
       <main className={`layout tab-${tab === "map" && mapView === "list" ? "maplist" : tab}`}>

@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # How close a listing must be to a standing request to count as a match. Measured with Gemini
     # Embedding 2: right matches scored 0.65-0.78 (Hindi included), wrong ones at most 0.62.
     autopilot_min_score: float = 0.64
+    # A live market: sample buyers keep standing requests, and a buyer's agent opens a negotiation as
+    # soon as something it wants is listed; the seller then accepts or declines (or lets Autopilot).
+    live_market: bool = False
     embedding_dim: int = 768  # reduced via Matryoshka; must match the Firestore vector index
 
     # Google Maps Platform (Places + Geocoding), server-side key
