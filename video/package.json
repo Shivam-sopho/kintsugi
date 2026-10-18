@@ -6,9 +6,11 @@
   "scripts": {
     "studio": "remotion studio",
     "render": "remotion render Main out/kintsugi.mp4",
+    "render:cut": "remotion render Cut out/kintsugi-cut.mp4",
     "still": "remotion still Main out/still.png",
     "captions:script": "node scripts/script-captions.mjs",
     "captions:voice": "node scripts/transcribe.mjs",
+    "captions:rec": "node scripts/transcribe-recordings.mjs",
     "clips:prepare": "node scripts/prepare-clips.mjs",
     "typecheck": "tsc --noEmit"
   },
