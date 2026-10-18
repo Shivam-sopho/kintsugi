@@ -16,7 +16,7 @@ from .bundler import propose_bundles, scrap_value
 from .config import Settings
 from .dedup import dedup_items
 from .demo import fixtures
-from .evidence import attach_evidence, get_evidence_store, to_jpeg
+from .evidence import attach_evidence, get_evidence_store, image_to_jpeg
 from .geo import haversine_km
 from .llm.base import LLM, MediaRef
 from .materials import canonical_material
@@ -625,7 +625,7 @@ async def architect_design(
     render_id = None
     if image:
         try:
-            render_id = get_evidence_store().put(await asyncio.to_thread(to_jpeg, image))
+            render_id = get_evidence_store().put(await asyncio.to_thread(image_to_jpeg, image))
         except Exception:  # a design without its picture is still a design
             log.exception("Could not store the design render")
     await emit("architect", "done", f"Concept ready, estimated ₹{total:,.0f} in reclaimed materials"
