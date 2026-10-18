@@ -77,7 +77,11 @@ export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate }: 
       setBusy(false);
     }
   };
-  const approve = act(api.approve);
+  // The buyer approves: when it settles, celebrate on their screen too.
+  const approve = act(async (id) => {
+    const out = await api.approve(id);
+    if (out.status === "settled") onCelebrate?.({ dealId: id, personId: deal.buyer_id, levelBefore: null });
+  });
 
   return (
     <section className="dealroom">
