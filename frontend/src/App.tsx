@@ -3,7 +3,7 @@ import { api } from "./api";
 import { useJobs } from "./useJobs";
 import { setVoiceReplies, unlockAudio, voiceRepliesOn } from "./speak";
 import { inr, sentence, isBusy, problemText } from "./labels";
-import MapView, { type Layers } from "./components/MapView";
+import MapView, { MapKey, type Layers } from "./components/MapView";
 import MapPanel from "./components/MapPanel";
 import HomePanel from "./components/HomePanel";
 import DealRoom from "./components/DealRoom";
@@ -23,11 +23,9 @@ import { locateMe } from "./where";
 type Tab = "home" | "map" | "deals" | "impact";
 
 const LAYER_LABEL: Record<keyof Layers, string> = {
-  flows: "Next lives",
   future: "Coming up",
-  materials: "Materials",
+  materials: "Things listed",
   destinations: "Takers",
-  deals: "Handovers",
 };
 
 // Simple line icons for the bottom bar (24px grid, stroke follows the text colour).
@@ -47,7 +45,7 @@ type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "p
 export default function App() {
   const { state, job, events, error, refresh, track } = useJobs();
   const [tab, setTab] = useState<Tab>("home");
-  const [layers, setLayers] = useState<Layers>({ flows: true, future: true, materials: true, destinations: true, deals: true });
+  const [layers, setLayers] = useState<Layers>({ future: true, materials: true, destinations: true });
   const [siteId, setSiteId] = useState<string | null>(null);
   const [predictionId, setPredictionId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
@@ -148,6 +146,7 @@ export default function App() {
           )}
           <div className="layer-toggles" role="group" aria-label="Map layers">
             <button className="chip view-toggle" onClick={() => { setMapView("list"); setTab("map"); }}>Show as list</button>
+            <MapKey />
             <button className="chip near-me" onClick={() => locateMe().catch((e) => alert((e as Error).message))}>Near me</button>
             {(Object.keys(layers) as (keyof Layers)[]).map((k) => (
               <button
@@ -200,7 +199,7 @@ export default function App() {
                 }}
               />
             ) : tab === "deals" ? (
-              <DealRoom state={state} onChanged={refresh} />
+              <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} />
             ) : (
               <ImpactPanel state={state} personaId={personaId} />
             )}
