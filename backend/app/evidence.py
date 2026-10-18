@@ -82,8 +82,8 @@ def to_jpeg(img: np.ndarray) -> bytes:
     return buf.tobytes() if ok else b""
 
 
-def to_jpeg(image: bytes, quality: int = 85) -> bytes:
-    """Any image (a PNG render, say) as a JPEG, small enough to store and quick to load."""
+def image_to_jpeg(image: bytes, quality: int = 85) -> bytes:
+    """Any encoded image (a PNG render, say) as a JPEG, small enough to store and quick to load."""
     img = cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("Not an image")
