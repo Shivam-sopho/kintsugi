@@ -134,3 +134,209 @@ def test_blur_keeps_image_shape():
     img = np.random.randint(0, 255, (200, 300, 3), dtype=np.uint8)
     out, n = blur_faces(img)
     assert out.shape == img.shape and n >= 0
+
+
+# Listen: Gemini text-to-speech, with the device's own voice as the offline fallback
+
+def test_speak_offline_falls_back_to_device_voice(client):
+    r = client.post("/api/speak", json={"text": "Unscrew the four legs.", "lang": "en"})
+    assert r.status_code == 204
+
+
+def test_speak_rejects_empty_and_overlong_text(client):
+    assert client.post("/api/speak", json={"text": "", "lang": "en"}).status_code == 422
+    assert client.post("/api/speak", json={"text": "x" * 1501, "lang": "hi"}).status_code == 422
+
+
+def test_speak_serves_wav_and_caches_repeat_lines(client, monkeypatch):
+    from types import SimpleNamespace
+
+    from app import main
+    from app.llm.gemini import pcm_to_wav
+
+    calls = []
+
+    async def fake_speech(text, lang):
+        calls.append((text, lang))
+        return pcm_to_wav(b"\x00\x00" * 2400)
+
+    monkeypatch.setattr(main, "get_llm", lambda: SimpleNamespace(speech=fake_speech))
+    main.speech_cache._memory.clear()
+    body = {"text": "पैर हटाने के लिए चारों पेंच खोलें।", "lang": "hi"}
+    first, second = client.post("/api/speak", json=body), client.post("/api/speak", json=body)
+    assert first.status_code == second.status_code == 200
+    assert first.headers["content-type"] == "audio/wav"
+    assert first.content == second.content
+    assert calls == [(body["text"], "hi")]  # the repeat came from the cache
+    main.speech_cache._memory.clear()
+
+
+def test_gemini_speech_wraps_pcm_in_a_wav_header():
+    import asyncio
+    import io
+    import wave
+    from types import SimpleNamespace
+
+    from app.config import get_settings
+    from app.llm.gemini import GeminiLLM
+
+    seen = {}
+
+    async def generate_content(model, contents, config):
+        seen.update(model=model, locale=config.speech_config.language_code)
+        audio = SimpleNamespace(data=b"\x01\x00" * 1600, mime_type="audio/L16;codec=pcm;rate=16000")
+        return SimpleNamespace(candidates=[SimpleNamespace(content=SimpleNamespace(parts=[SimpleNamespace(inline_data=audio)]))])
+
+    llm = object.__new__(GeminiLLM)  # skip the Vertex AI client
+    llm.s = get_settings()
+    llm.client = SimpleNamespace(aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content)))
+    wav = asyncio.run(llm.speech("नमस्ते", "hi"))
+    with wave.open(io.BytesIO(wav)) as w:
+        assert (w.getframerate(), w.getnchannels(), w.getsampwidth(), w.getnframes()) == (16000, 1, 2, 1600)
+    assert seen == {"model": llm.s.model_tts, "locale": "hi-IN"}
+
+
+def test_pricing_retries_and_never_fails_the_scan():
+    """Search-grounded replies are sometimes empty or prose only; that must not stop a scan."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.config import get_settings
+    from app.llm.gemini import GeminiLLM
+
+    def run(replies):
+        calls = []
+
+        async def generate_content(model, contents, config):
+            calls.append(model)
+            return SimpleNamespace(text=replies[len(calls) - 1], candidates=[SimpleNamespace(grounding_metadata=None)])
+
+        llm = object.__new__(GeminiLLM)  # skip the Vertex AI client
+        llm.s = get_settings()
+        llm.client = SimpleNamespace(aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content)))
+        items = [{"type": "teak chair", "condition": "B"}, {"type": "steel almirah", "condition": "C"}]
+        return asyncio.run(llm.price_items(items, "Bengaluru")), len(calls)
+
+    good = '{"prices": [{"index": 0, "value_min_inr": 800, "value_max_inr": 1500, "sources": ["https://example.in/a"]}]}'
+    prices, calls = run(["", good])
+    assert calls == 2 and prices[0]["value_max_inr"] == 1500 and prices[1]["value_max_inr"] is None
+
+    prices, calls = run(["Sorry, I couldn't find listings.", ""])
+    assert calls == 2 and len(prices) == 2
+    assert all(p["value_min_inr"] is None and p["sources"] == [] for p in prices)
+
+
+def test_pricing_gives_up_on_a_stalled_search(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.config import get_settings
+    from app.llm import gemini
+
+    monkeypatch.setattr(gemini, "PRICING_TIMEOUT_S", 0.05)
+
+    async def generate_content(model, contents, config):
+        await asyncio.sleep(5)
+
+    llm = object.__new__(gemini.GeminiLLM)
+    llm.s = get_settings()
+    llm.client = SimpleNamespace(aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content)))
+    prices = asyncio.run(llm.price_items([{"type": "teak chair"}], "Bengaluru"))
+    assert prices == [{"value_min_inr": None, "value_max_inr": None, "repair_cost_inr": None, "sources": []}]
+
+
+
+def test_spoken_summary_is_translated_before_speaking(client, monkeypatch):
+    from types import SimpleNamespace
+    from urllib.parse import unquote
+
+    from app import main
+    from app.llm.gemini import pcm_to_wav
+
+    said = []
+
+    async def translate(text, lang):
+        return f"[{lang}] {text}"
+
+    async def speech(text, lang):
+        said.append((text, lang))
+        return pcm_to_wav(b"\x00\x00" * 240)
+
+    monkeypatch.setattr(main, "get_llm", lambda: SimpleNamespace(translate=translate, speech=speech))
+    main.speech_cache._memory.clear()
+    r = client.post("/api/speak", json={"text": "Scout found 2 items.", "lang": "kn", "translate": True})
+    assert r.status_code == 200
+    assert unquote(r.headers["x-spoken-text"]) == "[kn] Scout found 2 items."
+    assert said == [("[kn] Scout found 2 items.", "kn")]
+    main.speech_cache._memory.clear()
+
+
+def test_offline_summary_keeps_the_english_for_the_device_voice(client):
+    from urllib.parse import unquote
+
+    r = client.post("/api/speak", json={"text": "Scout found 2 items.", "lang": "hi", "translate": True})
+    assert r.status_code == 204
+    assert unquote(r.headers["x-spoken-text"]) == "Scout found 2 items."
+
+
+def test_judge_mode_never_sends_its_empty_sample_media_to_the_live_model():
+    """In live mode the demo's videos and notice are empty placeholders; Gemini must not get them."""
+    import asyncio
+
+    from app.config import get_settings
+    from app.llm.mock import MockLLM
+    from app.models import Job
+
+    calls = []
+
+    class Live(MockLLM):
+        async def scout_media(self, *a, **k):
+            raise AssertionError("sample video sent to the live model")
+
+        async def oracle_document(self, *a, **k):
+            raise AssertionError("sample notice sent to the live model")
+
+        async def price_items(self, *a, **k):
+            raise AssertionError("sample prices asked of the live model")
+
+        async def negotiation_message(self, *a, **k):
+            calls.append("negotiation_message")
+            return await super().negotiation_message(*a, **k)
+
+        async def embed_texts(self, texts):
+            calls.append("embed_texts")
+            return await super().embed_texts(texts)
+
+    settings = get_settings()
+    store = get_store()
+    job = Job(kind="judge_mode")
+    store.upsert_job(job)
+    result = asyncio.run(agents.judge_mode(store, Live(settings), settings, job.id))
+    assert result["deal_id"] and "negotiation_message" in calls and "embed_texts" in calls
+    # Sample data stays labelled as sample data, even when the model is live.
+    live = settings.model_copy(update={"mock_mode": False})
+    store.reset()
+    job = Job(kind="judge_mode")
+    store.upsert_job(job)
+    asyncio.run(agents.judge_mode(store, Live(live), live, job.id))
+    assert store.list_items() and all(i.synthetic for i in store.list_items())
+    assert all(p.synthetic for p in store.list_predictions())
+
+
+def test_gemini_embeds_each_text_separately():
+    """Gemini Embedding 2 folds a list of contents into one vector; each text needs its own vector."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.config import get_settings
+    from app.llm.gemini import GeminiLLM
+
+    async def embed_content(model, contents, config):
+        assert isinstance(contents, str)
+        return SimpleNamespace(embeddings=[SimpleNamespace(values=[float(len(contents)), 1.0])])
+
+    llm = object.__new__(GeminiLLM)
+    llm.s = get_settings()
+    llm.embed_client = SimpleNamespace(aio=SimpleNamespace(models=SimpleNamespace(embed_content=embed_content)))
+    vectors = asyncio.run(llm.embed_texts(["teak door", "fan", "steel almirah"]))
+    assert [v[0] for v in vectors] == [9.0, 3.0, 13.0]

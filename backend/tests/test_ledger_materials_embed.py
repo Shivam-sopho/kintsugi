@@ -48,3 +48,29 @@ def test_dedup_merges_repeat_sightings_without_double_counting():
     assert len(out) == 2
     merged = next(i for i in out if i.site_id == "s")
     assert merged.count == 3 and merged.confidence == 0.9 and merged.timestamps_s == [1, 9]
+
+
+def test_factors_come_from_the_government_conversion_factors():
+    from app.materials import emission_factor, factor_basis, factor_source, rung_credit
+
+    assert "UK Government GHG Conversion Factors 2026" in factor_source()
+    # Every material we use has a published row behind it.
+    for m in ("wood", "steel", "aluminium", "glass", "brick", "concrete", "plastic", "textile", "paper", "organic"):
+        assert emission_factor(m) > 0 and factor_basis(m)
+    # Composting credit is the landfill emissions it avoids; recycling uses the material's own saving.
+    assert 0.6 < emission_factor("food waste") < 0.7
+    assert rung_credit("recycle", "aluminium") > rung_credit("recycle", "paper")
+    assert rung_credit("recycle", "brick") == 0.5  # no published closed-loop figure: the stated default
+
+
+def test_reuse_counts_only_the_share_that_replaces_buying_new():
+    """0.7 kg of fabric reused: 0.7 x 22.31 x 0.993 x 0.6 (second-hand replaces 60% of new), not the full 15.5 kg."""
+    from app.ledger import co2_avoided_for_item
+    from app.models import Component, Rung
+
+    quilt = Item(site_id="s", type="quilt", location=LOC, next_life=Rung.REUSE,
+                 components=[Component(name="fabric", material="textile", est_weight_kg=0.7, next_life=Rung.REUSE)])
+    assert co2_avoided_for_item(quilt) == round(0.7 * 22.31 * 0.993 * 0.6, 2)
+    cooker = Item(site_id="s", type="cooker", location=LOC, next_life=Rung.RECYCLE,
+                  components=[Component(name="body", material="aluminium", est_weight_kg=2.5, next_life=Rung.RECYCLE)])
+    assert co2_avoided_for_item(cooker) == round(2.5 * 9.1136 * 0.891, 2)  # recycling is not scaled

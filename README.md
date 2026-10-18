@@ -20,7 +20,7 @@ Every feature in the plan that doesn't need Google Cloud credentials is built an
 | Voice: spoken notes, search and briefs, voice-note listings, Listen buttons | Done (offline transcripts in mock mode) |
 | Evidence photos with face blur, take-apart steps in the owner's language | Done, tested |
 | Seller agent over A2A (agent card + JSON-RPC), buyer agent with private cap | Done, tested |
-| Impact ledger, certificates in English, Hindi and Kannada | Done, tested. Emission factors are placeholders to verify against ICE |
+| Impact ledger, certificates in English, Hindi and Kannada | Done, tested. Emission factors from the UK Government GHG Conversion Factors 2026 (Open Government Licence) |
 | Web app (installable PWA) and Android app (Capacitor) | Done; the Android app's first compile happens in Android Studio |
 | Live Gemini, Firestore, Cloud Storage, Maps/Places | Written, not yet run live |
 | AP2 settlement | Sandbox record shaped like AP2 mandates; no money moves |

@@ -1,9 +1,21 @@
-import type { AgentEvent, AppState, Deal, Item, Job, SearchResult, Transcript } from "./types";
+import type { LiveLedger, Standing, AgentEvent, AppState, AskReply, Deal, Explanation, Item, Job, SearchResult, Transcript } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "";
 
+// Files to download (PDFs). Inside the Android app, a link to another host opens in the phone's
+// browser, which can save a PDF; the app's own web view can't, so files come from the API's own host.
+const isNative = Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
+const FILES = (isNative && (import.meta.env.VITE_DOWNLOAD_BASE as string | undefined)?.replace(/\/$/, "")) || BASE;
+
+const BUSY_RETRIES_MS = [3000, 7000]; // when Gemini is busy, wait and ask again before telling anyone
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, init);
+  let res = await fetch(`${BASE}${path}`, init);
+  for (const wait of BUSY_RETRIES_MS) {
+    if (res.status !== 503 && res.status !== 429) break;
+    await new Promise((r) => setTimeout(r, wait));
+    res = await fetch(`${BASE}${path}`, init);
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -23,10 +35,26 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export const api = {
+  /** Gemini's spoken audio for a line (null when the API has none, in offline mode) and the words
+   *  spoken. With `translate`, English text is read in `lang`. */
+  speech: async (text: string, lang: string, translate = false): Promise<{ audio: Blob | null; spoken: string }> => {
+    const res = await fetch(`${BASE}/api/speak`, json({ text, lang, translate }));
+    const header = res.headers.get("X-Spoken-Text");
+    const spoken = header ? decodeURIComponent(header) : text;
+    return { audio: res.status === 200 ? await res.blob() : null, spoken };
+  },
   state: () => call<AppState>("/api/state"),
+  ask: (form: FormData) => call<AskReply>("/api/ask", { method: "POST", body: form }),
+  explain: (id: string, lang: string) => call<Explanation>(`/api/items/${id}/explain?lang=${lang}`),
+  handover: (id: string) => call<Job>(`/api/items/${id}/handover`, { method: "POST" }),
+  itemAutopilot: (id: string, on: boolean) => call<Job>(`/api/items/${id}/autopilot`, json({ on })),
+  createRequest: (body: { buyer_id: string; query: string; lat: number; lng: number; radius_km: number; cap_inr?: number; auto_approve: boolean }) =>
+    call<Job>("/api/requests", json(body)),
+  cancelRequest: (id: string) => call<unknown>(`/api/requests/${id}/cancel`, { method: "POST" }),
   job: (id: string) => call<Job>(`/api/jobs/${id}`),
   events: (id: string, after: number) => call<AgentEvent[]>(`/api/jobs/${id}/events?after=${after}`),
-  judgeMode: () => call<Job>("/api/judge-mode", { method: "POST" }),
+  demoRecording: () => call<{ events: { agent: string; step: string; message: string; data: Record<string, unknown> }[]; result: Record<string, unknown>; recorded_at: number }>("/api/demo/recording"),
+  judgeMode: (narrated = false) => call<Job>(`/api/judge-mode${narrated ? "?narrated=true" : ""}`, { method: "POST" }),
   scan: (form: FormData) => call<Job>("/api/scan", { method: "POST", body: form }),
   search: (query: string, near?: { lat: number; lng: number }) =>
     call<SearchResult[]>("/api/search", json({ query, ...near })),
@@ -37,7 +65,15 @@ export const api = {
     call<Job>("/api/deals", json({ item_ids, buyer_id, budget_cap_inr })),
   deal: (id: string) => call<Deal>(`/api/deals/${id}`),
   approve: (id: string) => call<Deal>(`/api/deals/${id}/approve`, { method: "POST" }),
+  accept: (id: string) => call<Deal>(`/api/deals/${id}/accept`, { method: "POST" }),
+  decline: (id: string) => call<Deal>(`/api/deals/${id}/decline`, { method: "POST" }),
   certificateUrl: (id: string, lang = "en") => `${BASE}/api/certificate/${id}?lang=${lang}`,
+  certificatePdfUrl: (id: string, lang = "en") => `${FILES}/api/certificate/${id}.pdf?lang=${lang}`,
+  standing: (personId: string) => call<Standing>(`/api/people/${encodeURIComponent(personId)}/standing`),
+  standingPdfUrl: (personId: string) => `${FILES}/api/people/${encodeURIComponent(personId)}/certificate.pdf`,
+  cities: () => call<{ id: string; name: string; lat: number; lng: number; lang: string }[]>("/api/cities"),
+  liveLedger: () => call<LiveLedger>("/api/ledger/live"),
+  reportPdfUrl: (personaId?: string) => `${FILES}/api/report.pdf${personaId ? `?persona_id=${encodeURIComponent(personaId)}` : ""}`,
   patchItem: (id: string, patch: Partial<{ count: number; condition: string; verified: boolean; floor_price_inr: number }>) =>
     call<Item>(`/api/items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }),
   offerItem: (id: string) => call<Job>(`/api/items/${id}/offer`, { method: "POST" }),

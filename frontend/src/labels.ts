@@ -6,6 +6,7 @@ export const RUNG_ORDER: Rung[] = [
   "upcycle",
   "harvest_parts",
   "recycle",
+  "compost",
   "recover_energy",
   "safe_disposal",
 ];
@@ -16,6 +17,7 @@ export const RUNG_LABEL: Record<Rung, string> = {
   upcycle: "Upcycle",
   harvest_parts: "Harvest parts",
   recycle: "Recycle",
+  compost: "Compost or biogas",
   recover_energy: "Recover energy",
   safe_disposal: "Safe disposal",
 };
@@ -27,6 +29,7 @@ export const RUNG_COLOR: Record<Rung, string> = {
   upcycle: "#B8892B",
   harvest_parts: "#5E8E7A",
   recycle: "#6E9E8A",
+  compost: "#7E9A5B",
   recover_energy: "#8C939E",
   safe_disposal: "#B1B5BC",
 };
@@ -48,7 +51,11 @@ export const LANG_LABEL: Record<string, string> = {
   hi: "Hindi",
   kn: "Kannada",
   ta: "Tamil",
-  id: "Bahasa",
+  id: "Bahasa Indonesia",
+  ms: "Bahasa Melayu",
+  th: "Thai",
+  vi: "Vietnamese",
+  fil: "Filipino",
   ja: "Japanese",
 };
 
@@ -59,3 +66,56 @@ export const kg = (n: number | null | undefined) =>
   n == null ? "–" : `${n >= 100 ? Math.round(n).toLocaleString("en-IN") : n.toFixed(1)} kg`;
 
 export const DEMO_CENTER = { lat: 12.95, lng: 77.63 }; // Bengaluru
+
+// What Kintsugi says out loud after a scan or a search. Written in English; the API reads it in the
+// person's language. Short, so it's quick to hear.
+export function scanSummary(items: import("./types").Item[]): string {
+  if (!items.length) return "Scout couldn't list anything this time. Try again closer up, in good light.";
+  const lines = items.slice(0, 3).map((i) => {
+    const life = i.next_life ? `best next life: ${RUNG_LABEL[i.next_life].toLowerCase()}` : "next life not decided yet";
+    return `${i.type}, ${life}${i.value_max_inr ? `, worth up to ${inr(i.value_max_inr)}` : ""}`;
+  });
+  const hazard = items.find((i) => i.hazards.length);
+  return [
+    `Scout found ${items.length} ${items.length === 1 ? "item" : "items"}.`,
+    ...lines.map((l) => `${l}.`),
+    hazard ? `The ${hazard.type} may be hazardous, so it goes to a licensed handler for testing.` : "",
+    "Tap an item to see where it can go.",
+  ].filter(Boolean).join(" ");
+}
+
+export function searchSummary(results: import("./types").SearchResult[]): string {
+  if (!results.length) return "Nothing nearby matches yet. Try other words, or search with a photo.";
+  const best = results[0];
+  const where = best.distance_km != null ? `, ${best.distance_km} kilometres away` : "";
+  const price = best.item.value_max_inr ? `, about ${inr(best.item.value_max_inr)} each` : "";
+  const n = results.length;
+  return `I found ${n} ${n === 1 ? "match" : "matches"} nearby. The best is ${best.item.type}${where}${price}. Choose the ones you want and the agents will negotiate for you.`;
+}
+
+/** Straight-line distance in km. */
+export function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const r = (d: number) => (d * Math.PI) / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+
+export const TAKER_ROLE: Record<string, string> = {
+  buyer: "Buyer", ngo: "Charity", dealer: "Scrap dealer", repairer: "Repairer", upcycler: "Upcycler",
+  recycler: "Recycler", government: "Government", composter: "Compost or biogas", energy_facility: "Energy recovery",
+  hazard_handler: "Licensed hazard handler",
+};
+
+/** "aluminium sliding window" → "Aluminium sliding window" (Scout writes types in lower case). */
+export const sentence = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** Shown whenever Google's Gemini is momentarily full: calm, and clear that the app is fine. */
+export const BUSY =
+  "Google's Gemini is very busy for a moment, so Kintsugi is waiting its turn. Try again in a minute; nothing you added was lost.";
+
+/** Whether an error just means Gemini (or the connection) is busy, rather than something broken. */
+export const isBusy = (msg?: string | null) =>
+  Boolean(msg) && /very busy|RESOURCE_EXHAUSTED|\b(429|503)\b|Failed to fetch|NetworkError|Load failed/i.test(msg as string);
+
+/** The words to show for a problem: the calm busy message, or the error itself. */
+export const problemText = (msg?: string | null) => (isBusy(msg) ? BUSY : msg ?? "Something went wrong. Please try again.");

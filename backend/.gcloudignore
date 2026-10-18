@@ -1,0 +1,14 @@
+# Files not uploaded by `gcloud run deploy --source backend` (see infra/deploy_backend.sh).
+# Keep secrets and local environments out of Cloud Build.
+.gcloudignore
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+tests/
+eval/
+scripts/
+*.json.key
+service-account*.json

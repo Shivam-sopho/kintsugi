@@ -3,20 +3,26 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Optional
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, Response
-from pydantic import BaseModel
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from google.genai import errors as genai_errors
+from pydantic import BaseModel, Field
 
 from . import agents
+from . import ledger, live_ledger, report_pdf, speech_cache, standing
 from .certificate import render as render_certificate
 from .config import get_settings
 from .demo import fixtures
 from .llm import MediaRef, get_llm
+from .llm.gemini import is_busy
 from .evidence import get_evidence_store
 from .media import to_media_ref
 from .models import GeoPoint, Item, Job, Site, new_id
@@ -32,6 +38,22 @@ async def lifespan(_: FastAPI):
     if not store.list_participants():
         agents.seed_participants(store)
         store.upsert_predictions(fixtures.predictions())
+    if settings.sample_cities:  # in the background: start-up shouldn't wait for embeddings
+        async def cities_task():
+            try:
+                n = await agents.seed_cities(store, get_llm(), settings)
+                if n:
+                    log.info("Listed %d sample items across Asia-Pacific cities", n)
+            except Exception:
+                log.exception("Could not seed the sample cities")
+        task = asyncio.create_task(cities_task())
+        _tasks.add(task)
+        task.add_done_callback(_tasks.discard)
+    if settings.live_market:  # sample buyers keep looking, so new listings meet a real negotiation
+        try:
+            await agents.seed_market(store, get_llm())
+        except Exception:  # never block start-up on it
+            log.exception("Could not seed the market's sample buyers")
     yield
 
 
@@ -53,6 +75,32 @@ if settings.a2a_enabled:
 _tasks: set[asyncio.Task] = set()
 
 
+BUSY_MESSAGE = ("Google's Gemini is very busy for a moment, so Kintsugi is waiting its turn. "
+                "Please try again in a minute; nothing you added was lost.")
+
+
+def friendly_error(exc: Exception) -> str:
+    """What a person sees when a job fails: plain words, not a raw API error."""
+    return BUSY_MESSAGE if is_busy(exc) else str(exc)
+
+
+@app.exception_handler(genai_errors.APIError)
+async def gemini_error(request, exc: genai_errors.APIError):
+    """A Gemini call that fails in a request (Ask, explain, transcribe): plain words, and 503 with
+    Retry-After when it is only busy, so the app can try again by itself."""
+    log.warning("Gemini error on %s: %s", request.url.path, exc)
+    if is_busy(exc):
+        return JSONResponse({"detail": BUSY_MESSAGE, "busy": True}, status_code=503, headers={"Retry-After": "5"})
+    return JSONResponse({"detail": "Gemini couldn't do that one. Please try again."}, status_code=502)
+
+
+async def _market(job_id: str, item_ids: list[str]) -> dict[str, Any]:
+    """Buyers' agents look at newly listed things and open negotiations, live."""
+    store, llm = get_store(), get_llm()
+    deals = await agents.run_autopilot(store, llm, settings, agents.Emitter(store, job_id, delay=settings.demo_step_delay), item_ids=item_ids)
+    return {"deal_ids": [d.id for d in deals]}
+
+
 def _start_job(kind: str, coro_factory) -> Job:
     """Run an agent flow in the background; the client polls the job and its events."""
     store = get_store()
@@ -65,8 +113,19 @@ def _start_job(kind: str, coro_factory) -> Job:
             job.status, job.result = "done", result or {}
         except Exception as exc:  # surface the error to the UI instead of failing silently
             log.exception("Job %s failed", job.id)
-            job.status, job.error = "error", str(exc)
-        store.upsert_job(job)
+            job.status, job.error = "error", friendly_error(exc)
+        try:
+            store.upsert_job(job)
+        except Exception:
+            # The job finished, but its result couldn't be saved (too large, say). Save it without
+            # the oversized parts, so the person's screen still sees it finish.
+            log.exception("Could not save job %s's result; saving a smaller one", job.id)
+            job.result = {k: v for k, v in job.result.items() if len(json.dumps(v, default=str)) < 50_000}
+            try:
+                store.upsert_job(job)
+            except Exception:
+                job.result = {}
+                store.upsert_job(job)
 
     task = asyncio.create_task(runner())
     _tasks.add(task)
@@ -101,6 +160,13 @@ def _home_ids(store) -> set[str]:
     return {s.id for s in store.list_sites() if s.kind == "home"}
 
 
+def public_request(r) -> dict[str, Any]:
+    """A standing request as others may see it: the buyer's highest price stays with their agent."""
+    data = r.model_dump(mode="json", exclude={"cap_inr", "embedding"})
+    data["has_cap"] = r.cap_inr is not None
+    return data
+
+
 @app.get("/api/state")
 def state() -> dict[str, Any]:
     """Everything the map needs in one call."""
@@ -121,6 +187,7 @@ def state() -> dict[str, Any]:
         "predictions": [p.model_dump(mode="json") for p in store.list_predictions()],
         "deals": [d.model_dump(mode="json") for d in store.list_deals()],
         "bundles": [b.model_dump(mode="json") for b in store.list_bundles()],
+        "requests": [public_request(r) for r in store.list_requests()],
         "totals": agents.ledger_summary(store),
     }
 
@@ -156,6 +223,102 @@ async def patch_item(item_id: str, body: ItemPatch) -> dict[str, Any]:
     return public_item(it, _home_ids(store))
 
 
+class AutopilotIn(BaseModel):
+    on: bool
+
+
+@app.post("/api/items/{item_id}/autopilot")
+async def item_autopilot(item_id: str, body: AutopilotIn) -> dict[str, Any]:
+    """The seller turns Autopilot on or off for an item; when on, matching buyers are looked for now."""
+    store, llm = get_store(), get_llm()
+    it = store.get_item(item_id)
+    if not it:
+        raise HTTPException(404, "Item not found")
+    if body.on and it.hazards:
+        raise HTTPException(400, "Suspected hazards go to a licensed handler, so they can't be sold on Autopilot.")
+    if body.on and it.floor_price_inr is None:
+        raise HTTPException(400, "Set your lowest price first, so your agent knows where to stop.")
+
+    async def flow(job_id: str):
+        deals = await agents.set_autopilot(store, llm, settings, agents.Emitter(store, job_id, delay=0.4), item_id, body.on)
+        return {"deal_ids": [d.id for d in deals]}
+
+    return _start_job("autopilot", flow).model_dump(mode="json")
+
+
+class RequestIn(BaseModel):
+    buyer_id: str
+    query: str = Field(min_length=2, max_length=200)
+    lat: float
+    lng: float
+    radius_km: float = Field(10.0, gt=0, le=50)
+    cap_inr: Optional[float] = Field(None, gt=0)
+    auto_approve: bool = False
+
+
+@app.post("/api/requests")
+async def create_request(body: RequestIn) -> dict[str, Any]:
+    """A buyer's standing request: matched against what's listed now and every new scan."""
+    store, llm = get_store(), get_llm()
+    buyer = store.get_participant(body.buyer_id)
+    if not buyer or buyer.role not in ("buyer", "ngo", "dealer"):
+        raise HTTPException(400, "Only buyers, charities and dealers can save a standing request.")
+    if body.auto_approve and not body.cap_inr:
+        raise HTTPException(400, "Give a highest price to approve deals automatically.")
+
+    async def flow(job_id: str):
+        req, deals = await agents.create_request(
+            store, llm, settings, agents.Emitter(store, job_id, delay=0.4), body.buyer_id, body.query,
+            GeoPoint(lat=body.lat, lng=body.lng), body.radius_km, body.cap_inr, body.auto_approve)
+        return {"request_id": req.id, "deal_ids": [d.id for d in deals]}
+
+    return _start_job("request", flow).model_dump(mode="json")
+
+
+@app.post("/api/requests/{request_id}/cancel")
+def cancel_request(request_id: str) -> dict[str, Any]:
+    store = get_store()
+    req = next((r for r in store.list_requests() if r.id == request_id), None)
+    if not req:
+        raise HTTPException(404, "Request not found")
+    req.active = False
+    store.upsert_request(req)
+    return public_request(req)
+
+
+@app.get("/api/items/{item_id}/explain")
+async def explain(item_id: str, lang: str = "en") -> dict[str, Any]:
+    """'What becomes of it': Gemini explains the item's decided next life in the person's language."""
+    try:
+        return await agents.explain_item(get_store(), get_llm(), item_id, lang[:8])
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.post("/api/items/{item_id}/handover")
+async def handover(item_id: str) -> dict[str, Any]:
+    """Hand the item over to the takers the rules chose: no money, impact recorded. It needs no model
+    call, so it runs at once and answers with the finished job and what it saved (the app celebrates
+    straight away instead of waiting for a background job)."""
+    store = get_store()
+    it = store.get_item(item_id)
+    if not it:
+        raise HTTPException(404, "Item not found")
+    job = Job(kind="handover", status="running")
+    store.upsert_job(job)
+    try:
+        deal = await agents.handover_item(store, agents.Emitter(store, job.id), item_id)
+    except ValueError as exc:
+        job.status, job.error = "error", str(exc)
+        store.upsert_job(job)
+        raise HTTPException(400, str(exc)) from exc
+    t = ledger.totals([e for e in store.list_ledger() if e.source_id == deal.id])
+    job.status = "done"
+    job.result = {"deal_id": deal.id, "kg": t["mass_diverted_kg"], "co2e_kg": t["co2_avoided_kg"]}
+    store.upsert_job(job)
+    return job.model_dump(mode="json")
+
+
 @app.post("/api/items/{item_id}/offer")
 async def offer(item_id: str) -> dict[str, Any]:
     """Offer this item (and the rest of the lot the same taker wants) to the taker the ladder picked."""
@@ -185,6 +348,62 @@ async def transcribe(file: UploadFile = File(...), hint: str = Form("notes")) ->
     """Voice input in any language: returns the transcript, its language and an English translation."""
     audio = to_media_ref(file.filename or "voice.webm", await file.read(), file.content_type or "audio/webm", settings)
     return await get_llm().transcribe(audio, hint)
+
+
+@app.post("/api/ask")
+async def ask(
+    persona_id: str = Form("ppl_me"),
+    question: str = Form(""),
+    history: str = Form("[]"),
+    lang: str = Form("en"),  # the answer's language: English by default, any code, or "auto" (the question's)
+    lat: Optional[float] = Form(None),
+    lng: Optional[float] = Form(None),
+    file: Optional[UploadFile] = File(None),
+) -> dict[str, Any]:
+    """Ask Kintsugi by voice or text. With a recording, Gemini transcribes it first; the reply is
+    in the person's language with one suggested action they can confirm."""
+    store, llm = get_store(), get_llm()
+    heard = None
+    if file is not None:
+        audio = to_media_ref(file.filename or "ask.webm", await file.read(), file.content_type or "audio/webm", settings)
+        heard = await llm.transcribe(audio, "ask")
+        question = heard.get("text", "")  # answered in `lang` (English unless chosen), not the language heard
+        if lang == "auto":
+            lang = heard.get("language") or "en"
+    try:
+        turns = [t for t in json.loads(history) if isinstance(t, dict)][-6:]
+    except ValueError:
+        turns = []
+    near = GeoPoint(lat=lat, lng=lng) if lat is not None and lng is not None else None
+    out = await agents.ask_kintsugi(store, llm, settings, persona_id, question[:500], turns, lang, near)
+    return {**out, "heard": heard}
+
+
+class SpeakIn(BaseModel):
+    text: str = Field(min_length=1, max_length=1500)
+    lang: str = Field("en", max_length=8)
+    translate: bool = False  # text is English; read it in `lang` (spoken summaries in the person's language)
+
+
+@app.post("/api/speak")
+async def speak(body: SpeakIn) -> Response:
+    """Read text aloud with Gemini TTS, optionally translated from English first. The words spoken
+    come back in X-Spoken-Text (URL-encoded). 204 means no audio (offline): the app uses the device's voice.
+    Each line is generated once and kept (speech_cache), so repeats, like the demo's narration, are instant."""
+    k = speech_cache.key(body.lang, body.text, body.translate)
+    hit = await asyncio.to_thread(speech_cache.get, settings, k)
+    if hit:
+        spoken, audio = hit
+    else:
+        llm = get_llm()
+        spoken = await llm.translate(body.text, body.lang) if body.translate and body.lang != "en" else body.text
+        audio = await llm.speech(spoken, body.lang)
+        if audio is not None:  # don't remember failures
+            await asyncio.to_thread(speech_cache.put, settings, k, spoken, audio)
+    headers = {"X-Spoken-Text": quote(spoken), "Access-Control-Expose-Headers": "X-Spoken-Text"}
+    if audio is None:
+        return Response(status_code=204, headers=headers)
+    return Response(audio, media_type="audio/wav", headers={**headers, "Cache-Control": "private, max-age=86400"})
 
 
 @app.post("/api/jobs/{job_id}/skip")
@@ -236,8 +455,15 @@ async def scan(
 
     async def flow(job_id: str):
         emit = agents.Emitter(store, job_id)
-        items = await agents.scout_scan(store, llm, settings, emit, media, site, seller_id, narration_text)
-        return {"site_id": site.id, "item_ids": [i.id for i in items]}
+        live = settings.live_market
+        items = await agents.scout_scan(store, llm, settings, emit, media, site, seller_id, narration_text,
+                                        autopilot=not live)
+        out = {"site_id": site.id, "item_ids": [i.id for i in items]}
+        if live and items:  # buyers' agents negotiate after the scan, so its results show at once
+            ids = [i.id for i in items]
+            market = _start_job("market", lambda mid: _market(mid, ids))
+            out["market_job_id"] = market.id
+        return out
 
     return _start_job("scan", flow).model_dump(mode="json")
 
@@ -324,6 +550,28 @@ def get_deal(deal_id: str) -> dict[str, Any]:
     return deal.model_dump(mode="json")
 
 
+@app.post("/api/deals/{deal_id}/accept")
+async def accept(deal_id: str) -> dict[str, Any]:
+    """The seller accepts the price the agents reached."""
+    store = get_store()
+    try:
+        deal = await agents.accept_deal(store, agents.Emitter(store, new_id("job")), deal_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return deal.model_dump(mode="json")
+
+
+@app.post("/api/deals/{deal_id}/decline")
+async def decline(deal_id: str) -> dict[str, Any]:
+    """The seller declines; the items are listed again."""
+    store = get_store()
+    try:
+        deal = await agents.decline_deal(store, agents.Emitter(store, new_id("job")), deal_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return deal.model_dump(mode="json")
+
+
 @app.post("/api/deals/{deal_id}/approve")
 async def approve(deal_id: str) -> dict[str, Any]:
     store = get_store()
@@ -345,10 +593,144 @@ async def bundles() -> dict[str, Any]:
     return _start_job("bundling", flow).model_dump(mode="json")
 
 
+_running_demos: list[str] = []  # this instance's demo job, if one is running
+
+
+RECORDING_ID = "demo_recording"
+
+
+def save_recording(store, job_id: str, result: dict[str, Any]) -> None:
+    """Keep the demo's steps and result, so "Run demo" can replay the story from the start for
+    every viewer, at once, without running (or interrupting) it again. The sample data it shows
+    stays in place until the next real run."""
+    events = [{"agent": e.agent, "step": e.step, "message": e.message,
+               "data": {k: v for k, v in e.data.items() if k in ("deal_id", "item_id", "rung")}}
+              for e in store.list_events(job_id)]
+    deal = store.get_deal(str(result.get("deal_id", "")))
+    result = {**result, "deal_price_inr": deal.final_price_inr if deal else None}
+    try:
+        store.upsert_job(Job(id=RECORDING_ID, kind="demo_recording", status="done",
+                             result={"events": events, "result": result, "job_id": job_id}))
+    except Exception:
+        log.exception("Could not save the demo recording")
+
+
+@app.get("/api/demo/recording")
+def demo_recording() -> dict[str, Any]:
+    """The last full demo run, to replay: its steps in order and its result."""
+    rec = get_store().get_job(RECORDING_ID)
+    if not rec or not rec.result.get("events"):
+        raise HTTPException(404, "No recording yet")
+    return {"events": rec.result["events"], "result": rec.result.get("result", {}), "recorded_at": rec.created_at}
+
+
+NARRATED_PACE = 2.7  # read aloud, the story runs this much slower (0.6 s a step becomes 1.6 s) so the voice keeps up
+
+
+DEMO_LOCK_ID = "demo_running"
+DEMO_LOCK_TTL_S = 600  # a real run takes about a minute; a lock older than this belonged to a lost run
+
+
 @app.post("/api/judge-mode")
-async def judge_mode() -> dict[str, Any]:
+async def judge_mode(narrated: bool = False) -> dict[str, Any]:
+    """Run the demo, or join the one already running, so viewers who click at the same time never
+    interfere: one real run at a time, across every server instance (a lock kept in the store).
+    Usually the app replays the recording instead and never calls this. Narrated, it runs slower so
+    each chapter can be read aloud as it happens."""
     store, llm = get_store(), get_llm()
-    return _start_job("judge_mode", lambda job_id: agents.judge_mode(store, llm, settings, job_id)).model_dump(mode="json")
+    lock = store.get_job(DEMO_LOCK_ID)
+    if lock and time.time() - lock.created_at < DEMO_LOCK_TTL_S:
+        running = store.get_job(str(lock.result.get("job_id", "")))
+        if running and running.status in ("queued", "running"):
+            return running.model_dump(mode="json")
+    running = next((j for j in _running_demos if (cur := store.get_job(j)) and cur.status == "running"), None)
+    if running:
+        return store.get_job(running).model_dump(mode="json")  # type: ignore[union-attr]
+    _running_demos.clear()
+    paced = settings.model_copy(update={"demo_step_delay": settings.demo_step_delay * NARRATED_PACE}) if narrated else settings
+
+    async def run(job_id: str) -> dict[str, Any]:
+        result = await agents.judge_mode(store, llm, paced, job_id)
+        save_recording(store, job_id, result)
+        return result
+
+    job = _start_job("judge_mode", run)
+    store.upsert_job(Job(id=DEMO_LOCK_ID, kind="lock", status="running", result={"job_id": job.id}))
+    _running_demos.append(job.id)
+    return job.model_dump(mode="json")
+
+
+def _pdf(data: bytes, name: str) -> Response:
+    return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.get("/api/cities")
+def list_cities() -> list[dict[str, Any]]:
+    """The cities with sample data, for the city picker: Bengaluru (the demo) first."""
+    from .demo import cities
+
+    return [{"id": "blr", "name": "Bengaluru", "lat": 12.95, "lng": 77.63, "lang": "en"}] + [
+        {"id": c["id"], "name": c["name"], "lat": c["center"][0], "lng": c["center"][1], "lang": c["lang"]} for c in cities.CITIES]
+
+
+@app.get("/api/ledger/live")
+def ledger_live(limit: int = 80) -> dict[str, Any]:
+    """The live ledger: totals, what's waiting, and everything that happened, newest first."""
+    return live_ledger.build(get_store(), min(max(limit, 1), 300))
+
+
+@app.get("/api/report.pdf")
+def report(persona_id: Optional[str] = None) -> Response:
+    """The impact report as a PDF: everyone's, or one person's things and deals."""
+    store = get_store()
+    people = {p.id: p for p in store.list_participants()}
+    items, deals, entries = store.list_items(), store.list_deals(), store.list_ledger()
+    if persona_id:
+        if persona_id not in people:
+            raise HTTPException(404, "No such person")
+        items = [i for i in items if i.seller_id == persona_id]
+        deals = [d for d in deals if persona_id in (d.seller_id, d.buyer_id)]
+        mine = {d.id for d in deals}
+        entries = [e for e in entries if e.source_id in mine]
+    scope = f"Prepared for {people[persona_id].name}" if persona_id else "Everyone on Kintsugi"
+    data = report_pdf.impact_report(items, deals, entries, people, scope, agents.ledger_summary(store)["factor_source"])
+    return _pdf(data, f"kintsugi-impact-report-{time.strftime('%Y-%m-%d')}.pdf")
+
+
+def _standing(store, person_id: str) -> dict[str, Any]:
+    person = store.get_participant(person_id)
+    if not person:
+        raise HTTPException(404, "No such person")
+    return standing.standing(person, store.list_items(), store.list_deals(), store.list_ledger())
+
+
+@app.get("/api/people/{person_id}/standing")
+def person_standing(person_id: str) -> dict[str, Any]:
+    """This account's circular standing: its level and what it has given or taken a next life."""
+    return _standing(get_store(), person_id)
+
+
+@app.get("/api/people/{person_id}/certificate.pdf")
+def person_certificate(person_id: str) -> Response:
+    """The account's circular standing as a certificate to download."""
+    store = get_store()
+    st = _standing(store, person_id)
+    if not st["level"]:
+        raise HTTPException(404, "No standing earned yet: hand over or sell something first")
+    return _pdf(report_pdf.account_certificate(st, agents.ledger_summary(store)["factor_source"]),
+                f"kintsugi-circular-standing-{person_id}.pdf")
+
+
+@app.get("/api/certificate/{deal_id}.pdf")
+def certificate_pdf(deal_id: str, lang: str = "en") -> Response:
+    """The deal's certificate as a PDF to download, in English, Hindi or Kannada."""
+    store = get_store()
+    deal = store.get_deal(deal_id)
+    if not deal or deal.status != "settled":
+        raise HTTPException(404, "No settled deal")
+    entries = [e for e in store.list_ledger() if e.source_id == deal_id]
+    data = report_pdf.certificate(deal, entries, store.get_participant(deal.seller_id), store.get_participant(deal.buyer_id), lang)
+    return _pdf(data, f"kintsugi-certificate-{deal_id}-{lang}.pdf")
 
 
 @app.get("/api/certificate/{deal_id}", response_class=HTMLResponse)

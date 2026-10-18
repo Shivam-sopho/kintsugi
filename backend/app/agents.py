@@ -7,7 +7,8 @@ Oracle → Scout → Architect → Market (seller, buyer, bundler) → Ledger.
 from __future__ import annotations
 
 import asyncio
-import base64
+import logging
+import re
 from typing import Any, Optional
 
 from . import ladder, ledger, maps
@@ -15,22 +16,24 @@ from .bundler import propose_bundles, scrap_value
 from .config import Settings
 from .dedup import dedup_items
 from .demo import fixtures
-from .evidence import attach_evidence, get_evidence_store
+from .evidence import attach_evidence, get_evidence_store, image_to_jpeg
 from .geo import haversine_km
 from .llm.base import LLM, MediaRef
 from .materials import canonical_material
 from .models import (
-    AgentEvent, Component, Deal, GeoPoint, Item, Participant, Prediction, Rung, Site,
+    AgentEvent, Component, Deal, GeoPoint, Item, Participant, Prediction, Rung, Site, StandingRequest,
 )
 from .a2a_seller import A2ASeller, lot_summary, seller_terms
 from .negotiation import BuyerBrain, LocalSeller, SellerBrain, negotiate, sandbox_settlement
 from .store.base import Store
 
+log = logging.getLogger(__name__)
+
 TAKE_APART_RUNGS = {Rung.HARVEST_PARTS, Rung.RECYCLE, Rung.RECOVER_ENERGY}
 
 RUNG_LABEL = {
     Rung.REUSE: "reuse", Rung.REPAIR: "repair", Rung.UPCYCLE: "upcycle", Rung.HARVEST_PARTS: "harvest parts",
-    Rung.RECYCLE: "recycle", Rung.RECOVER_ENERGY: "recover energy", Rung.SAFE_DISPOSAL: "safe disposal",
+    Rung.RECYCLE: "recycle", Rung.COMPOST: "compost or biogas", Rung.RECOVER_ENERGY: "recover energy", Rung.SAFE_DISPOSAL: "safe disposal",
 }
 
 
@@ -119,6 +122,9 @@ async def scout_ingest(
     for it, p in zip(items, prices):
         it.value_min_inr, it.value_max_inr = p.get("value_min_inr"), p.get("value_max_inr")
         it.repair_cost_inr, it.price_sources = p.get("repair_cost_inr"), p.get("sources", [])
+    priced = sum(1 for i in items if i.value_max_inr)
+    if items and not quiet:
+        await emit("scout", "priced", f"Valued {priced} of {len(items)} with resale price ranges and their sources")
 
     participants = store.list_participants()
     discovered = await maps.find_destinations(site.location, settings)
@@ -170,7 +176,7 @@ async def scout_ingest(
 
 async def scout_scan(
     store: Store, llm: LLM, settings: Settings, emit: Emitter, media: list[MediaRef],
-    site: Site, seller_id: str, narration_text: Optional[str] = None,
+    site: Site, seller_id: str, narration_text: Optional[str] = None, autopilot: bool = True,
 ) -> list[Item]:
     store.upsert_site(site)
     kinds = sorted({m.mime_type.split("/")[0] for m in media})
@@ -179,6 +185,8 @@ async def scout_scan(
     items = await scout_ingest(store, llm, settings, emit, raw, site, seller_id, media=media)
     if site.kind == "home":
         await run_bundling(store, emit)  # small items from nearby homes may now make a pickup worthwhile
+    if autopilot:  # the demo's sample items are never matched with people's real requests
+        await run_autopilot(store, llm, settings, emit, item_ids=[i.id for i in items])
     return items
 
 
@@ -214,6 +222,319 @@ async def offer_item(store: Store, llm: LLM, settings: Settings, emit: Emitter, 
     if taker is None or taker.role not in ("buyer", "ngo", "dealer"):
         raise ValueError("The taker for this item doesn't buy items; it is routed instead")
     return await negotiate_deal(store, llm, settings, emit, [it.id], taker.id)
+
+
+# ---------------------------------------------------------------- Autopilot
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    na, nb = sum(x * x for x in a) ** 0.5, sum(y * y for y in b) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
+
+
+async def set_autopilot(store: Store, llm: LLM, settings: Settings, emit: Emitter, item_id: str, on: bool) -> list[Deal]:
+    """The seller lets their agent sell this item on its own, never below their private lowest
+    price. Hazards are never sold this way: they go to a licensed handler."""
+    it = store.get_item(item_id)
+    if it is None:
+        raise ValueError("Item not found")
+    if on and it.hazards:
+        raise ValueError("Suspected hazards go to a licensed handler, so they can't be sold on Autopilot.")
+    if on and it.floor_price_inr is None:
+        raise ValueError("Set your lowest price first, so your agent knows where to stop.")
+    if it.status != "available":
+        raise ValueError("This item is already in a deal")
+    it.autopilot = on
+    store.upsert_items([it])
+    await emit("seller", "autopilot", f"Autopilot {'on' if on else 'off'} for the {it.type}"
+               + (": the seller's agent will negotiate with matching buyers, never below the seller's lowest price." if on else "."))
+    return await run_autopilot(store, llm, settings, emit, item_ids=[it.id]) if on else []
+
+
+async def create_request(
+    store: Store, llm: LLM, settings: Settings, emit: Emitter, buyer_id: str, query: str, near: GeoPoint,
+    radius_km: float, cap_inr: Optional[float], auto_approve: bool,
+) -> tuple[StandingRequest, list[Deal]]:
+    """A buyer saves what they're looking for; Kintsugi checks what's listed now and every new scan."""
+    buyer = store.get_participant(buyer_id)
+    if buyer is None or buyer.role not in ("buyer", "ngo", "dealer"):
+        raise ValueError("Only buyers, charities and dealers can save a standing request.")
+    if auto_approve and not cap_inr:
+        raise ValueError("Give a highest price to approve deals automatically.")
+    req = StandingRequest(buyer_id=buyer_id, query=query.strip(), location=near, radius_km=radius_km,
+                          cap_inr=cap_inr, auto_approve=auto_approve)
+    req.embedding = (await llm.embed_texts([req.query]))[0]
+    store.upsert_request(req)
+    await emit("buyer", "request", f"{buyer.name} saved a standing request: {req.query}, within {radius_km:.0f} km"
+               + (", approving automatically within a private limit." if auto_approve else "."))
+    return req, await run_autopilot(store, llm, settings, emit, request_ids=[req.id])
+
+
+async def run_autopilot(
+    store: Store, llm: LLM, settings: Settings, emit: Emitter,
+    item_ids: Optional[list[str]] = None, request_ids: Optional[list[str]] = None,
+) -> list[Deal]:
+    """Match listed items with buyers' standing requests. If the seller has put an item on
+    Autopilot, the two agents negotiate on their own; a deal within the buyer's auto-approve limit
+    settles without anyone tapping. Otherwise the buyer is told about the match. The limits stay
+    private to each agent, and hazards are never matched."""
+    requests = [r for r in store.list_requests() if r.active and r.embedding and (request_ids is None or r.id in request_ids)]
+    deals: list[Deal] = []
+    for req in requests:
+        buyer = store.get_participant(req.buyer_id)
+        if buyer is None:
+            continue
+        for it in store.list_items():
+            if item_ids is not None and it.id not in item_ids:
+                continue
+            if (it.status != "available" or not it.embedding or it.hazards or it.seller_id == req.buyer_id
+                    or it.id in req.matched_item_ids or not it.value_max_inr):  # nothing to sell: a free hand-over
+                continue
+            score = _cosine(req.embedding or [], it.embedding)
+            dist = haversine_km(req.location, it.location)
+            if score < settings.autopilot_min_score or dist > req.radius_km:
+                continue
+            if not it.autopilot and not settings.live_market:
+                if it.id in req.notified_item_ids:
+                    continue
+                req.notified_item_ids.append(it.id)
+                store.upsert_request(req)
+                await emit("market", "match", f"New match for {buyer.name}: {it.type}, {dist:.1f} km away, fits "
+                           f"\"{req.query}\". The seller hasn't turned on Autopilot, so {buyer.name} can make an offer.")
+                continue
+            req.matched_item_ids.append(it.id)
+            store.upsert_request(req)
+            if it.autopilot:
+                await emit("market", "autopilot", f"Autopilot: {it.type} fits {buyer.name}'s request \"{req.query}\", "
+                           f"{dist:.1f} km away. Both agents start negotiating.")
+            else:
+                await emit("market", "offer", f"{buyer.name}'s agent wants the {it.type} ({dist:.1f} km away) and opens a "
+                           "negotiation with the seller's agent. The seller accepts or declines the price they reach.")
+            try:
+                deal = await negotiate_deal(store, llm, settings, emit, [it.id], buyer.id, budget_cap_inr=req.cap_inr,
+                                            autopilot=True, seller_accepted=it.autopilot, request_id=req.id)
+            except ValueError as exc:  # someone else got there first
+                log.info("Skipped a market match: %s", exc)
+                continue
+            if deal.status == "agreed" and req.auto_approve and deal.seller_accepted:
+                await emit("buyer", "autopilot", f"The price is within {buyer.name}'s auto-approve limit, "
+                           "so the buyer agent approves.", deal_id=deal.id)
+                deal = await approve_deal(store, emit, deal.id)
+            deals.append(deal)
+    return deals
+
+
+# ---------------------------------------------------------------- What becomes of it, and hand-overs
+
+def _routes(store: Store, it: Item) -> list[dict[str, Any]]:
+    """Each part with where the rules sent it: the material, the taker and how far away."""
+    people = {p.id: p for p in store.list_participants()}
+    out = []
+    for c in it.components:
+        dest = people.get(c.destination_id or it.destination_id or "")
+        rung = c.next_life or it.next_life
+        out.append({
+            "part": c.name, "material": c.material, "weight_kg": round(c.est_weight_kg * max(it.count, 1), 1),
+            "next_life": rung.value.replace("_", " ") if rung else None,
+            "goes_to": f"{dest.name} ({dest.role.replace('_', ' ')}, {haversine_km(it.location, dest.location):.1f} km)" if dest else None,
+        })
+    return out
+
+
+EXPLAIN_VERSION = "v4"  # bump when the explanation prompt changes, so cached ones are rewritten
+
+
+def check_afterlives(ideas: list[dict[str, Any]], it: Item) -> list[dict[str, Any]]:
+    """The possible next lives Gemini lists, kept honest by code: known rungs only, nothing but
+    safe disposal for hazards, best first by the ladder, and the rules' choice marked as best."""
+    order = [r.value for r in Rung]
+    ideas = [dict(i) for i in ideas if i.get("next_life") in order and i.get("use")]
+    if it.hazards:
+        ideas = [i for i in ideas if i["next_life"] == Rung.SAFE_DISPOSAL.value]
+    chosen = it.next_life.value if it.next_life else None
+    if chosen and not any(i["next_life"] == chosen for i in ideas):
+        ideas.insert(0, {"use": RUNG_LABEL.get(it.next_life, chosen).capitalize(), "next_life": chosen, "how": it.next_life_reason})
+    ideas.sort(key=lambda i: (i["next_life"] != chosen, order.index(i["next_life"])))
+    for i in ideas:
+        i["best"] = i["next_life"] == chosen
+    return ideas[:5]
+
+
+async def explain_item(store: Store, llm: LLM, item_id: str, lang: str) -> dict[str, Any]:
+    """'What becomes of it', in the person's language: Gemini explains the decided routes in plain
+    words, without changing them. Cached on the item per language."""
+    it = store.get_item(item_id)
+    if it is None:
+        raise ValueError("Item not found")
+    key = f"{EXPLAIN_VERSION}:{lang}"
+    if key in it.explanation:
+        return it.explanation[key]
+    out = await llm.explain({
+        "type": it.type, "count": it.count, "condition": it.condition, "hazards": it.hazards,
+        "next_life": it.next_life.value.replace("_", " ") if it.next_life else None,
+        "why_this_next_life": it.next_life_reason, "co2e_saved_kg": it.co2_avoided_kg, "parts": _routes(store, it),
+    }, lang)
+    out["afterlives"] = check_afterlives(out.get("afterlives") or [], it)
+    it.explanation[key] = out
+    store.upsert_items([it])
+    return out
+
+
+async def handover_item(store: Store, emit: Emitter, item_id: str) -> Deal:
+    """Complete an item's journey without money: it goes to the takers the rules chose (a
+    recycler, municipal centre, compost unit, charity or licensed handler), and the ledger records
+    what was kept out of landfill. Most things leave homes this way, not by being sold."""
+    it = store.get_item(item_id)
+    if it is None:
+        raise ValueError("Item not found")
+    if it.status != "available":
+        raise ValueError("This item is already on its way to its next life")
+    dest_ids = [it.destination_id] if it.destination_id else [c.destination_id for c in it.components if c.destination_id]
+    dest_ids = list(dict.fromkeys(d for d in dest_ids if d))
+    if not dest_ids:
+        raise ValueError("No taker nearby yet. Kintsugi keeps looking and tells you when one appears.")
+    people = {p.id: p for p in store.list_participants()}
+    names = [people[d].name for d in dest_ids if d in people]
+    deal = Deal(item_ids=[it.id], seller_id=it.seller_id or "", buyer_id=dest_ids[0], kind="handover",
+                status="settled", final_price_inr=0.0)
+    it.status = "routed"
+    entries = ledger.entries_for_item(it, deal.id, 0.0)
+    store.upsert_items([it])
+    store.add_ledger(entries)
+    store.upsert_deal(deal)
+    t = ledger.totals(entries)
+    await emit("ledger", "handover", f"Handed over: the {it.type} goes to {', '.join(names)}. "
+               f"{t['mass_diverted_kg']:,.1f} kg kept out of landfill, {t['co2_avoided_kg']:,.1f} kg CO2e avoided", deal_id=deal.id)
+    return deal
+
+
+# ---------------------------------------------------------------- Ask Kintsugi
+
+BUYING_ROLES = ("buyer", "ngo", "dealer")
+ASK_ACTIONS = ("none", "offer_item", "autopilot_on", "keep_looking", "open_item")
+
+
+def ask_context(store: Store, persona_id: str, near_default: GeoPoint, near: Optional[GeoPoint] = None) -> dict[str, Any]:
+    """What Gemini may know when answering: this person's items, deals and requests, takers and
+    listings nearby, and city impact. Private lowest and highest prices are never included."""
+    people = {p.id: p for p in store.list_participants()}
+    me = people.get(persona_id)
+    items = [i for i in store.list_items() if i.seller_id == persona_id]
+    # Where the person says they are wins; then their profile, their items, the demo city.
+    here = near or (me.location if me else (items[0].location if items else near_default))
+
+    def taker(it: Item) -> Optional[dict[str, Any]]:
+        dest = people.get(it.destination_id) if it.destination_id else None
+        if dest is None:
+            return None
+        return {"name": dest.name, "role": dest.role, "distance_km": round(haversine_km(it.location, dest.location), 1),
+                "buys": dest.role in BUYING_ROLES}
+
+    def value(it: Item) -> Optional[str]:
+        return f"₹{it.value_min_inr:,.0f}-₹{it.value_max_inr:,.0f} each" if it.value_max_inr else None
+
+    your_items = [{
+        "id": it.id, "type": it.type, "count": it.count, "condition": it.condition, "status": it.status,
+        "next_life": it.next_life.value.replace("_", " ") if it.next_life else None,
+        "why": (it.next_life_reason or "")[:240], "value": value(it), "co2e_saved_kg": it.co2_avoided_kg,
+        "hazards": it.hazards, "autopilot_on": it.autopilot, "has_lowest_price": it.floor_price_inr is not None,
+        "goes_to": taker(it),
+    } for it in items]
+    deals = []
+    for d in store.list_deals():
+        if persona_id not in (d.seller_id, d.buyer_id):
+            continue
+        other = people.get(d.buyer_id if d.seller_id == persona_id else d.seller_id)
+        deals.append({"selling": d.seller_id == persona_id, "with": other.name if other else None, "status": d.status,
+                      "price_inr": d.final_price_inr, "autopilot": d.autopilot,
+                      "items": [x.type for x in (store.get_item(i) for i in d.item_ids) if x]})
+    requests = [{"looking_for": r.query, "within_km": r.radius_km, "approves_automatically": r.auto_approve}
+                for r in store.list_requests() if r.buyer_id == persona_id and r.active]
+    takers = sorted(
+        ({"name": p.name, "role": p.role, "distance_km": round(haversine_km(here, p.location), 1),
+          "takes": (p.accepts_types + p.accepts_materials)[:6]}
+         for p in people.values() if p.role not in ("homeowner",) and p.id != persona_id),
+        key=lambda t: t["distance_km"])[:10]
+    nearby = sorted(
+        ({"id": it.id, "type": it.type, "count": it.count, "value": value(it), "seller": people[it.seller_id].name
+          if it.seller_id in people else "a neighbour", "distance_km": round(haversine_km(here, it.location), 1)}
+         for it in store.list_items() if it.status == "available" and it.seller_id != persona_id and not it.hazards),
+        key=lambda x: x["distance_km"])[:8]
+    t = ledger_summary(store)
+    return {
+        "you": {"name": me.name if me else "You", "role": me.role if me else "homeowner",
+                "language": me.language if me else "en", "can_buy": bool(me and me.role in BUYING_ROLES)},
+        "your_items": your_items, "your_deals": deals, "your_requests": requests,
+        "takers_nearby": takers, "listed_nearby": nearby,
+        "city_impact": {"kg_kept_out_of_landfill": t.get("mass_diverted_kg"), "kg_co2e_avoided": t.get("co2_avoided_kg"),
+                        "rupees_recovered": t.get("value_recovered_inr")},
+    }
+
+
+SCRIPTS = (("hi", 0x0900, 0x097F), ("kn", 0x0C80, 0x0CFF), ("ta", 0x0B80, 0x0BFF), ("th", 0x0E00, 0x0E7F),
+           ("ja", 0x3040, 0x30FF))
+KANJI = (0x4E00, 0x9FFF)  # Chinese characters: Japanese here, as kana questions usually include them
+# Southeast Asian languages written in Latin letters: told apart by their everyday words.
+VIETNAMESE_LETTERS = set("ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ")
+LATIN_WORDS = {
+    "id": {"apa", "yang", "saya", "ini", "itu", "bagaimana", "barang", "untuk", "dengan", "tidak", "bisa", "ke", "di", "mana", "berapa", "punya", "kursi", "lemari"},
+    "fil": {"ang", "ng", "mga", "ko", "sa", "paano", "ito", "ano", "saan", "magkano", "akin", "ba", "po", "upuan", "aparador"},
+}
+
+
+def reply_language(question: str, fallback: str) -> str:
+    """Answer in the language of the question (by its script, or for Latin letters its common
+    words); with no question, the profile's."""
+    letters = [ch for ch in question if ch.isalpha()]
+    if not letters:
+        return fallback
+    for code, lo, hi in SCRIPTS:
+        if sum(lo <= ord(ch) <= hi for ch in letters) > len(letters) / 2:
+            return code
+    kana_or_kanji = sum(0x3040 <= ord(ch) <= 0x30FF or KANJI[0] <= ord(ch) <= KANJI[1] for ch in letters)
+    if kana_or_kanji > len(letters) / 2:
+        return "ja"
+    if sum(ch.lower() in VIETNAMESE_LETTERS for ch in letters) >= 2:
+        return "vi"
+    words = set(re.findall(r"[a-z]+", question.lower()))
+    hits = {code: len(words & vocab) for code, vocab in LATIN_WORDS.items()}
+    best = max(hits, key=hits.get)
+    if hits[best] >= 2:
+        # Malay and Indonesian share most everyday words: keep the profile's choice between them.
+        return fallback if best == "id" and fallback in ("id", "ms") else best
+    return "en" if sum(ch.isascii() for ch in letters) > len(letters) / 2 else fallback
+
+
+async def ask_kintsugi(
+    store: Store, llm: LLM, settings: Settings, persona_id: str, question: str,
+    history: list[dict[str, str]], lang: str, near: Optional[GeoPoint] = None,
+) -> dict[str, Any]:
+    """One turn of Ask Kintsugi. Gemini answers from the context and suggests one action; code
+    keeps the action to things this person can actually do."""
+    ctx = ask_context(store, persona_id, GeoPoint(lat=12.95, lng=77.63), near)
+    # Kintsugi answers in English, or the language the person chose; "auto" follows the question.
+    lang = reply_language(question, "en") if lang == "auto" else (lang or "en")
+    out = await llm.ask(question, history, ctx, lang)
+    if lang == "en" and reply_language(out.get("answer", ""), "en") != "en" and out.get("answer_en"):
+        out["answer"] = out["answer_en"]  # asked in English: answer in English
+    out["language"] = lang
+    action = out.get("action") or {"type": "none"}
+    mine = {i["id"]: i for i in ctx["your_items"]}
+    nearby = {i["id"] for i in ctx["listed_nearby"]}
+    kind = action.get("type") if action.get("type") in ASK_ACTIONS else "none"
+    item = mine.get(action.get("item_id", ""))
+    if kind == "offer_item" and not (item and item["status"] == "available" and item["goes_to"] and item["goes_to"]["buys"]):
+        kind = "none"
+    if kind == "autopilot_on" and not (item and item["status"] == "available" and not item["hazards"]):
+        kind = "none"
+    if kind == "open_item" and action.get("item_id") not in mine and action.get("item_id") not in nearby:
+        kind = "none"
+    if kind == "keep_looking" and not (ctx["you"]["can_buy"] and (action.get("query") or "").strip()):
+        kind = "none"
+    out["action"] = {**action, "type": kind}
+    out["used"] = {"model": settings.model_fast, "items": len(ctx["your_items"]), "takers": len(ctx["takers_nearby"]),
+                   "deals": len(ctx["your_deals"]), "listed_nearby": len(ctx["listed_nearby"])}
+    return out
 
 
 # ---------------------------------------------------------------- Oracle
@@ -300,18 +621,26 @@ async def architect_design(
         lines.append({**s, "type": c["type"], "unit_price_inr": c["unit_price_inr"], "cost_inr": cost})
         await emit("architect", "select", f"{s['quantity']} × {c['type']}: {s['use']}", item_id=c["id"])
     image = await llm.render(plan.get("render_prompt", brief))
-    render_b64 = base64.b64encode(image).decode() if image else None
+    # The picture is stored on its own and referenced by id: a rendered image is larger than a
+    # Firestore document may be, so it can't travel inside the job's result.
+    render_id = None
+    if image:
+        try:
+            render_id = get_evidence_store().put(await asyncio.to_thread(image_to_jpeg, image))
+        except Exception:  # a design without its picture is still a design
+            log.exception("Could not store the design render")
     await emit("architect", "done", f"Concept ready, estimated ₹{total:,.0f} in reclaimed materials"
-               + ("" if render_b64 else " (render needs live mode)"))
+               + ("" if render_id else " (render needs live mode)"))
     return {"concept": plan.get("concept", ""), "lines": lines, "total_inr": round(total, 2),
-            "render_png_b64": render_b64, "render_prompt": plan.get("render_prompt", "")}
+            "render_id": render_id, "render_prompt": plan.get("render_prompt", "")}
 
 
 # ---------------------------------------------------------------- Market
 
 async def negotiate_deal(
     store: Store, llm: LLM, settings: Settings, emit: Emitter, item_ids: list[str], buyer_id: str,
-    budget_cap_inr: Optional[float] = None,
+    budget_cap_inr: Optional[float] = None, autopilot: bool = False, seller_accepted: bool = True,
+    request_id: Optional[str] = None,
 ) -> Deal:
     """The buyer's agent negotiates with the seller's agent. Over A2A by default, so the seller's
     floor stays inside the seller agent; the buyer's cap stays here with the buyer agent."""
@@ -334,7 +663,8 @@ async def negotiate_deal(
     seller_lang = seller.language if seller else "en"
     summary = lot_summary(items)
 
-    deal = Deal(item_ids=[i.id for i in items], seller_id=seller_id, buyer_id=buyer_id)
+    deal = Deal(item_ids=[i.id for i in items], seller_id=seller_id, buyer_id=buyer_id, autopilot=autopilot,
+                seller_accepted=seller_accepted, request_id=request_id)
     for i in items:
         i.status = "in_deal"
     store.upsert_items(items)
@@ -373,15 +703,116 @@ async def negotiate_deal(
             i.status = "available"
         store.upsert_items(items)
     store.upsert_deal(deal)
-    await emit("market", deal.status, f"Agreed at ₹{result.final_price:,.0f}; waiting for {buyer.name} to approve"
+    waiting = buyer.name if seller_accepted else (seller.name if seller else "the seller")
+    verb = "approve" if seller_accepted else "accept"
+    await emit("market", deal.status, f"Agreed at ₹{result.final_price:,.0f}; waiting for {waiting} to {verb}"
                if result.final_price else "No deal: the limits did not overlap", deal_id=deal.id)
     return deal
+
+
+async def accept_deal(store: Store, emit: Emitter, deal_id: str) -> Deal:
+    """The seller says yes to the price the agents reached. If the buyer's request approves
+    automatically within its private limit, the deal settles at once; otherwise the buyer approves."""
+    deal = store.get_deal(deal_id)
+    if deal is None or deal.status != "agreed" or deal.seller_accepted:
+        raise ValueError("This deal is not waiting for the seller")
+    deal.seller_accepted = True
+    store.upsert_deal(deal)
+    seller = store.get_participant(deal.seller_id)
+    await emit("seller", "accepted", f"{seller.name if seller else 'The seller'} accepts ₹{deal.final_price_inr:,.0f}", deal_id=deal.id)
+    req = next((r for r in store.list_requests() if r.id == deal.request_id), None)
+    if req and req.auto_approve and req.cap_inr and (deal.final_price_inr or 0) <= req.cap_inr:
+        await emit("buyer", "autopilot", "The price is within the buyer's auto-approve limit, so the buyer agent approves.",
+                   deal_id=deal.id)
+        return await approve_deal(store, emit, deal.id)
+    return deal
+
+
+async def decline_deal(store: Store, emit: Emitter, deal_id: str) -> Deal:
+    """The seller says no: the items are listed again, and that buyer doesn't ask for them again."""
+    deal = store.get_deal(deal_id)
+    if deal is None or deal.status != "agreed" or deal.seller_accepted:
+        raise ValueError("This deal is not waiting for the seller")
+    deal.status = "no_deal"
+    store.upsert_deal(deal)
+    items = [i for i in (store.get_item(x) for x in deal.item_ids) if i]
+    for i in items:
+        i.status = "available"
+    store.upsert_items(items)
+    await emit("seller", "declined", "The seller declined; the items are listed again", deal_id=deal.id)
+    return deal
+
+
+async def seed_cities(store: Store, llm: LLM, settings: Settings) -> int:
+    """Sample cities across Asia-Pacific (sample data): takers in each city's language and two homes
+    with things listed, routed by the same rules and counted by the same ledger as a real scan.
+    Runs once; cities already there are left alone. Returns how many items it listed."""
+    from .demo import cities
+
+    have = {s.id for s in store.list_sites()}
+    listed = 0
+    for c in cities.CITIES:
+        if f"site_{c['id']}_0" in have:
+            continue
+        lat, lng = c["center"]
+        takers = [
+            Participant(id=f"ppl_{c['id']}_{key}", name=c["takers"][key], role=role, language=c["lang"] if key not in ("energy_facility", "hazard_handler") else "en",
+                        location=GeoPoint(lat=lat + d[0], lng=lng + d[1]), accepts_types=types, accepts_materials=mats,
+                        budget_cap_inr=30000 if role == "buyer" else None)
+            for key, role, d, types, mats in cities.TAKERS
+        ]
+        for t in takers:
+            store.upsert_participant(t)
+        everyone = store.list_participants()
+        ctx = ladder.LadderContext(everyone, settings.search_radius_km)
+        for n, (label, d, templates) in enumerate(cities.HOMES):
+            owner = Participant(id=f"ppl_{c['id']}_home{n}", name=c["homes"][n], role="homeowner", language=c["lang"],
+                                location=GeoPoint(lat=lat + d[0], lng=lng + d[1]))
+            store.upsert_participant(owner)
+            site = Site(id=f"site_{c['id']}_{n}", owner_id=owner.id, kind="home", name=f"{label}, {c['name']}", location=owner.location)
+            store.upsert_site(site)
+            items = []
+            for t in templates:
+                value = t.get("value")
+                it = Item(site_id=site.id, type=t["type"], description=t["description"], count=t["count"], condition=t["condition"],
+                          confidence=0.85, location=site.location, language=c["lang"], seller_id=owner.id, synthetic=True,
+                          value_min_inr=value[0] if value else None, value_max_inr=value[1] if value else None,
+                          repair_cost_inr=t.get("repair"), price_sources=["sample data"] if value else [],
+                          components=[Component(name=nm, material=mat, est_weight_kg=kgs) for nm, mat, kgs in t["components"]])
+                decided = ladder.decide(it, ctx)
+                decided.co2_avoided_kg = ledger.co2_avoided_for_item(decided)
+                items.append(decided)
+            for it, vec in zip(items, await llm.embed_texts([item_text(i) for i in items])):
+                it.embedding = vec
+            store.upsert_items(items)
+            listed += len(items)
+    return listed
+
+
+async def seed_market(store: Store, llm: LLM) -> list[StandingRequest]:
+    """Sample buyers who are always looking (sample data), so listing something starts a real
+    negotiation. They react only to things listed from now on, never to what is already there."""
+    have = {(r.buyer_id, r.query) for r in store.list_requests() if r.active}
+    existing = [i.id for i in store.list_items()]
+    made = []
+    for buyer_id, query, cap, auto in fixtures.MARKET_REQUESTS:
+        buyer = store.get_participant(buyer_id)
+        if buyer is None or (buyer_id, query) in have:
+            continue
+        req = StandingRequest(buyer_id=buyer_id, query=query, location=buyer.location, radius_km=20.0,
+                              cap_inr=cap, auto_approve=auto, synthetic=True, matched_item_ids=list(existing))
+        req.embedding = (await llm.embed_texts([query]))[0]
+        store.upsert_request(req)
+        made.append(req)
+    return made
 
 
 async def approve_deal(store: Store, emit: Emitter, deal_id: str) -> Deal:
     deal = store.get_deal(deal_id)
     if deal is None or deal.status != "agreed" or deal.final_price_inr is None:
         raise ValueError("Deal is not waiting for approval")
+    if not deal.seller_accepted:
+        raise ValueError("Waiting for the seller to accept this price first")
     items = [i for i in (store.get_item(x) for x in deal.item_ids) if i]
     total_value = sum((i.value_max_inr or 0) * i.count for i in items) or 1.0
     lines = [{"item_id": i.id, "type": i.type, "quantity": i.count} for i in items]
@@ -441,10 +872,30 @@ def seed_participants(store: Store) -> list[Participant]:
     return ps
 
 
+class SampleMediaLLM:
+    """Judge mode films nothing: its sample videos, notice and prices come from the fixtures, so the
+    story is the same every time and quick. Every other call (negotiation wording, take-apart steps,
+    embeddings, speech) goes to the live model when there is one."""
+
+    SAMPLED = ("scout_media", "oracle_document", "price_items")
+
+    def __init__(self, live: LLM, settings: Settings):
+        from .llm.mock import MockLLM
+
+        self._live, self._sample = live, MockLLM(settings)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._sample if name in self.SAMPLED else self._live, name)
+
+
 async def judge_mode(store: Store, llm: LLM, settings: Settings, job_id: str) -> dict[str, Any]:
     """The full story in about a minute: one chair, one building, one city."""
+    llm = SampleMediaLLM(llm, settings)  # type: ignore[assignment]
+    # Everything the demo creates is sample data, labelled as such, with its own sample takers (no
+    # live Places lookups), even when the model calls are live.
+    settings = settings.model_copy(update={"mock_mode": True})
     emit = Emitter(store, job_id, delay=settings.demo_step_delay)
-    store_reset_keep_job(store, job_id)
+    clear_demo_data(store)
     seed_participants(store)
     await emit("system", "start", "Judge mode: sample data, Bengaluru. One chair, one building, one city.")
 
@@ -454,12 +905,13 @@ async def judge_mode(store: Store, llm: LLM, settings: Settings, job_id: str) ->
     # One chair
     home = Site(id="site_home_hsr", owner_id="ppl_home_priya", kind="home", name="Home, HSR Layout", location=fixtures.HOME_HSR)
     await scout_scan(store, llm, settings, emit, [MediaRef(name="chair_hsr.mp4", mime_type="video/mp4", data=b"")],
-                     home, seller_id="ppl_home_priya", narration_text="कुर्सी का पैर टूट गया है, सागौन की है")
+                     home, seller_id="ppl_home_priya", narration_text="कुर्सी का पैर टूट गया है, सागौन की है",
+                     autopilot=False)
     for n, nb in enumerate(fixtures.NEIGHBOURS):
         site = Site(id=f"site_nb_{n}", owner_id=f"ppl_nb_{n}", kind="home", name=nb["name"], location=nb["location"])
         store.upsert_site(site)
         await scout_ingest(store, llm, settings, emit, nb["scan"], site, seller_id=site.owner_id, quiet=True)
-    await emit("scout", "neighbours", "3 neighbours on the same street also listed small items")
+    await emit("scout", "neighbours", f"{len(fixtures.NEIGHBOURS)} neighbours on the same street also listed small items, including garden waste for the compost unit")
     await run_bundling(store, emit)
 
     # One building
@@ -467,7 +919,7 @@ async def judge_mode(store: Store, llm: LLM, settings: Settings, job_id: str) ->
                   location=fixtures.OFFICE_KORAMANGALA)
     office_items = await scout_scan(
         store, llm, settings, emit, [MediaRef(name="office_walkthrough.mp4", mime_type="video/mp4", data=b"")],
-        office, seller_id="ppl_ramesh",
+        office, seller_id="ppl_ramesh", autopilot=False,
     )
 
     # Design from what exists
@@ -487,12 +939,18 @@ async def judge_mode(store: Store, llm: LLM, settings: Settings, job_id: str) ->
     return {"deal_id": deal.id, "design": design, "totals": totals}
 
 
-def store_reset_keep_job(store: Store, job_id: str) -> None:
-    """Reset demo data but keep this job and its events so Mission control keeps streaming."""
-    job = store.get_job(job_id)
-    events = store.list_events(job_id)
-    store.reset()
-    if job:
-        store.upsert_job(job)
-    for e in events:
-        store.add_event(e)
+DEMO_SITE_IDS = {"site_home_hsr", "site_office_kor", *(f"site_nb_{n}" for n in range(len(fixtures.NEIGHBOURS)))}
+
+
+def clear_demo_data(store: Store) -> None:
+    """Remove what an earlier demo created (its sample sites, their items, deals, bundles, ledger
+    entries and the sample notices) and nothing else: people's own listings, deals, requests and
+    profiles stay, so data isn't lost when someone runs the demo."""
+    items = {i.id for i in store.list_items() if i.site_id in DEMO_SITE_IDS}
+    deals = [d for d in store.list_deals() if set(d.item_ids) & items]
+    store.delete_docs("ledger", [e.id for e in store.list_ledger() if e.item_id in items])
+    store.delete_docs("deals", [d.id for d in deals])
+    store.delete_docs("bundles", [b.id for b in store.list_bundles() if set(b.item_ids) & items])
+    store.delete_docs("items", list(items))
+    store.delete_docs("sites", [s.id for s in store.list_sites() if s.id in DEMO_SITE_IDS])
+    store.delete_docs("predictions", [p.id for p in store.list_predictions() if p.synthetic])

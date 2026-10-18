@@ -117,3 +117,47 @@ class MockLLM:
 
     async def render(self, prompt: str) -> Optional[bytes]:
         return None
+
+    async def explain(self, item: dict[str, Any], lang: str) -> dict[str, Any]:
+        # Offline: plain sentences built from the decided routes.
+        happens = {"reuse": "is used again as it is", "repair": "is repaired and used again", "upcycle": "is made into something new",
+                   "harvest parts": "is taken off and used as a spare part", "recycle": "is melted or shredded into new material",
+                   "compost": "becomes compost or biogas", "recover energy": "is burned for energy",
+                   "safe disposal": "is tested and disposed of safely by a licensed handler"}
+        parts = [{"part": p["part"], "goes_to": p.get("goes_to") or "", "happens": happens.get(p.get("next_life") or "", "waits for a taker")}
+                 for p in item.get("parts", [])]
+        decided = (item.get("next_life") or "recycle").replace(" ", "_")
+        options = ["safe_disposal"] if item.get("hazards") else [decided, *[r for r in ("reuse", "repair", "upcycle", "recycle") if r != decided]][:4]
+        ideas = {"reuse": f"Someone else uses the {item['type']} as it is", "repair": "A repairer fixes it and it is used again",
+                 "upcycle": "An upcycler makes it into something new", "harvest_parts": "Good parts become spares for others",
+                 "recycle": "Its materials become new material", "compost": "It becomes compost or biogas",
+                 "recover_energy": "It is burned for energy", "safe_disposal": "A licensed handler tests it and disposes of it safely"}
+        return {
+            "afterlives": [{"use": ideas.get(r, r), "next_life": r, "how": f"It {happens.get(r.replace('_', ' '), 'waits for a taker')}."} for r in options],
+            "headline": f"Your {item['type']} gets a next life: {item.get('next_life') or 'still being decided'}.",
+            "parts": parts,
+            "you_can": ["Keep it out of the regular bin.", "Separate the parts if you can.", "Hand it over to the taker shown."],
+            "why": f"This keeps it out of landfill and saves about {item.get('co2e_saved_kg') or 0} kg CO2e.",
+        }
+
+    async def ask(self, question: str, history: list[dict[str, str]], context: dict[str, Any], lang: str) -> dict[str, Any]:
+        # Offline: a plain answer built from the context, with the obvious next step.
+        items = context.get("your_items", [])
+        open_items = [i for i in items if i.get("status") == "available"]
+        if not open_items:
+            text = "You haven't listed anything yet. Tap the mic on Home and tell me what you're getting rid of."
+            return {"answer": text, "answer_en": text, "language": "en", "action": {"type": "none"}}
+        it = open_items[0]
+        taker = it.get("goes_to")
+        text = (f"You have {len(open_items)} item{'s' if len(open_items) != 1 else ''} waiting. "
+                f"The {it['type']} is best for {it.get('next_life', 'a next life')}"
+                + (f", with {taker['name']} {taker['distance_km']} km away." if taker else "."))
+        action = ({"type": "offer_item", "item_id": it["id"], "label": f"Offer it to {taker['name']}"}
+                  if taker and taker.get("buys") else {"type": "open_item", "item_id": it["id"], "label": "Open it"})
+        return {"answer": text, "answer_en": text, "language": "en", "action": action}
+
+    async def translate(self, text: str, lang: str) -> str:
+        return text  # offline: no translation, the English is read as it is
+
+    async def speech(self, text: str, lang: str) -> Optional[bytes]:
+        return None  # offline: the app falls back to the device's own voice

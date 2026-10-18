@@ -14,7 +14,8 @@ from .models import Component, Item, Participant, Rung
 
 WHOLE_ITEM_BUYER_ROLES = {"buyer", "dealer", "ngo"}
 PART_ROLES = {"upcycler", "repairer", "dealer"}
-RECYCLER_ROLES = {"recycler", "dealer"}
+RECYCLER_ROLES = {"recycler", "dealer", "government"}
+COMPOST_ROLES = {"composter"}
 
 
 @dataclass
@@ -58,6 +59,13 @@ def route_component(item: Item, comp: Component, near: list[Participant]) -> Com
         out.next_life, out.destination_id = Rung.RECYCLE, dest.id
         out.reason = f"{dest.name} ({_km(item, dest)}) recycles {material}"
         return out
+
+    if material == "organic":
+        composters = [p for p in near if p.role in COMPOST_ROLES]
+        if (dest := _nearest(item, composters)) is not None:
+            out.next_life, out.destination_id = Rung.COMPOST, dest.id
+            out.reason = f"{dest.name} ({_km(item, dest)}) turns organic material into compost or biogas"
+            return out
 
     energy = [
         p for p in near

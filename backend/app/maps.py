@@ -22,6 +22,8 @@ DESTINATION_QUERIES: dict[str, tuple[str, list[str], list[str]]] = {
     "repairer": ("furniture repair carpenter", ["chair", "table", "door"], []),
     "upcycler": ("upcycled furniture studio", ["wooden frame"], ["wood", "glass"]),
     "recycler": ("recycling centre", [], ["plastic", "paper", "glass", "textile"]),
+    "composter": ("biogas plant or composting centre", [], ["organic"]),
+    "government": ("dry waste collection centre", [], ["paper", "plastic", "glass", "textile", "aluminium", "steel"]),
 }
 
 

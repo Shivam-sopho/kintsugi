@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { AgentEvent, Job } from "../types";
-import { AGENT_LABEL } from "../labels";
+import { AGENT_LABEL, BUSY, isBusy } from "../labels";
+import { AGENT_MODELS } from "./DemoStory";
 
 const ORDER = ["oracle", "scout", "architect", "seller", "buyer", "bundler", "ledger"];
 
@@ -38,12 +39,15 @@ export default function MissionControl({ job, events, onSkip }: { job: Job | nul
         {events.map((e, i) => (
           <li key={i} className={`a-${e.agent} s-${e.step}`}>
             <span className="who">{AGENT_LABEL[e.agent] ?? e.agent}</span>
-            <span className="what">{e.message}</span>
+            <span className="what">
+              {e.message}
+              {AGENT_MODELS[e.agent] && <span className="model">{AGENT_MODELS[e.agent][0]}</span>}
+            </span>
             <span className="when">{(e.ts - t0).toFixed(1)}s</span>
           </li>
         ))}
         <li ref={end} className="end">
-          {job.status === "running" ? "Working…" : job.status === "error" ? `Stopped: ${job.error}` : "Done."}
+          {job.status === "running" ? "Working…" : job.status === "error" ? (isBusy(job.error) ? BUSY : `Stopped: ${job.error}`) : "Done."}
         </li>
       </ol>
     </section>

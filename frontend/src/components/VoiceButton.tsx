@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../api";
 import { useRecorder } from "../useRecorder";
 import type { Transcript } from "../types";
-import { LANG_LABEL } from "../labels";
+import { problemText, LANG_LABEL } from "../labels";
 
 /** Tap to talk in any language; the transcript goes into the field next to it. */
 export default function VoiceButton({ hint, onResult, label = "Speak" }: { hint: string; onResult: (t: Transcript) => void; label?: string }) {
@@ -21,7 +21,7 @@ export default function VoiceButton({ hint, onResult, label = "Speak" }: { hint:
       onResult(t);
       setNote(t.language && t.language !== "en" ? `Heard in ${LANG_LABEL[t.language] ?? t.language}: ${t.english}` : null);
     } catch (e) {
-      setNote(`Couldn't transcribe: ${(e as Error).message}`);
+      setNote(problemText(`Couldn't transcribe: ${(e as Error).message}`));
     } finally {
       setBusy(false);
     }

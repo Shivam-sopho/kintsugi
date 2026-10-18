@@ -1,9 +1,24 @@
 import { useState } from "react";
 import { api } from "../api";
-import { speak } from "../speak";
-import type { AppState, Item } from "../types";
-import { LANG_LABEL, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, inr, kg } from "../labels";
+import ListenButton from "./ListenButton";
+import type { AppState, Item, Job } from "../types";
+import { LANG_LABEL, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, inr, kg, sentence } from "../labels";
 import VoiceButton from "./VoiceButton";
+import { RungIcon } from "./Icons";
+import LifeStory from "./LifeStory";
+import TakersList from "./TakersList";
+import ExplainCard from "./ExplainCard";
+import { say } from "../speak";
+import Problem from "./Problem";
+import { replyLanguage } from "../language";
+
+/** What Kintsugi says once something is handed over: where it went and what it saved. */
+function handedOverLine(item: Item, takers: string[]): string {
+  const weight = item.components.reduce((s, c) => s + c.est_weight_kg, 0) * Math.max(item.count, 1);
+  const kept = weight * (item.recovered_fraction ?? 1);
+  return `Handed over. The ${item.type} goes to ${takers.join(" and ")}. That keeps ${kg(kept)} out of landfill `
+    + `and avoids ${kg(item.co2_avoided_kg)} of CO2e. Your certificate is in Handovers.`;
+}
 
 const CONDITION: Record<Item["condition"], string> = { A: "Like new", B: "Good", C: "Worn", D: "Broken" };
 const BUYING_ROLES = new Set(["buyer", "ngo", "dealer"]);
@@ -11,12 +26,15 @@ const BUYING_ROLES = new Set(["buyer", "ngo", "dealer"]);
 interface Props {
   item: Item;
   state: AppState;
-  onBack: () => void;
+  onBack?: () => void;
   onChanged: () => void;
   onOffer: (itemId: string) => Promise<void>;
+  onJob?: (job: Job, onDone?: (j: Job) => void) => void;
+  // The celebration: opened at once with dealId null, then completed (or closed with null on failure)
+  onCelebrate?: (c: { dealId: string | null; personId: string; levelBefore: string | null; figures?: { kg: number; co2e_kg: number } | null; what?: string; to?: string } | null) => void;
 }
 
-export default function Passport({ item, state, onBack, onChanged, onOffer }: Props) {
+export default function Passport({ item, state, onChanged, onOffer, onJob, onCelebrate }: Props) {
   const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
   const dest = item.destination_id ? people[item.destination_id] : undefined;
   const weight = item.components.reduce((s, c) => s + c.est_weight_kg, 0) * Math.max(item.count, 1);
@@ -29,6 +47,8 @@ export default function Passport({ item, state, onBack, onChanged, onOffer }: Pr
   const langs = Object.keys(item.take_apart);
   const [stepLang, setStepLang] = useState(langs.find((l) => l !== "en") ?? "en");
   const open = item.status === "available";
+  const routeIds = [...new Set([item.destination_id, ...item.components.map((c) => c.destination_id)].filter(Boolean) as string[])];
+  const routeNames = routeIds.map((id) => people[id]?.name).filter(Boolean) as string[];
 
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setBusy(label);
@@ -59,36 +79,18 @@ export default function Passport({ item, state, onBack, onChanged, onOffer }: Pr
 
   return (
     <article className="passport">
-      <button className="link" onClick={onBack}>Back to site</button>
       <h2>
-        {item.type} <span className="count">× {item.count}</span>
+        {sentence(item.type)} <span className="count">× {item.count}</span>
       </h2>
       <p className="muted">{item.description}</p>
-
-      {item.evidence.length > 0 && (
-        <div className="evidence" aria-label="Evidence photos, faces blurred">
-          {item.evidence.map((id) => <img key={id} src={api.evidenceUrl(id)} alt={`${item.type} as filmed`} loading="lazy" />)}
-        </div>
-      )}
-
-      {item.hazards.length > 0 && <p className="hazard-note">{item.hazards.join("; ")}. Never offered for reuse.</p>}
-
-      {/* People confirm what the AI saw */}
-      {open && !editing && (
-        <div className={`confirm ${item.verified ? "done" : item.needs_verification ? "warn" : ""}`}>
-          {item.verified ? (
-            <span>Confirmed by a person.</span>
-          ) : (
-            <span>{item.needs_verification ? "Low confidence: is this right?" : "Did Scout get this right?"}</span>
-          )}
-          {!item.verified && (
-            <button className="secondary small-btn" disabled={busy === "edit"} onClick={() => run("edit", () => api.patchItem(item.id, { verified: true }))}>
-              Looks right
-            </button>
-          )}
-          <button className="link" onClick={() => setEditing(true)}>Correct it</button>
-        </div>
-      )}
+      <ExplainCard item={item} />
+      <LifeStory
+        item={item}
+        state={state}
+        onConfirm={() => run("edit", () => api.patchItem(item.id, { verified: true }))}
+        onCorrect={() => setEditing(true)}
+        onChoose={() => document.getElementById(`choose-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+      />
       {editing && (
         <div className="confirm edit">
           <label>
@@ -108,24 +110,73 @@ export default function Passport({ item, state, onBack, onChanged, onOffer }: Pr
         </div>
       )}
 
-      <ol className="ladder" aria-label="Next-life ladder">
-        {RUNG_ORDER.map((r) => (
-          <li key={r} className={r === item.next_life ? "on" : ""} style={{ ["--rung" as string]: RUNG_COLOR[r] }}>
-            {RUNG_LABEL[r]}
-          </li>
-        ))}
-      </ol>
-      <p className="reason">{item.next_life_reason}</p>
-      {dest && <p className="muted">Goes to {dest.name}</p>}
 
-      {open && dest && BUYING_ROLES.has(dest.role) && (
-        <button className="primary gold" disabled={busy === "offer"} onClick={() => run("offer", () => onOffer(item.id))}>
-          {busy === "offer" ? "Starting…" : `Offer to ${dest.name}`}
-        </button>
+      {item.evidence.length > 0 && (
+        <div className="evidence" aria-label="Evidence photos, faces blurred">
+          {item.evidence.map((id) => <img key={id} src={api.evidenceUrl(id)} alt={`${item.type} as filmed`} />)}
+        </div>
       )}
 
-      {open && (
-        <div className="floor">
+      {item.hazards.length > 0 && <p className="hazard-note">{item.hazards.join("; ")}. Never offered for reuse.</p>}
+
+      <section className="next-life">
+        <h3>Its next life, decided by the rules</h3>
+        <ol className="ladder" aria-label="Next-life ladder">
+          {RUNG_ORDER.map((r) => (
+            <li key={r} className={r === item.next_life ? "on" : ""} style={{ ["--rung" as string]: RUNG_COLOR[r] }}>
+              <RungIcon rung={r} /> {RUNG_LABEL[r]}
+            </li>
+          ))}
+        </ol>
+        <p className="reason">{item.next_life_reason}</p>
+      </section>
+
+      {open ? (
+        <section className="choose" id={`choose-${item.id}`}>
+          <h3>Choose how it goes</h3>
+          <div className="option handover-option">
+            <div className="option-head">
+              <strong>{item.hazards.length ? "Hand it to a licensed handler" : "Hand it over"}</strong>
+              <span className="status ok">Free</span>
+            </div>
+            <p className="small muted">
+              {routeNames.length
+                ? `It goes to ${routeNames.join(", ")}. Kintsugi records what it keeps out of landfill and the CO2e it saves.`
+                : "No taker nearby yet. Kintsugi keeps looking and tells you when one appears."}
+            </p>
+            <button className="primary wide" disabled={busy === "handover" || !routeNames.length}
+                    onClick={() => run("handover", async () => {
+                      const seller = item.seller_id ?? "ppl_me";
+                      const what = item.count > 1 ? `${item.count} × ${item.type}` : item.type;
+                      const to = routeNames.join(", ");
+                      onCelebrate?.({ dealId: null, personId: seller, levelBefore: null, what, to });
+                      try {
+                        const before = (await api.standing(seller).catch(() => null))?.level ?? null;
+                        const job = await api.handover(item.id);
+                        onChanged();
+                        void say(handedOverLine(item, routeNames), replyLanguage(item.language));
+                        onCelebrate?.({ dealId: String(job.result.deal_id), personId: seller, levelBefore: before, what, to,
+                                        figures: { kg: Number(job.result.kg ?? 0), co2e_kg: Number(job.result.co2e_kg ?? 0) } });
+                      } catch (e) {
+                        onCelebrate?.(null);
+                        throw e;
+                      }
+                    })}>
+              {busy === "handover" ? "Arranging…" : item.hazards.length ? "Hand it to the licensed handler" : "Hand it over"}
+            </button>
+          </div>
+
+          {!item.hazards.length && dest && BUYING_ROLES.has(dest.role) && (
+            <div className="option sell-option">
+              <div className="option-head">
+                <strong>Sell it</strong>
+                {!!item.value_max_inr && <span className="muted small">worth {inr(item.value_min_inr)}–{inr(item.value_max_inr)} each</span>}
+              </div>
+              <p className="small muted">{dest.name} wants it. Agents negotiate for you and the buyer, each within a private limit.</p>
+              <button className="primary gold wide" disabled={busy === "offer"} onClick={() => run("offer", () => onOffer(item.id))}>
+                {busy === "offer" ? "Starting…" : `Offer to ${dest.name}`}
+              </button>
+              <div className="floor">
           <span className="small">
             {item.has_floor_price ? "Your lowest price is set. Only your agent knows it." : "Your lowest price (only your agent will know it)"}
           </span>
@@ -135,13 +186,46 @@ export default function Passport({ item, state, onBack, onChanged, onOffer }: Pr
             <VoiceButton hint="floor" label="Say it" onResult={(t) => t.amount_inr && saveFloor(t.amount_inr)} />
           </div>
         </div>
+              <div className={`autopilot-box ${item.autopilot ? "on" : ""}`}>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={item.autopilot}
+              disabled={busy === "autopilot" || item.hazards.length > 0 || (!item.has_floor_price && !item.autopilot)}
+              onChange={(e) => {
+                const on = e.target.checked;
+                run("autopilot", async () => {
+                  const job = await api.itemAutopilot(item.id, on);
+                  onJob?.(job, onChanged);
+                });
+              }}
+            />
+            <span>
+              <strong>Let my agent sell it</strong>
+              <span className="small muted block">
+                {item.hazards.length
+                  ? "Suspected hazards go to a licensed handler, so they can't be sold on Autopilot."
+                  : item.autopilot
+                    ? "On. Your agent negotiates with buyers whose requests match, never below your lowest price."
+                    : item.has_floor_price
+                      ? "Your agent negotiates with matching buyers on its own, never below your lowest price."
+                      : "Set your lowest price above first, so your agent knows where to stop."}
+              </span>
+            </span>
+          </label>
+        </div>
+            </div>
+          )}
+        </section>
+      ) : (
+        <p className="on-its-way">On its way to its next life. {item.status === "sold" ? "Sold" : "Handed over"}; see Handovers.</p>
       )}
 
       <dl className="facts">
         <div><dt>Condition</dt><dd>{CONDITION[item.condition]} ({item.condition})</dd></div>
         <div><dt>Value</dt><dd>{item.value_max_inr ? `${inr(item.value_min_inr)}–${inr(item.value_max_inr)} each` : "–"}</dd></div>
         <div><dt>Weight</dt><dd>{kg(weight)}</dd></div>
-        <div><dt>CO2 avoided</dt><dd>{kg(item.co2_avoided_kg)}</dd></div>
+        <div><dt>CO2e avoided</dt><dd>{kg(item.co2_avoided_kg)}</dd></div>
         {item.recovered_fraction != null && <div><dt>Kept out of landfill</dt><dd>{Math.round(item.recovered_fraction * 100)}%</dd></div>}
         <div><dt>Confidence</dt><dd>{Math.round(item.confidence * 100)}%</dd></div>
         {item.tap_test && item.tap_test !== "unknown" && <div><dt>Tap test</dt><dd>{item.tap_test}</dd></div>}
@@ -163,29 +247,13 @@ export default function Passport({ item, state, onBack, onChanged, onOffer }: Pr
           <ol lang={stepLang}>
             {item.take_apart[stepLang].map((s, i) => <li key={i}>{s}</li>)}
           </ol>
-          <button className="secondary" onClick={() => speak(item.take_apart[stepLang].join(" "), stepLang)}>Listen</button>
+          <ListenButton text={item.take_apart[stepLang].join(" ")} lang={stepLang} />
         </section>
       )}
 
-      <h3>Parts and materials</h3>
-      <table className="parts">
-        <thead>
-          <tr><th>Part</th><th>Material</th><th>kg</th><th>Next life</th></tr>
-        </thead>
-        <tbody>
-          {item.components.map((c) => (
-            <tr key={c.name} title={c.reason}>
-              <td>{c.name}</td>
-              <td>{c.material}</td>
-              <td>{c.est_weight_kg}</td>
-              <td>
-                {c.next_life ? <span className="rung-tag" style={{ color: RUNG_COLOR[c.next_life] }}>{RUNG_LABEL[c.next_life]}</span> : "–"}
-                {c.destination_id && people[c.destination_id] && <div className="muted small">{people[c.destination_id].name}</div>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <h3>Who can take it, nearest first</h3>
+      <TakersList state={state} from={item.location} item={item} />
+
       {item.price_sources.length > 0 && (
         <p className="small muted">
           Price sources:{" "}
@@ -194,7 +262,7 @@ export default function Passport({ item, state, onBack, onChanged, onOffer }: Pr
           )}
         </p>
       )}
-      {error && <p className="error" role="alert">{error}</p>}
+      <Problem text={error} />
     </article>
   );
 }

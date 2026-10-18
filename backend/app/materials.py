@@ -33,6 +33,11 @@ ALIASES: dict[str, str] = {
     "kapda": "textile", "कपड़ा": "textile", "kain": "textile",
     "paper": "paper", "cardboard": "paper",
     "electronics": "electronics", "e-waste": "electronics", "wiring": "copper",
+    # organic (compost or biogas)
+    "organic": "organic", "food": "organic", "food waste": "organic", "kitchen waste": "organic",
+    "garden waste": "organic", "leaves": "organic", "vegetable": "organic", "fruit": "organic",
+    "coconut": "organic", "cow dung": "organic", "biomass": "organic", "wet waste": "organic",
+    "गीला कचरा": "organic", "खाद": "organic", "ಹಸಿ ಕಸ": "organic",
 }
 
 
@@ -57,9 +62,34 @@ def emission_factor(material: str) -> float:
     return float(factors.get(canonical_material(material), factors["mixed"]))
 
 
-def rung_credit(rung: str) -> float:
-    return float(_factors_file()["rung_credit"].get(rung, 0.0))
+def rung_credit(rung: str, material: str | None = None) -> float:
+    """Share of a material's production emissions avoided by a next life: the government's
+    material-specific figure where published, otherwise the stated default for that rung."""
+    data = _factors_file()
+    if material is not None:
+        specific = data.get("credit_by_material", {}).get(rung, {}).get(canonical_material(material))
+        if specific is not None:
+            return float(specific)
+    return float(data["rung_credit"].get(rung, 0.0))
+
+
+def displacement(rung: str) -> float:
+    """Share of a reused, repaired or upcycled thing that replaces buying a new one (1.0 where the
+    government factor already accounts for it: recycling, composting)."""
+    return float(_factors_file().get("displacement", {}).get(rung, 1.0))
+
+
+def avoided_share(rung: str, material: str | None = None) -> float:
+    """What share of a material's production emissions a next life avoids: credit x replacement."""
+    return rung_credit(rung, material) * displacement(rung)
+
+
+def factor_basis(material: str) -> str:
+    """Which published row a material's factor comes from."""
+    return _factors_file().get("basis", {}).get(canonical_material(material), "")
 
 
 def factor_source() -> str:
-    return _factors_file()["source"]
+    data = _factors_file()
+    extra = data.get("displacement_source")
+    return f"{data['source']}; second-hand replacement rate 60%: {extra}" if extra else data["source"]
