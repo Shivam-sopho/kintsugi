@@ -4,6 +4,7 @@ import { SCENES, TOTAL } from "./timeline";
 import Main, { SCENE_COMPONENTS } from "./Main";
 import { CaptionsProvider } from "./components/Captions";
 import Cut from "./cut/Cut";
+import Thumbnail from "./cut/Thumbnail";
 import { CUT_TOTAL } from "./cut/edl";
 
 /** Main is the full 3:00 video; each scene is also its own composition, to work on one at a time. */
@@ -11,6 +12,7 @@ export const RemotionRoot = () => (
   <>
     {/* The demo: your intro, then your screen recordings (src/cut/edl.ts) */}
     <Composition id="Cut" component={Cut} durationInFrames={CUT_TOTAL} fps={FPS} width={W} height={H} />
+    <Composition id="Thumbnail" component={Thumbnail} durationInFrames={1} fps={FPS} width={1280} height={720} />
     <Composition id="Main" component={Main} durationInFrames={TOTAL} fps={FPS} width={W} height={H} />
     <Folder name="Scenes">
       {SCENES.map((sc) => {
