@@ -176,6 +176,8 @@ export default function DemoStory({ recording, job, events: liveEvents = [], sta
   const now = replay ? chapter : done ? CHAPTERS.length - 1 : Math.max(0, liveChapters[liveChapters.length - 1] ?? 0);
   const result = (replay ? recording?.result : job?.result) ?? {};
   const deal = state?.deals.find((d) => d.id === (result.deal_id as string));
+  // The agreed price: from the deal if it's here, else as the recording kept it.
+  const price = deal?.final_price_inr ?? (result.deal_price_inr as number | undefined) ?? null;
   const t = state?.totals;
   const ch = CHAPTERS[now];
   const inChapter = (replay ? recChapters : liveChapters);
@@ -243,7 +245,7 @@ export default function DemoStory({ recording, job, events: liveEvents = [], sta
     recapRead.current = true;
     narrate(
       `That's the full circle. Kintsugi found the best next life for a chair, a whole building and four neighbours' things, `
-        + `and two agents agreed ${deal?.final_price_inr ? `${Math.round(deal.final_price_inr)} rupees` : "a price"} in Hindi and English. `
+        + `and two agents agreed ${price ? `${Math.round(price)} rupees` : "a price"} in Hindi and English. `
         + (t ? `${Math.round(t.mass_diverted_kg)} kilograms stayed out of landfill and ${Math.round(t.co2_avoided_kg)} kilograms of CO2e were avoided. ` : "")
         + "Now try it yourself.",
       lang,
@@ -367,7 +369,7 @@ export default function DemoStory({ recording, job, events: liveEvents = [], sta
               <p className="demo-says">
                 People moving, renovating or demolishing usually throw things out because they don't know what else to do.
                 In one minute Kintsugi found a next life for a broken chair, a whole office and four neighbours' things, and
-                two agents agreed {deal?.final_price_inr ? inr(deal.final_price_inr) : "a price"} across Hindi and English.
+                two agents agreed {price ? inr(price) : "a price"} across Hindi and English.
               </p>
               {t && t.items > 0 && (
                 <div className="demo-figures">
