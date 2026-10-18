@@ -240,3 +240,37 @@ export interface Standing {
   kg: number;
   items: number;
 }
+
+export interface LedgerLine {
+  material: string;
+  next_life: Rung;
+  kg: number;
+  factor: number;
+  share: number;
+  co2e_kg: number;
+}
+
+export interface LedgerEvent {
+  kind: "listed" | "handover" | "offer" | "sale" | "pickup";
+  at: number;
+  who: string;
+  text: string;
+  kg?: number | null;
+  co2e_kg?: number | null;
+  inr?: number | null;
+  status?: string;
+  recorded: boolean;
+  lines?: LedgerLine[];
+  deal_id?: string;
+  item_ids?: string[];
+  sample?: boolean;
+}
+
+export interface LiveLedger {
+  totals: Totals;
+  waiting: { items: number; kg: number; co2e_kg: number };
+  counts: { listed: number; handovers: number; sales: number; negotiating: number; waiting_for_seller: number; people: number };
+  by_material: { material: string; kg: number; co2e_kg: number }[];
+  feed: LedgerEvent[];
+  method: { formula: string; reuse_replaces_new: number; source: string };
+}
