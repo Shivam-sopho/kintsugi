@@ -6,7 +6,6 @@ import asyncio
 import json
 import logging
 import time
-from collections import OrderedDict
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 from urllib.parse import quote
@@ -18,7 +17,7 @@ from google.genai import errors as genai_errors
 from pydantic import BaseModel, Field
 
 from . import agents
-from . import live_ledger, report_pdf, standing
+from . import live_ledger, report_pdf, speech_cache, standing
 from .certificate import render as render_certificate
 from .config import get_settings
 from .demo import fixtures
@@ -364,28 +363,21 @@ class SpeakIn(BaseModel):
     translate: bool = False  # text is English; read it in `lang` (spoken summaries in the person's language)
 
 
-# Each line takes Gemini a few seconds, so repeat taps are served from memory.
-_speech_cache: OrderedDict[tuple[str, str, bool], tuple[str, Optional[bytes]]] = OrderedDict()
-SPEECH_CACHE_SIZE = 200
-
-
 @app.post("/api/speak")
 async def speak(body: SpeakIn) -> Response:
     """Read text aloud with Gemini TTS, optionally translated from English first. The words spoken
-    come back in X-Spoken-Text (URL-encoded). 204 means no audio (offline): the app uses the device's voice."""
-    key = (body.lang, body.text, body.translate)
-    cached = _speech_cache.get(key)
-    if cached is None:
+    come back in X-Spoken-Text (URL-encoded). 204 means no audio (offline): the app uses the device's voice.
+    Each line is generated once and kept (speech_cache), so repeats, like the demo's narration, are instant."""
+    k = speech_cache.key(body.lang, body.text, body.translate)
+    hit = await asyncio.to_thread(speech_cache.get, settings, k)
+    if hit:
+        spoken, audio = hit
+    else:
         llm = get_llm()
         spoken = await llm.translate(body.text, body.lang) if body.translate and body.lang != "en" else body.text
-        cached = (spoken, await llm.speech(spoken, body.lang))
-        if cached[1] is not None:  # don't remember failures
-            _speech_cache[key] = cached
-            if len(_speech_cache) > SPEECH_CACHE_SIZE:
-                _speech_cache.popitem(last=False)
-    else:
-        _speech_cache.move_to_end(key)
-    spoken, audio = cached
+        audio = await llm.speech(spoken, body.lang)
+        if audio is not None:  # don't remember failures
+            await asyncio.to_thread(speech_cache.put, settings, k, spoken, audio)
     headers = {"X-Spoken-Text": quote(spoken), "Access-Control-Expose-Headers": "X-Spoken-Text"}
     if audio is None:
         return Response(status_code=204, headers=headers)
@@ -582,6 +574,32 @@ async def bundles() -> dict[str, Any]:
 _running_demos: list[str] = []  # this instance's demo job, if one is running
 
 
+RECORDING_ID = "demo_recording"
+
+
+def save_recording(store, job_id: str, result: dict[str, Any]) -> None:
+    """Keep the demo's steps and result, so "Run demo" can replay the story from the start for
+    every viewer, at once, without running (or interrupting) it again. The sample data it shows
+    stays in place until the next real run."""
+    events = [{"agent": e.agent, "step": e.step, "message": e.message,
+               "data": {k: v for k, v in e.data.items() if k in ("deal_id", "item_id", "rung")}}
+              for e in store.list_events(job_id)]
+    try:
+        store.upsert_job(Job(id=RECORDING_ID, kind="demo_recording", status="done",
+                             result={"events": events, "result": result, "job_id": job_id}))
+    except Exception:
+        log.exception("Could not save the demo recording")
+
+
+@app.get("/api/demo/recording")
+def demo_recording() -> dict[str, Any]:
+    """The last full demo run, to replay: its steps in order and its result."""
+    rec = get_store().get_job(RECORDING_ID)
+    if not rec or not rec.result.get("events"):
+        raise HTTPException(404, "No recording yet")
+    return {"events": rec.result["events"], "result": rec.result.get("result", {}), "recorded_at": rec.created_at}
+
+
 NARRATED_PACE = 2.7  # read aloud, the story runs this much slower (0.6 s a step becomes 1.6 s) so the voice keeps up
 
 
@@ -595,7 +613,12 @@ async def judge_mode(narrated: bool = False) -> dict[str, Any]:
         return store.get_job(running).model_dump(mode="json")  # type: ignore[union-attr]
     _running_demos.clear()
     paced = settings.model_copy(update={"demo_step_delay": settings.demo_step_delay * NARRATED_PACE}) if narrated else settings
-    job = _start_job("judge_mode", lambda job_id: agents.judge_mode(store, llm, paced, job_id))
+    async def run(job_id: str) -> dict[str, Any]:
+        result = await agents.judge_mode(store, llm, paced, job_id)
+        save_recording(store, job_id, result)
+        return result
+
+    job = _start_job("judge_mode", run)
     _running_demos.append(job.id)
     return job.model_dump(mode="json")
 

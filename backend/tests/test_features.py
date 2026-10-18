@@ -161,14 +161,14 @@ def test_speak_serves_wav_and_caches_repeat_lines(client, monkeypatch):
         return pcm_to_wav(b"\x00\x00" * 2400)
 
     monkeypatch.setattr(main, "get_llm", lambda: SimpleNamespace(speech=fake_speech))
-    main._speech_cache.clear()
+    main.speech_cache._memory.clear()
     body = {"text": "पैर हटाने के लिए चारों पेंच खोलें।", "lang": "hi"}
     first, second = client.post("/api/speak", json=body), client.post("/api/speak", json=body)
     assert first.status_code == second.status_code == 200
     assert first.headers["content-type"] == "audio/wav"
     assert first.content == second.content
     assert calls == [(body["text"], "hi")]  # the repeat came from the cache
-    main._speech_cache.clear()
+    main.speech_cache._memory.clear()
 
 
 def test_gemini_speech_wraps_pcm_in_a_wav_header():
@@ -263,12 +263,12 @@ def test_spoken_summary_is_translated_before_speaking(client, monkeypatch):
         return pcm_to_wav(b"\x00\x00" * 240)
 
     monkeypatch.setattr(main, "get_llm", lambda: SimpleNamespace(translate=translate, speech=speech))
-    main._speech_cache.clear()
+    main.speech_cache._memory.clear()
     r = client.post("/api/speak", json={"text": "Scout found 2 items.", "lang": "kn", "translate": True})
     assert r.status_code == 200
     assert unquote(r.headers["x-spoken-text"]) == "[kn] Scout found 2 items."
     assert said == [("[kn] Scout found 2 items.", "kn")]
-    main._speech_cache.clear()
+    main.speech_cache._memory.clear()
 
 
 def test_offline_summary_keeps_the_english_for_the_device_voice(client):
