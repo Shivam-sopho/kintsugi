@@ -820,3 +820,43 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .city-picker select { border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 999px; padding: 0.15rem 0.5rem; font: inherit; font-size: 0.85rem; width: auto; }
 .chip.city-picker { padding: 0; border: 0; background: none; }
 .chip.city-picker select { border: 1px solid var(--ink); font-weight: 600; padding: 0.3rem 0.6rem; }
+
+/* The journey as a trail: one stop per stage, each with its picture */
+.trail { position: relative; margin: 0.6rem 0 0.4rem; background:
+  radial-gradient(circle at 20% 10%, rgba(110, 158, 138, 0.08), transparent 45%),
+  radial-gradient(circle at 80% 90%, rgba(184, 137, 43, 0.08), transparent 45%); border-radius: var(--radius-m); }
+.trail-path { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.trail-path path { fill: none; stroke-linecap: round; }
+.trail-path .ahead { stroke: var(--line); stroke-width: 6; stroke-dasharray: 2 12; }
+.trail-path .travelled { stroke: var(--celadon); stroke-width: 7; }
+.stop { position: absolute; left: 0; right: 0; height: 0; }
+.stop-node { position: absolute; top: 0; width: 64px; height: 64px; transform: translate(-50%, -50%); border-radius: 50%;
+  display: grid; place-items: center; background: var(--paper); border: 3px solid var(--line); color: var(--slate); z-index: 1;
+  box-shadow: 0 3px 10px rgba(30, 43, 74, 0.12); }
+.stop-node svg { stroke: currentColor; }
+.stop.done .stop-node { background: var(--celadon); border-color: var(--celadon); color: #fff; }
+.stop.now .stop-node { background: #fdf8ec; border-color: var(--gold); color: var(--gold-ink); box-shadow: 0 0 0 6px rgba(184, 137, 43, 0.18), 0 3px 10px rgba(30, 43, 74, 0.15); }
+.stop.later .stop-node { opacity: 0.55; border-style: dashed; box-shadow: none; }
+.stop:last-child.done .stop-node { background: var(--gold); border-color: var(--gold-ink); }
+@media (prefers-reduced-motion: no-preference) { .stop.now .stop-node { animation: glow 1.8s ease-in-out infinite; } }
+@keyframes glow { 50% { box-shadow: 0 0 0 11px rgba(184, 137, 43, 0.08), 0 3px 10px rgba(30, 43, 74, 0.15); } }
+.stop-tick { position: absolute; right: -4px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%; background: var(--paper); color: var(--celadon);
+  border: 2px solid var(--celadon); display: grid; place-items: center; font-size: 0.7rem; font-weight: 800; }
+.stop-num { position: absolute; left: -6px; top: -6px; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: var(--porcelain);
+  font-size: 0.68rem; font-weight: 700; display: grid; place-items: center; }
+.stop.later .stop-num { background: var(--slate); }
+.stop-label { position: absolute; top: 0; transform: translateY(-50%); display: flex; flex-direction: column; gap: 0.1rem; max-width: 44%; }
+.stop.left .stop-label { left: calc(24% + 44px); text-align: left; }
+.stop.right .stop-label { right: calc(24% + 44px); text-align: right; align-items: flex-end; }
+.stop-label strong { font-size: 0.92rem; color: var(--ink); line-height: 1.2; }
+.stop-label span { font-size: 0.8rem; color: var(--slate); line-height: 1.25; }
+.stop.now .stop-label strong { color: var(--gold-ink); }
+.stop.later .stop-label { opacity: 0.6; }
+.trail-marker { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; z-index: 2; pointer-events: none; }
+.trail-marker img, .trail-marker b { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--gold); object-fit: cover; background: var(--ink); color: var(--porcelain);
+  display: grid; place-items: center; font-size: 0.85rem; box-shadow: 0 2px 8px rgba(30, 43, 74, 0.25); }
+.trail-marker span { font-size: 0.66rem; font-weight: 700; color: var(--ink); background: var(--paper); border: 1px solid var(--gold); border-radius: 999px; padding: 0 0.4rem; white-space: nowrap; }
+.trail-marker.arrived img, .trail-marker.arrived b { border-color: var(--celadon); }
+.who-did { margin-top: 0.9rem; }
+.who-did summary { cursor: pointer; font-weight: 600; color: var(--slate); font-size: 0.85rem; }
+.who-did .life-stages { margin-top: 0.6rem; }
