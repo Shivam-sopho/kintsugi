@@ -6,23 +6,26 @@ Kintsugi is a living map of every reusable thing, part and material in a city, r
 
 Entry for the AI Builder Cup, Sustainability & Social Impact track. The full design is in [docs/implementation.md](docs/implementation.md).
 
-![Deal room: a Hindi-speaking dealer and an English-speaking café owner, each reading the same negotiation in their own language](docs/deal-room.png)
+**Try it live: https://kintsugi-ai-builder-cup-2026.web.app** (press **Run demo** for the narrated story)
+
+![Kintsugi: Scout lists every part it saw, buyer and seller agents negotiate over A2A, and the hand-over is counted in the ledger. Built with Gemini 2.5 Pro, 2.5 Flash, Flash Image, TTS and Embedding.](docs/hero.png)
 
 ## Where things stand
 
-Every feature in the plan that doesn't need Google Cloud credentials is built and tested: 29 backend tests pass and every screen has been walked through in a browser. Everything runs in **mock mode** (sample data, no Google account needed). The live Gemini, Firestore, Cloud Storage and Maps code paths are written but **not yet run against the real services**.
+Live on Google Cloud at https://kintsugi-ai-builder-cup-2026.web.app: every Gemini call runs live on Vertex AI, with Firestore, Cloud Storage and Google Maps behind it. 78 backend tests pass, and the app still runs fully offline in **mock mode** (sample data, no Google account needed).
 
 | Part | Status |
 |---|---|
-| Five agents, judge mode, Mission control | Done, tested |
-| Next-life ladder, hazards, per-component routing | Done, tested |
-| People in the loop: confirm or correct items, private lowest price, one-tap offer, approval before settlement | Done, tested |
-| Voice: spoken notes, search and briefs, voice-note listings, Listen buttons | Done (offline transcripts in mock mode) |
-| Evidence photos with face blur, take-apart steps in the owner's language | Done, tested |
-| Seller agent over A2A (agent card + JSON-RPC), buyer agent with private cap | Done, tested |
-| Impact ledger, certificates in English, Hindi and Kannada | Done, tested. Emission factors from the UK Government GHG Conversion Factors 2026 (Open Government Licence) |
-| Web app (installable PWA) and Android app (Capacitor) | Done; the Android app's first compile happens in Android Studio |
-| Live Gemini, Firestore, Cloud Storage, Maps/Places | Written, not yet run live |
+| Five agents, the narrated judging demo, Mission control | Live |
+| Next-life ladder, hazards, per-part routing, the item's journey | Live, tested |
+| People in the loop: confirm or correct items, private lowest price, accept or decline offers, approval before anything is sold | Live, tested |
+| Live market: buyers' agents open negotiations by themselves; Start a deal from Handovers | Live, tested |
+| Voice in any language, spoken replies (Gemini TTS), English by default | Live |
+| Evidence photos with face blur, take-apart steps in the owner's language | Live, tested |
+| Seller agent over A2A (agent card + JSON-RPC), buyer agent with a private cap | Live, tested |
+| Live ledger, PDF reports, certificates in English, Hindi and Kannada | Live, tested. Emission factors from the UK Government GHG Conversion Factors 2026 (Open Government Licence) |
+| Sample cities across Asia-Pacific (Bengaluru, Singapore, Tokyo, Jakarta, Bangkok and more) | Live |
+| Web app (installable PWA) and Android app (Capacitor) | Web live; Android builds from the same screens |
 | AP2 settlement | Sandbox record shaped like AP2 mandates; no money moves |
 
 **What to do next is in [NEXT_STEPS.md](NEXT_STEPS.md)**, ordered and with "done when" checks. [CLAUDE.md](CLAUDE.md) tells a Claude session how the repo works and which rules keep it working.
@@ -45,7 +48,7 @@ npm install
 npm run dev                     # http://localhost:5173, /api is proxied to :8080
 ```
 
-Open the app and press **Run demo**. Watch the Agents tab, then look at Deal and Impact.
+Open the app and press **Run demo** for the narrated story, or film something with **Scan with Scout**. Handovers shows the agents' negotiations, and Ledger shows what was saved.
 
 Tests: `cd backend && pytest -q`
 
@@ -55,7 +58,7 @@ The Android app lives in [`android/`](android/README.md). It runs the same scree
 
 Judges will use the web link, which is also installable from Chrome ("Add to Home screen"). The Android app is for filming Scout walkthroughs and showing the deal room on a phone in the demo video.
 
-## Going live (Day 1 checklist)
+## Set up your own deployment
 
 1. **Google Cloud:** `PROJECT=<id> REGION=us-central1 ./infra/setup_gcp.sh` enables the APIs, creates Firestore with the vector index, the uploads bucket and IAM roles.
 2. **Model IDs:** check the current Gemini model IDs in Vertex AI Model Garden and set `MODEL_*` in `backend/.env`. `gemini-embedding-2-preview` is the multimodal embedding model.
