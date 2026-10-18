@@ -5,7 +5,8 @@ import { compressForUpload, MAX_UPLOAD_BYTES, megabytes } from "../compress";
 import { say } from "../speak";
 import type { AppState, Job } from "../types";
 import { scanSummary } from "../labels";
-import { locateMe, useWhere } from "../where";
+import { getWhere, locateMe, useWhere } from "../where";
+import CityPicker from "./CityPicker";
 import BigMic from "./BigMic";
 import Problem from "./Problem";
 import ItemCard from "./ItemCard";
@@ -71,7 +72,7 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
       await locateMe();
       setLocNote(null);
     } catch (err) {
-      setLocNote(`${(err as Error).message} Using the demo location in Bengaluru for now.`);
+      setLocNote(`${(err as Error).message} Using ${getWhere().label} for now.`);
     }
   };
 
@@ -170,7 +171,8 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
       )}
 
       <p className="small muted where">
-        {locNote ?? (where.mine ? "Near your current location." : "Near the demo location in Bengaluru.")} <button type="button" className="link" onClick={useMyLocation}>Use my location</button>
+        {locNote ?? (where.mine ? "Near your current location." : `In ${where.label} (sample data).`)}{" "}
+        <button type="button" className="link" onClick={useMyLocation}>Use my location</button> or <CityPicker />
       </p>
       <Problem text={error} />
 

@@ -19,6 +19,7 @@ import AskPanel from "./components/AskPanel";
 import { LiveJourney } from "./components/LifeStory";
 import { loadPersona, savePersona } from "./persona";
 import { locateMe } from "./where";
+import CityPicker from "./components/CityPicker";
 
 type Tab = "home" | "map" | "deals" | "impact";
 
@@ -157,6 +158,7 @@ export default function App() {
           )}
           <div className="layer-toggles" role="group" aria-label="Map layers">
             <button className="chip view-toggle" onClick={() => { setMapView("list"); setTab("map"); }}>Show as list</button>
+            <CityPicker className="chip" />
             <MapKey />
             <button className="chip near-me" onClick={() => locateMe().catch((e) => alert((e as Error).message))}>Near me</button>
             {(Object.keys(layers) as (keyof Layers)[]).map((k) => (

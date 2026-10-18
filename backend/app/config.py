@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     # A live market: sample buyers keep standing requests, and a buyer's agent opens a negotiation as
     # soon as something it wants is listed; the seller then accepts or declines (or lets Autopilot).
     live_market: bool = False
+    sample_cities: bool = False  # sample takers and homes in major Asia-Pacific cities (see demo/cities.py)
     embedding_dim: int = 768  # reduced via Matryoshka; must match the Firestore vector index
 
     # Google Maps Platform (Places + Geocoding), server-side key

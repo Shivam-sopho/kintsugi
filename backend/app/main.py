@@ -38,6 +38,17 @@ async def lifespan(_: FastAPI):
     if not store.list_participants():
         agents.seed_participants(store)
         store.upsert_predictions(fixtures.predictions())
+    if settings.sample_cities:  # in the background: start-up shouldn't wait for embeddings
+        async def cities_task():
+            try:
+                n = await agents.seed_cities(store, get_llm(), settings)
+                if n:
+                    log.info("Listed %d sample items across Asia-Pacific cities", n)
+            except Exception:
+                log.exception("Could not seed the sample cities")
+        task = asyncio.create_task(cities_task())
+        _tasks.add(task)
+        task.add_done_callback(_tasks.discard)
     if settings.live_market:  # sample buyers keep looking, so new listings meet a real negotiation
         try:
             await agents.seed_market(store, get_llm())
@@ -625,6 +636,15 @@ async def judge_mode(narrated: bool = False) -> dict[str, Any]:
 
 def _pdf(data: bytes, name: str) -> Response:
     return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.get("/api/cities")
+def list_cities() -> list[dict[str, Any]]:
+    """The cities with sample data, for the city picker: Bengaluru (the demo) first."""
+    from .demo import cities
+
+    return [{"id": "blr", "name": "Bengaluru", "lat": 12.95, "lng": 77.63, "lang": "en"}] + [
+        {"id": c["id"], "name": c["name"], "lat": c["center"][0], "lng": c["center"][1], "lang": c["lang"]} for c in cities.CITIES]
 
 
 @app.get("/api/ledger/live")

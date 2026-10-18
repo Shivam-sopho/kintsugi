@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AdvancedMarker, APIProvider, Map, useMap } from "@vis.gl/react-google-maps";
 import ErrorBoundary from "./ErrorBoundary";
 import type { AppState, GeoPoint, Item, Participant, Prediction, Rung } from "../types";
-import { DEMO_CENTER, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, TAKER_ROLE } from "../labels";
+import { DEMO_CENTER, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, TAKER_ROLE, km } from "../labels";
 import { useWhere, type Where } from "../where";
 
 export type Layers = { future: boolean; materials: boolean; destinations: boolean };
@@ -97,8 +97,15 @@ export function MapKey() {
 /** Keep the map on the person once they share where they are. */
 function FollowMe({ where }: { where: Where }) {
   const map = useMap();
+  const first = useRef(true);
   useEffect(() => {
-    if (map && where.mine) map.panTo({ lat: where.lat, lng: where.lng });
+    if (!map) return;
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    map.panTo({ lat: where.lat, lng: where.lng });
+    map.setZoom(13);
   }, [map, where]);
   return null;
 }
@@ -128,7 +135,7 @@ function GoogleMapView({ state, layers, selectedSiteId, onSelectSite, onSelectPr
         className="map-canvas"
       >
         <FollowMe where={where} />
-        <AdvancedMarker position={{ lat: where.lat, lng: where.lng }} title={where.mine ? "You are here" : "Demo location (you, until you share your location)"} zIndex={10}>
+        <AdvancedMarker position={{ lat: where.lat, lng: where.lng }} title={where.mine ? "You are here" : `Looking around ${where.label} (sample data). Share your location with Near me.`} zIndex={10}>
           <span className="you-pin">You</span>
         </AdvancedMarker>
         {layers.future &&
@@ -169,8 +176,12 @@ const PLACES: { name: string; lat: number; lng: number }[] = [
 
 /** Offline map used when no Maps key is set: same layers, projected to fit the panel. */
 function SchematicMap({ state, layers, selectedSiteId, onSelectSite, onSelectPrediction }: Props) {
-  const { sites } = useMapModel(state);
   const where = useWhere();
+  // The offline map draws one area: what's within 40 km of the chosen city or the person.
+  const near = (g: GeoPoint) => km(where, g) < 40;
+  state = { ...state, sites: state.sites.filter((x) => near(x.location)), items: state.items.filter((x) => near(x.location)),
+            participants: state.participants.filter((x) => near(x.location)), predictions: state.predictions.filter((x) => near(x.location)) };
+  const { sites } = useMapModel(state);
   const wrap = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
   useEffect(() => {

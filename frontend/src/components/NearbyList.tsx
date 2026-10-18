@@ -22,15 +22,15 @@ export default function NearbyList({ state, onOpenItem, onShowMap }: { state: Ap
         <button type="button" className="secondary small-btn" onClick={onShowMap}>Show map</button>
       </div>
       <p className="muted small">
-        {note ?? (where.mine ? "Around you, nearest first." : "Around the demo location in central Bengaluru.")}{" "}
+        {note ?? (where.mine ? "Around you, nearest first." : `Around ${where.label}, nearest first (sample data).`)}{" "}
         <button type="button" className="link" onClick={() => { setNote("Finding your location…"); locateMe().then(() => setNote(null), (e) => setNote((e as Error).message)); }}>
           {where.mine ? "Update my location" : "Use my location"}
         </button>
       </p>
       {where.mine && nearestTaker > 15 && (
         <p className="small busy-note">
-          No takers within 15 km of you yet: the sample takers are in Bengaluru. A live scan from where you are finds real
-          recyclers, dealers and charities near you on Google Maps.
+          No takers within 15 km of you yet: sample takers are in Bengaluru and eight other Asia-Pacific cities (choose one
+          on the map). A live scan from where you are finds real recyclers, dealers and charities near you on Google Maps.
         </p>
       )}
       <h3>Who takes things</h3>
