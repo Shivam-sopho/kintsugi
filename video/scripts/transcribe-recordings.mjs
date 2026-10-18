@@ -12,7 +12,7 @@ const model = process.env.WHISPER_MODEL ?? "small.en";
 await installWhisperCpp({ to: whisperPath, version });
 await downloadWhisperModel({ model, folder: whisperPath });
 
-for (const n of [1, 2, 3, "intro"]) {
+for (const n of (process.argv.slice(2).length ? process.argv.slice(2) : [1, 2, 3, 4, 5, "intro"])) {
   const input = path.join(root, "public", "rec", `v${n}.mp4`);
   if (!existsSync(input)) continue;
   const wav = path.join(root, "out", `v${n}-16k.wav`);

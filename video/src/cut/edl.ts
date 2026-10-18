@@ -6,31 +6,25 @@ import { FPS } from "../theme";
 /** Your voice, and the recording under it, play this much faster. */
 export const VOICE_RATE = 1.25;
 
-/** The opening, before the demo: what each part is and how long it lasts. Your story voice, with your
- *  face in a circle (public/rec/intro.mp4), plays over all of it: keep it to OPEN_S. */
+/** The opening: your narration over the problem (public/rec/v5.mp4, your voice and face, recorded over an
+ *  earlier render). It plays as one piece from NARRATION.from at NARRATION.rate; each part's picture is
+ *  rebuilt here at full quality and lasts until `to` (seconds in the narration). */
+export const NARRATION = { src: "v5", from: 7.3, rate: 1.3, face: { x: 2670, y: 1370, size: 320 }, gemini: 58.95 };
 export const OPEN = [
-  { id: "landfill", seconds: 5 }, // Veo landfill with the UNEP figures
-  { id: "problem", seconds: 6.5 }, // your problem slide (public/rec/problem.png)
-  { id: "chair", seconds: 10.33 / VOICE_RATE }, // the chair clip (public/rec/chair.mp4), with the story in captions
-  { id: "dump", seconds: 3 }, // where it ends up
-  { id: "logo", seconds: 7 }, // Kintsugi, and Gemini at every step
+  { id: "landfill", to: 16.6 }, // "imagine how we are dumping billions of tons…"
+  { id: "problem", to: 24.6 }, // "useful things are dumped because nobody knows who needs them"
+  { id: "chair", to: 35.9 }, // "my own chair, five years old…"
+  { id: "dump", to: 50.2 }, // "…it will be ending up inside the landfills"
+  { id: "logo", to: 64.0 }, // "here comes our solution, Kintsugi… Gemini powered"
 ] as const;
+export const openParts = OPEN.map((o, i) => {
+  const from = i ? OPEN[i - 1].to : NARRATION.from;
+  return { id: o.id, at: (from - NARRATION.from) / NARRATION.rate, seconds: (o.to - from) / NARRATION.rate };
+});
+export const OPEN_S = (OPEN.at(-1)!.to - NARRATION.from) / NARRATION.rate;
 
-/** The opening's captions: your script. Read each line while it's on screen (seconds into its part). */
-export const SCRIPT: Record<(typeof OPEN)[number]["id"], { at: number; text: string }[]> = {
-  landfill: [{ at: 0, text: "The world throws away 2.1 billion tonnes of waste a year, 3.8 billion by 2050." }],
-  problem: [{ at: 0, text: "Useful things are dumped because nobody knows who needs them." }],
-  chair: [
-    { at: 0, text: "Take my broken chair: steel, foam and fabric, all still useful." },
-    { at: 4.1, text: "But it's worth too little to sell, price and arrange a pickup for." },
-  ],
-  dump: [{ at: 0, text: "So it goes in the bin, and ends up here." }],
-  logo: [
-    { at: 0, text: "So we built Kintsugi, Google Maps for the circular economy." },
-    { at: 3.2, text: "Gemini powers every step: it sees, decides, explains, translates and negotiates." },
-  ],
-};
-export const OPEN_S = OPEN.reduce((a, o) => a + o.seconds, 0);
+/** The chair clip (public/rec/chair.mp4) without its last 2 seconds. */
+export const CHAIR_USE_S = 8.3;
 
 /** A part of a recording, in the recording's pixels (3024 × 1964). */
 export type Cam = { x: number; y: number; w: number; h: number };
@@ -38,6 +32,7 @@ export const REC_W = 3024;
 export const REC_H = 1964;
 
 export const CAM = {
+  app: { x: 0, y: 300, w: 3024, h: 1530 }, // the whole app: map and panel
   wide: { x: 600, y: 405, w: 2424, h: 1425 }, // the app: the map's right half and the whole panel
   focus: { x: 840, y: 520, w: 1900, h: 1117 }, // a push in on the hand-over card, centred
   cert: { x: 560, y: 380, w: 1900, h: 1450 }, // the certificate page
@@ -46,7 +41,7 @@ export const CAM = {
 
 export type Shot = {
   id: string;
-  src: "v1" | "v2" | "v3" | "phones" | "certs" | "close";
+  src: "v1" | "v2" | "v3" | "v4" | "phones" | "certs" | "close";
   from: number; // seconds in the recording (the voice, and the picture unless `vFrom` is set)
   to: number;
   rate?: number; // playback speed; VOICE_RATE unless set
@@ -61,6 +56,8 @@ export type Shot = {
 };
 
 export const SHOTS: Shot[] = [
+  { id: "intro", src: "v4", from: 0.5, to: 32.2, rate: 1.8, cam: [{ at: 0, cam: CAM.app }],
+    eyebrow: "Kintsugi", title: "Film what you'd throw away: agents find each part's next life", speed: "1.8×" },
   { id: "upload", src: "v1", from: 41.9, to: 60, cam: [{ at: 0, cam: CAM.wide }],
     eyebrow: "1 · Show it", title: "Film it, add photos, tell Scout", chip: "Video and voice, any language" },
   { id: "scout", src: "v1", from: 60, to: 183.6, rate: 11, muted: true, cam: [{ at: 0, cam: CAM.wide }],
