@@ -10,3 +10,6 @@ public/voiceover.wav
 public/voiceover.captions.json
 public/rec/*
 !public/rec/.gitkeep
+# Raw recordings dropped in this folder
+/*.mp4
+/*.mov

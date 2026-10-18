@@ -1,6 +1,22 @@
 # Kintsugi demo video (Remotion)
 
-The 3:00 video from [`docs/video/script.md`](../docs/video/script.md): 1920×1080, 30 fps, eight scenes on the script's timeline, burned-in captions, in the app's colours and fonts. Every clip that isn't there yet shows as a labelled placeholder saying what to film, so the video always plays and renders.
+## The published video: `Cut`
+
+The video on YouTube (https://www.youtube.com/watch?v=DXN9g5Fb7hI) is the `Cut` composition: the narrated opening (the problem, the chair, Kintsugi and the Gemini models), the short intro, then the screen recordings of the live app, trimmed to the narration, sped up 1.25×, with camera zooms, step labels and captions.
+
+```bash
+npm run render:cut      # → out/kintsugi-cut.mp4
+npm run thumbnail       # → out/thumbnail.png (YouTube thumbnail, 1280×720)
+npm run readme-hero     # → ../docs/hero.png (the README image)
+npm run captions:rec    # word timings for the recordings, for the captions
+```
+
+- Every trim, speed and camera move is in `src/cut/edl.ts`; the scenes are in `src/cut/Cut.tsx`.
+- The recordings go in `public/rec/`, outside git: `v1`–`v3.mp4` (the demo), `v4.mp4` (the short intro), `v5.mp4` (the narration), `chair.mp4` and `problem.png`. Re-encode a new recording with a keyframe every second (`ffmpeg -i in.mp4 -r 30 -c:v libx264 -crf 18 -g 30 -c:a aac out.mp4`) so seeking stays fast.
+
+## The scripted video: `Main`
+
+The first plan, the 3:00 video from [`docs/video/script.md`](../docs/video/script.md): 1920×1080, 30 fps, eight scenes on the script's timeline, burned-in captions, in the app's colours and fonts. Every clip that isn't there yet shows as a labelled placeholder saying what to film, so the video always plays and renders.
 
 ## Commands
 

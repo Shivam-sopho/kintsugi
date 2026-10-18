@@ -1,6 +1,6 @@
 # Next steps
 
-Status on Sun 18 Oct 2026: the app is live in Gemini mode at **https://kintsugi-ai-builder-cup-2026.web.app** (Cloud Run `kintsugi-api` + Firebase Hosting, project `kintsugi-ai-builder-cup-2026`, Firestore, Cloud Storage, Maps). Everything up to PR #1 is merged into `main`. 76 backend tests pass. What's left needs people: the video (script in `docs/video/script.md`), the deck, checks on a real phone, and optional real-world data.
+Status on Sun 18 Oct 2026: the app is live in Gemini mode at **https://kintsugi-ai-builder-cup-2026.web.app** (Cloud Run `kintsugi-api` + Firebase Hosting, project `kintsugi-ai-builder-cup-2026`, Firestore, Cloud Storage, Maps). PRs #1 to #4 are merged into `main`; 78 backend tests pass. The demo video is published: https://www.youtube.com/watch?v=DXN9g5Fb7hI. What's left: the deck, the submission form, checks on a real phone, and optional real-world data.
 
 Deadline: submit by Sun 18 Oct 2026 (confirm the exact time and time zone on aibuildercup.com).
 
@@ -45,7 +45,7 @@ Decided not to do: A7 Gemini Live API, A8 real AP2, A9 seller agent as its own s
 ## Open (people)
 
 ### C. Demo and submission (today)
-- Video, 3 minutes, English (subtitle any Hindi). Suggested shots: Home's opening line; a real scan on your phone with Hindi narration and the spoken answer; the item journey and "who can take it"; Run demo's story through the deal room (Hindi on one phone, English on the other); Autopilot settling a deal by itself; the certificate.
+- Video: done, https://www.youtube.com/watch?v=DXN9g5Fb7hI (2:58, built in `video/` from the live-app recordings; see `video/README.md`).
 - Deck (PDF): problem (homes and demolition sites with no option but to throw away), how it works, Gemini usage per agent, architecture, impact numbers, what's next.
 - Submission: live link above, video link, deck PDF, category Sustainability & Social Impact. Re-read the official rules.
 - Optional: share the APK as a download link.
