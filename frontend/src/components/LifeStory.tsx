@@ -1,7 +1,9 @@
 import type { AgentEvent, AppState, Item, Job } from "../types";
-import { AGENT_LABEL, LANG_LABEL, RUNG_LABEL, TAKER_ROLE, inr, kg, km, sentence, isBusy } from "../labels";
+import { AGENT_LABEL, LANG_LABEL, RUNG_COLOR, RUNG_LABEL, TAKER_ROLE, inr, kg, km, sentence, isBusy } from "../labels";
 import Problem from "./Problem";
 import { journey } from "./Journey";
+import { RungIcon } from "./Icons";
+import { beforeLandfill, headedForLandfill } from "../beforeLandfill";
 
 /**
  * The stages of a second life, the same for every item: shown as a story for one item in its
@@ -56,7 +58,7 @@ export function tell(item: Item, state: AppState): Told[] {
         ? `It went on Scout's reading, which was ${Math.round(item.confidence * 100)}% sure.`
       : item.hazards.length
         ? `Scout flagged a suspected hazard: ${item.hazards[0]}. It is never reused.`
-        : `Scout is ${Math.round(item.confidence * 100)}% sure. Check it below: Looks right, or Correct it.`,
+        : `Scout is ${Math.round(item.confidence * 100)}% sure. Waiting for you to confirm it.`,
     valued: item.value_max_inr
       ? `Worth ${inr(item.value_min_inr)}–${inr(item.value_max_inr)} each${sourced ? ", priced with Google Search, sources below" : item.synthetic ? " (sample data)" : ""}.`
       : item.hazards.length
@@ -87,27 +89,90 @@ export function tell(item: Item, state: AppState): Told[] {
   return STAGES.map((s) => ({ key: s.key, done: done[s.key], says: says[s.key], by: by[s.key] }));
 }
 
-/** An item's second life as a story: every stage, who does it, and what happens next. */
-export default function LifeStory({ item, state }: { item: Item; state: AppState }) {
+interface StoryProps {
+  item: Item;
+  state: AppState;
+  onConfirm?: () => void; // "Looks right"
+  onCorrect?: () => void; // "Correct it"
+  onChoose?: () => void; // jump to "Choose how it goes"
+}
+
+/** An item's journey: where it is now and the one thing to do, where each part goes (with what to
+ *  do yourself before anything is burned or landfilled), and every stage with who did it. */
+export default function LifeStory({ item, state, onConfirm, onCorrect, onChoose }: StoryProps) {
   const told = tell(item, state);
   const { next } = journey(item, state);
   const now = told.findIndex((t) => !t.done);
+  const finished = now === -1;
+  const open = item.status === "available";
+  const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
+  const hasTaker = Boolean(item.destination_id || item.components.some((c) => c.destination_id));
+  const count = Math.max(item.count, 1);
+
   return (
-    <section className="life-story" aria-label="Its second life, stage by stage">
+    <section className="journey2" aria-label="Its journey to a second life">
+      <header>
+        <h3>Its journey</h3>
+        <span className={`status ${finished ? "ok" : ""}`}>{finished ? "Done" : `Stage ${now + 1} of ${STAGES.length}`}</span>
+      </header>
       <div className="story-progress" aria-hidden="true">
         {told.map((t, i) => <span key={t.key} className={t.done ? "done" : i === now ? "now" : ""} />)}
       </div>
-      <p className="journey-next"><strong>Next:</strong> {next}</p>
+
+      <div className={`journey-now ${finished ? "done" : ""}`}>
+        <span className="small muted">{finished ? "Its next life is under way" : `Now: ${STAGES[now].title.toLowerCase()}`}</span>
+        <p>{next}</p>
+        {open && (
+          <div className="row wrap">
+            {!item.verified && onConfirm && <button type="button" className="primary small-btn" onClick={onConfirm}>Looks right</button>}
+            {!item.verified && onCorrect && <button type="button" className="secondary small-btn" onClick={onCorrect}>Correct it</button>}
+            {item.verified && hasTaker && onChoose && <button type="button" className="primary small-btn" onClick={onChoose}>Choose how it goes</button>}
+          </div>
+        )}
+      </div>
+
+      <h4>Where each part goes</h4>
+      <ol className="part-paths">
+        {item.components.map((c) => {
+          const rung = c.next_life ?? item.next_life;
+          const taker = people[c.destination_id ?? item.destination_id ?? ""];
+          const risk = headedForLandfill(c, item);
+          return (
+            <li key={c.name} className={risk ? "risk" : ""} style={{ ["--rung" as string]: rung ? RUNG_COLOR[rung] : "var(--line)" }}>
+              <div className="path">
+                <span className="from">
+                  <strong>{sentence(c.name)}</strong>
+                  <span className="small muted">{c.material}, {kg(c.est_weight_kg * count)}</span>
+                </span>
+                <span className="arrow" aria-hidden="true" />
+                <span className="to">
+                  {rung && <span className="rung-tag"><RungIcon rung={rung} /> {RUNG_LABEL[rung]}</span>}
+                  <span className="small">{taker ? `${taker.name}, ${km(item.location, taker.location).toFixed(1)} km` : "No taker nearby yet"}</span>
+                </span>
+              </div>
+              {risk && (
+                <div className="before-landfill">
+                  <strong>{item.hazards.length ? "Handle it safely" : rung === "recover_energy" ? "Before it's burned for energy, you can" : "Before it goes to landfill, you can"}</strong>
+                  <ul>{beforeLandfill(c, item).map((t) => <li key={t}>{t}</li>)}</ul>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+
+      <h4>Every stage</h4>
       <ol className="life-stages">
         {told.map((t, i) => {
           const stage = STAGES[i];
+          const phase = t.done ? "done" : i === now ? "now" : "later";
           return (
-            <li key={t.key} className={t.done ? "done" : i === now ? "now" : "later"}>
+            <li key={t.key} className={phase}>
               <span className="dot" aria-hidden="true" />
               <div>
                 <strong>{stage.title}</strong>
                 <span className="by">{t.by ?? `${stage.who} · ${stage.model}`}</span>
-                <p>{t.says}</p>
+                {phase !== "later" && <p>{t.says}</p>}
               </div>
             </li>
           );

@@ -31,7 +31,7 @@ export function journey(item: Item, state: AppState): { steps: Step[]; next: str
       : "It needs a licensed handler for professional testing. It is never reused.";
   else if (deal?.status === "agreed") next = "A price is agreed. It settles once the buyer approves: see Handovers.";
   else if (deal) next = "The agents are negotiating right now: see Handovers.";
-  else if (!item.verified) next = "Check what Scout saw below, then tap Looks right or Correct it.";
+  else if (!item.verified) next = "Is this what you have? Tap Looks right, or Correct it.";
   else if (taker && ["buyer", "ngo", "dealer"].includes(taker.role))
     next = item.autopilot ? `Your agent is ready to sell to matching buyers, starting with ${taker.name}.`
       : `Read what it becomes below, then hand it over for free or sell it to ${taker.name}.`;
