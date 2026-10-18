@@ -7,8 +7,9 @@ Kintsugi is a living map of every reusable thing, part and material in a city, r
 Entry for the AI Builder Cup, Sustainability & Social Impact track. The full design is in [docs/implementation.md](docs/implementation.md).
 
 **Try it live: https://kintsugi-ai-builder-cup-2026.web.app** (press **Run demo** for the narrated story)
+**Watch the 3-minute demo: https://www.youtube.com/watch?v=DXN9g5Fb7hI**
 
-![Kintsugi: Scout lists every part it saw, buyer and seller agents negotiate over A2A, and the hand-over is counted in the ledger. Built with Gemini 2.5 Pro, 2.5 Flash, Flash Image, TTS and Embedding.](docs/hero.png)
+[![Kintsugi: Scout lists every part it saw, buyer and seller agents negotiate over A2A, and the hand-over is counted in the ledger. Built with Gemini 2.5 Pro, 2.5 Flash, Flash Image, TTS and Embedding.](docs/hero.png)](https://www.youtube.com/watch?v=DXN9g5Fb7hI)
 
 ## Where things stand
 
