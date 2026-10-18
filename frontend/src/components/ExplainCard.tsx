@@ -7,7 +7,7 @@ import ListenButton from "./ListenButton";
 import Problem from "./Problem";
 import { LANGUAGES, languageName, preferredLanguage } from "../language";
 
-const EXPLAIN_VERSION = "v3"; // matches the backend's cache key
+const EXPLAIN_VERSION = "v4"; // matches the backend's cache key
 const YOU_CAN: Record<string, string> = {
   en: "You can", hi: "आप क्या कर सकते हैं", kn: "ನೀವು ಮಾಡಬಹುದಾದದ್ದು", ta: "நீங்கள் செய்யக்கூடியவை",
   id: "Yang bisa Anda lakukan", ms: "Apa yang anda boleh lakukan", th: "สิ่งที่คุณทำได้", vi: "Bạn có thể",

@@ -666,3 +666,25 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .busy-note { display: flex; gap: 0.5rem; align-items: flex-start; background: var(--porcelain); border: 1px solid var(--line); border-left: 4px solid var(--gold); color: var(--ink); border-radius: var(--radius-s); padding: 0.6rem 0.75rem; margin: 0.5rem 0; }
 .busy-note .dots { flex: none; margin-top: 0.45rem; }
 .banner.busy-note { margin: 0; border-radius: 0; }
+
+/* The map key: what every shape, colour and number means */
+.map-key { position: absolute; left: 0.75rem; bottom: 0.75rem; z-index: 2; max-width: min(22rem, calc(100% - 1.5rem)); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); box-shadow: 0 2px 10px rgba(30, 43, 74, 0.12); font-size: 0.82rem; }
+.map-key summary { cursor: pointer; padding: 0.45rem 0.75rem; font-weight: 600; color: var(--ink); }
+.map-key[open] { padding-bottom: 0.6rem; max-height: 52vh; overflow: auto; }
+.map-key ul { list-style: none; margin: 0; padding: 0 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.map-key > p { margin: 0.5rem 0.75rem 0.3rem; }
+.map-key li { display: flex; gap: 0.55rem; align-items: center; color: var(--ink); }
+.map-key i { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; font-style: normal; font-size: 0.7rem; font-weight: 700; }
+.map-key .k-site { border: 3px solid var(--celadon); border-radius: 50%; background: #fff; width: 22px; height: 22px; }
+.map-key .k-hazard { width: 10px; height: 10px; border-radius: 50%; background: var(--lacquer); margin: 0 4px; }
+.map-key .k-dest { width: 11px; height: 11px; border-radius: 2px; background: var(--ink); opacity: 0.6; margin: 0 3px; }
+.map-key .k-future { border: 2px dashed var(--ink); border-radius: 50%; }
+.map-key .k-you { width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 3px solid #fff; box-shadow: 0 0 0 2px var(--ink); margin: 0 2px; }
+.map-key .k-seam { height: 4px; background: var(--gold); border-radius: 2px; }
+.map-key .k-route { height: 0; border-top: 3px dotted var(--celadon); }
+.map-key .k-rungs { flex-direction: row; flex-wrap: wrap; gap: 0.3rem 0.8rem; }
+.map-key .k-rungs i { width: 12px; height: 12px; border-radius: 3px; }
+.you-pin { display: inline-block; background: var(--ink); color: var(--porcelain); font-weight: 700; font-size: 0.72rem; padding: 0.15rem 0.45rem; border-radius: 999px; border: 2px solid #fff; box-shadow: 0 1px 6px rgba(30, 43, 74, 0.35); }
+.schematic .you circle { fill: var(--ink); stroke: #fff; stroke-width: 3; }
+.schematic .you text { fill: var(--ink); font-weight: 700; font-size: 12px; }
+.chip.near-me { background: var(--paper); border-color: var(--ink); color: var(--ink); font-weight: 600; }

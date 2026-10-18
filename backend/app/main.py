@@ -314,6 +314,8 @@ async def ask(
     question: str = Form(""),
     history: str = Form("[]"),
     lang: str = Form("en"),
+    lat: Optional[float] = Form(None),
+    lng: Optional[float] = Form(None),
     file: Optional[UploadFile] = File(None),
 ) -> dict[str, Any]:
     """Ask Kintsugi by voice or text. With a recording, Gemini transcribes it first; the reply is
@@ -328,7 +330,8 @@ async def ask(
         turns = [t for t in json.loads(history) if isinstance(t, dict)][-6:]
     except ValueError:
         turns = []
-    out = await agents.ask_kintsugi(store, llm, settings, persona_id, question[:500], turns, lang)
+    near = GeoPoint(lat=lat, lng=lng) if lat is not None and lng is not None else None
+    out = await agents.ask_kintsugi(store, llm, settings, persona_id, question[:500], turns, lang, near)
     return {**out, "heard": heard}
 
 

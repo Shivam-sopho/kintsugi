@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .materials import canonical_material, emission_factor, factor_source, rung_credit
+from .materials import avoided_share, canonical_material, emission_factor, factor_source
 from .models import Item, LedgerEntry, Rung
 
 
@@ -11,7 +11,7 @@ def co2_avoided_for_item(item: Item) -> float:
     total = 0.0
     for c in item.components:
         rung = c.next_life or item.next_life or Rung.SAFE_DISPOSAL
-        total += c.est_weight_kg * max(item.count, 1) * emission_factor(c.material) * rung_credit(rung.value, c.material)
+        total += c.est_weight_kg * max(item.count, 1) * emission_factor(c.material) * avoided_share(rung.value, c.material)
     return round(total, 2)
 
 
@@ -30,7 +30,7 @@ def entries_for_item(item: Item, source_id: str, value_inr: float = 0.0) -> list
                 material=canonical_material(c.material),
                 rung=rung,
                 mass_kg=round(mass, 3),
-                co2_avoided_kg=round(mass * factor * rung_credit(rung.value, c.material), 3),
+                co2_avoided_kg=round(mass * factor * avoided_share(rung.value, c.material), 3),
                 value_inr=round(value_inr * (c.est_weight_kg / weight), 2),
                 factor_kg_per_kg=factor,
                 factor_source=factor_source(),

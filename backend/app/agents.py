@@ -331,7 +331,7 @@ def _routes(store: Store, it: Item) -> list[dict[str, Any]]:
     return out
 
 
-EXPLAIN_VERSION = "v3"  # bump when the explanation prompt changes, so cached ones are rewritten
+EXPLAIN_VERSION = "v4"  # bump when the explanation prompt changes, so cached ones are rewritten
 
 
 def check_afterlives(ideas: list[dict[str, Any]], it: Item) -> list[dict[str, Any]]:
@@ -404,13 +404,14 @@ BUYING_ROLES = ("buyer", "ngo", "dealer")
 ASK_ACTIONS = ("none", "offer_item", "autopilot_on", "keep_looking", "open_item")
 
 
-def ask_context(store: Store, persona_id: str, near_default: GeoPoint) -> dict[str, Any]:
+def ask_context(store: Store, persona_id: str, near_default: GeoPoint, near: Optional[GeoPoint] = None) -> dict[str, Any]:
     """What Gemini may know when answering: this person's items, deals and requests, takers and
     listings nearby, and city impact. Private lowest and highest prices are never included."""
     people = {p.id: p for p in store.list_participants()}
     me = people.get(persona_id)
     items = [i for i in store.list_items() if i.seller_id == persona_id]
-    here = me.location if me else (items[0].location if items else near_default)
+    # Where the person says they are wins; then their profile, their items, the demo city.
+    here = near or (me.location if me else (items[0].location if items else near_default))
 
     def taker(it: Item) -> Optional[dict[str, Any]]:
         dest = people.get(it.destination_id) if it.destination_id else None
@@ -496,11 +497,11 @@ def reply_language(question: str, fallback: str) -> str:
 
 async def ask_kintsugi(
     store: Store, llm: LLM, settings: Settings, persona_id: str, question: str,
-    history: list[dict[str, str]], lang: str,
+    history: list[dict[str, str]], lang: str, near: Optional[GeoPoint] = None,
 ) -> dict[str, Any]:
     """One turn of Ask Kintsugi. Gemini answers from the context and suggests one action; code
     keeps the action to things this person can actually do."""
-    ctx = ask_context(store, persona_id, GeoPoint(lat=12.95, lng=77.63))
+    ctx = ask_context(store, persona_id, GeoPoint(lat=12.95, lng=77.63), near)
     lang = reply_language(question, lang)
     out = await llm.ask(question, history, ctx, lang)
     if lang == "en" and reply_language(out.get("answer", ""), "en") != "en" and out.get("answer_en"):
