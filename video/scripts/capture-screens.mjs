@@ -99,7 +99,13 @@ const openItem = (persona, type) => async (ev, cdp) => {
   await wait(5000);
   await ev(`document.querySelector('.avatar').click()`); await wait(1200);
   await ev(`[...document.querySelectorAll('.sheet button')].find(b => b.textContent.toLowerCase().includes('${type}'))?.click()`);
-  await wait(2500);
+  // Wait for Gemini's "What it can become" to load, so the recording starts with it on screen.
+  for (let i = 0; i < 40; i++) {
+    const r = await ev(`!!document.querySelector('.explain-headline')`);
+    if (r.result?.value) break;
+    await wait(500);
+  }
+  await wait(800);
 };
 const slowScroll = async (ev, sel, steps, px, gap) => { for (let i = 0; i < steps; i++) { await ev(scrollBy(sel, px)); await wait(gap); } };
 // The demo's settled deal between Ramesh (Hindi) and Ananya (English).
