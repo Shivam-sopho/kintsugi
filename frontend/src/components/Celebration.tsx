@@ -66,8 +66,8 @@ export default function Celebration({ dealId, figures, what: whatHint, to, perso
           <circle className="ring2" cx="60" cy="60" r="44" />
           {dealId && <path className="tick" d="M40 62l14 14 28-30" />}
         </svg>
-        <p className="celebrate-eyebrow">{sale ? "Sold, and on to its next life" : "Handed over, no money involved"}</p>
-        <h2 id="celebrate-title">{!dealId ? "Handing it over…" : sale ? `Sold for ${inr(deal?.final_price_inr)}` : "Handed over"}</h2>
+        <p className="celebrate-eyebrow">{sale ? (personaId === deal?.buyer_id ? "Bought second-hand, kept out of landfill" : "Sold, and on to its next life") : "Handed over, no money involved"}</p>
+        <h2 id="celebrate-title">{!dealId ? "Handing it over…" : sale ? (personaId === deal?.buyer_id ? `Yours for ${inr(deal?.final_price_inr)}` : `Sold for ${inr(deal?.final_price_inr)}`) : "Handed over"}</h2>
         <p className="celebrate-what">{sentence(what)} {toName ? <>goes to <strong>{toName}</strong>.</> : "is on its way."}</p>
 
         <div className="celebrate-figures">
