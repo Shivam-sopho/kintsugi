@@ -8,3 +8,5 @@ public/audio/*
 !public/audio/.gitkeep
 public/voiceover.wav
 public/voiceover.captions.json
+public/rec/*
+!public/rec/.gitkeep
