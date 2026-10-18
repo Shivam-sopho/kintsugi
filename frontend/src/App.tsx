@@ -43,7 +43,7 @@ const LIVE_KINDS = new Set(["scan", "handover", "deal", "autopilot", "request", 
 type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | { kind: "story" } | { kind: "ask" } | { kind: "live" } | null;
 
 export default function App() {
-  const { state, job, events, error, refresh, track } = useJobs();
+  const { state, job, events, error, refresh, track, replay, skipReplay } = useJobs();
   const [tab, setTab] = useState<Tab>("home");
   const [layers, setLayers] = useState<Layers>({ future: true, materials: true, destinations: true });
   const [siteId, setSiteId] = useState<string | null>(null);
@@ -61,8 +61,17 @@ export default function App() {
   const runDemo = async () => {
     try {
       unlockAudio(); // the narration starts seconds later; this tap lets it play
-      const j = await api.judgeMode(voiceRepliesOn());
-      track(j);
+      const narrated = voiceRepliesOn();
+      // The demo is the same sample story every time: replay the recorded run from the start, on
+      // this screen only (instant, and nobody else's view is touched). Run it for real only when no
+      // recording exists yet or its sample data is gone.
+      const rec = await api.demoRecording().catch(() => null);
+      const dealId = rec?.result.deal_id as string | undefined;
+      if (rec && dealId && state?.deals.some((d) => d.id === dealId)) {
+        replay(rec, narrated ? 1600 : 600);
+      } else {
+        track(await api.judgeMode(narrated));
+      }
       setSiteId(null);
       setSheet({ kind: "story" });
     } catch (e) {
@@ -78,6 +87,7 @@ export default function App() {
   };
 
   const skipDemo = async () => {
+    if (skipReplay()) return;
     if (job) await api.skip(job.id).catch(() => undefined);
   };
 
@@ -251,6 +261,7 @@ export default function App() {
       {sheet?.kind === "story" && job?.kind === "judge_mode" && (
         <Sheet title="The one-minute story" onClose={() => setSheet(null)}>
           <DemoStory
+            key={job.id}
             job={job}
             events={events}
             state={state}

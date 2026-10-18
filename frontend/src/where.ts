@@ -2,29 +2,19 @@ import { useSyncExternalStore } from "react";
 import { Geolocation } from "@capacitor/geolocation";
 import { DEMO_CENTER } from "./labels";
 
-/** Where the person is: one place for the whole app (map, distances, search, scans, Ask). Starts
- *  at the demo location in Bengaluru until they share theirs; remembered on this device. */
+/** Where the person is: one place for the whole app (map, distances, search, scans, Ask). Every
+ *  page load starts at the demo location in Bengaluru, where all the data is; sharing a location
+ *  moves it until the next reload. */
 export interface Where {
   lat: number;
   lng: number;
   mine: boolean; // false while it is the demo location
 }
 
-const KEY = "kintsugi.where";
-const isNative = Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
 const listeners = new Set<() => void>();
+const isNative = Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
 
-function load(): Where {
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    if (saved && typeof saved.lat === "number" && typeof saved.lng === "number") return { ...saved, mine: true };
-  } catch {
-    /* nothing saved, or storage blocked */
-  }
-  return { ...DEMO_CENTER, mine: false };
-}
-
-let current = load();
+let current: Where = { ...DEMO_CENTER, mine: false };
 
 export function getWhere(): Where {
   return current;
@@ -32,12 +22,6 @@ export function getWhere(): Where {
 
 function set(next: Where): void {
   current = next;
-  try {
-    if (next.mine) localStorage.setItem(KEY, JSON.stringify({ lat: next.lat, lng: next.lng }));
-    else localStorage.removeItem(KEY);
-  } catch {
-    /* private mode: lasts for this visit */
-  }
   listeners.forEach((l) => l());
 }
 

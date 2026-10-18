@@ -68,3 +68,12 @@ def test_narrated_judge_mode_runs_slower_so_the_voice_keeps_up(monkeypatch):
     with TestClient(app) as client:
         _wait(client, client.post("/api/judge-mode?narrated=true").json()["id"])
     assert round(seen["delay"], 2) == round(0.6 * main.NARRATED_PACE, 2)
+
+
+def test_a_finished_demo_is_kept_to_replay_from_the_start():
+    with TestClient(app) as client:
+        job = _wait(client, client.post("/api/judge-mode").json()["id"])
+        rec = client.get("/api/demo/recording").json()
+        assert rec["result"]["deal_id"] == job["result"]["deal_id"]
+        assert rec["events"][0]["agent"] == "system" and len(rec["events"]) > 30
+        assert {"oracle", "scout", "ledger"} <= {e["agent"] for e in rec["events"]}
