@@ -52,3 +52,19 @@ def test_scan_upload_and_search_cross_language():
         assert job["status"] == "done", job.get("error")
         res = client.post("/api/search", json={"query": "सागौन के दरवाज़े", "lat": 12.97, "lng": 77.64}).json()
         assert res and "door" in res[0]["item"]["type"]
+
+
+def test_narrated_judge_mode_runs_slower_so_the_voice_keeps_up(monkeypatch):
+    from app import main
+
+    seen = {}
+
+    async def fake_judge(store, llm, settings, job_id):
+        seen["delay"] = settings.demo_step_delay
+        return {}
+
+    monkeypatch.setattr(main.agents, "judge_mode", fake_judge)
+    monkeypatch.setattr(main.settings, "demo_step_delay", 0.6)
+    with TestClient(app) as client:
+        _wait(client, client.post("/api/judge-mode?narrated=true").json()["id"])
+    assert round(seen["delay"], 2) == round(0.6 * main.NARRATED_PACE, 2)

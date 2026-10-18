@@ -571,15 +571,20 @@ async def bundles() -> dict[str, Any]:
 _running_demos: list[str] = []  # this instance's demo job, if one is running
 
 
+NARRATED_PACE = 2.7  # read aloud, the story runs this much slower (0.6 s a step becomes 1.6 s) so the voice keeps up
+
+
 @app.post("/api/judge-mode")
-async def judge_mode() -> dict[str, Any]:
-    """Run the demo, or join the one already running so two viewers don't interfere."""
+async def judge_mode(narrated: bool = False) -> dict[str, Any]:
+    """Run the demo, or join the one already running so two viewers don't interfere. Narrated, it
+    runs slower so each chapter can be read aloud as it happens."""
     store, llm = get_store(), get_llm()
     running = next((j for j in _running_demos if (cur := store.get_job(j)) and cur.status == "running"), None)
     if running:
         return store.get_job(running).model_dump(mode="json")  # type: ignore[union-attr]
     _running_demos.clear()
-    job = _start_job("judge_mode", lambda job_id: agents.judge_mode(store, llm, settings, job_id))
+    paced = settings.model_copy(update={"demo_step_delay": settings.demo_step_delay * NARRATED_PACE}) if narrated else settings
+    job = _start_job("judge_mode", lambda job_id: agents.judge_mode(store, llm, paced, job_id))
     _running_demos.append(job.id)
     return job.model_dump(mode="json")
 

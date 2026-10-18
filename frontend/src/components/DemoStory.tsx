@@ -1,4 +1,7 @@
+import { useEffect, useRef, useState } from "react";
 import type { AgentEvent, AppState, Job } from "../types";
+import { narrate, prefetchSpeech, setVoiceReplies, stopNarration, voiceRepliesOn } from "../speak";
+import { preferredLanguage } from "../language";
 import { AGENT_LABEL, inr, kg, isBusy } from "../labels";
 import Problem from "./Problem";
 import { api } from "../api";
@@ -69,6 +72,9 @@ const CHAPTERS: Chapter[] = [
   },
 ];
 
+/** What the narrator says for a chapter. */
+const spoken = (c: Chapter) => `${c.title}. ${c.says}`;
+
 /** Which chapter each event belongs to, in order. */
 function chapterOf(events: AgentEvent[]): number {
   let current = -1;
@@ -98,13 +104,55 @@ export default function DemoStory({ job, events, state, onSkip, onShowSteps, onF
   const models = [...new Set(chapter.agents.flatMap((a) => AGENT_MODELS[a] ?? []))];
   const t = state?.totals;
   const deal = state?.deals.find((d) => d.id === (job.result.deal_id as string));
+  const [voice, setVoice] = useState(voiceRepliesOn());
+  const lang = preferredLanguage() ?? "en";
+  const told = useRef(new Set<number>());
+
+  // Narration: every chapter is read aloud as it starts (Gemini's voice, prepared in advance so the
+  // story never waits), then the recap. Closing the story or skipping stops it.
+  useEffect(() => {
+    CHAPTERS.forEach((c) => void prefetchSpeech(spoken(c), lang, lang !== "en"));
+    return () => stopNarration();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!voice || failed) return;
+    for (let i = 0; i <= now; i++) {
+      if (told.current.has(i)) continue;
+      told.current.add(i);
+      if (!done) narrate(spoken(CHAPTERS[i]), lang); // once it's over, the recap tells the rest
+    }
+    if (done && !told.current.has(-1)) {
+      told.current.add(-1);
+      const t = state?.totals;
+      narrate(
+        `That's the story. Kintsugi found the best next life for a chair, a whole building and four neighbours' things, `
+          + `and two agents agreed ${deal?.final_price_inr ? `${Math.round(deal.final_price_inr)} rupees` : "a price"} in Hindi and English. `
+          + (t ? `${Math.round(t.mass_diverted_kg)} kilograms stayed out of landfill and ${Math.round(t.co2_avoided_kg)} kilograms of CO2e were avoided. ` : "")
+          + "Now try it yourself: tap the mic on Home and say what you have.",
+        lang,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now, done, voice, failed]);
+
+  const toggleVoice = () => {
+    if (voice) stopNarration();
+    setVoiceReplies(!voice);
+    setVoice(!voice);
+  };
 
   return (
     <section className="story">
       <div className="story-progress" role="progressbar" aria-valuemin={1} aria-valuemax={CHAPTERS.length} aria-valuenow={now + 1}>
         {CHAPTERS.map((c, i) => <span key={c.title} className={i < now || done ? "done" : i === now ? "now" : ""} />)}
       </div>
-      <p className="small muted">Chapter {now + 1} of {CHAPTERS.length} · sample data, Bengaluru</p>
+      <div className="row between">
+        <p className="small muted">Chapter {now + 1} of {CHAPTERS.length} · sample data, Bengaluru</p>
+        <button type="button" className={`voice-toggle small ${voice ? "on" : ""}`} onClick={toggleVoice} aria-pressed={voice}>
+          {voice ? "Narration on" : "Narration off"}
+        </button>
+      </div>
 
       {!done ? (
         <article className="story-card" aria-live="polite">
@@ -153,7 +201,7 @@ export default function DemoStory({ job, events, state, onSkip, onShowSteps, onF
       </ol>
       <div className="row between">
         <button type="button" className="link" onClick={onShowSteps}>See every step ({events.length})</button>
-        {!done && !failed && <button type="button" className="link" onClick={onSkip}>Skip to the end</button>}
+        {!done && !failed && <button type="button" className="link" onClick={() => { stopNarration(); onSkip(); }}>Skip to the end</button>}
       </div>
     </section>
   );
