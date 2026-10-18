@@ -41,10 +41,12 @@ const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Hando
 // Jobs that move someone's own things along their second life: shown live as its stages.
 const LIVE_KINDS = new Set(["scan", "handover", "deal", "autopilot", "request", "market"]);
 
-type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | { kind: "story" } | { kind: "ask" } | { kind: "live" } | null;
+type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "profile" } | { kind: "ask" } | { kind: "live" } | null;
 
 export default function App() {
-  const { state, job, events, error, refresh, track, replay, skipReplay } = useJobs();
+  const { state, job, events, error, refresh, track } = useJobs();
+  // The demo story, full screen: a recording to replay, or (recording: null) the live run being tracked.
+  const [demo, setDemo] = useState<{ recording: Awaited<ReturnType<typeof api.demoRecording>> | null; n: number } | null>(null);
   const [tab, setTab] = useState<Tab>("home");
   const [layers, setLayers] = useState<Layers>({ future: true, materials: true, destinations: true });
   const [siteId, setSiteId] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export default function App() {
   const [personaId, setPersonaId] = useState(loadPersona());
   const [mapView, setMapView] = useState<"map" | "list">("map");
   const persona = state?.participants.find((p) => p.id === personaId);
-  const demoRunning = job?.kind === "judge_mode" && job.status === "running";
+  const demoRunning = Boolean(demo) || (job?.kind === "judge_mode" && job.status === "running");
   const negotiating = state?.deals.some((d) => d.status === "negotiating" || d.status === "agreed");
   // Prices buyers' agents agreed for this person's things, waiting for their yes.
   const offers = state?.deals.filter((d) => d.seller_id === personaId && d.status === "agreed" && !d.seller_accepted) ?? [];
@@ -62,19 +64,18 @@ export default function App() {
   const runDemo = async () => {
     try {
       unlockAudio(); // the narration starts seconds later; this tap lets it play
-      const narrated = voiceRepliesOn();
       // The demo is the same sample story every time: replay the recorded run from the start, on
-      // this screen only (instant, and nobody else's view is touched). Run it for real only when no
-      // recording exists yet or its sample data is gone.
+      // this screen only, paced by its narration. Run it for real only when no recording exists yet
+      // or its sample data is gone.
       const rec = await api.demoRecording().catch(() => null);
       const dealId = rec?.result.deal_id as string | undefined;
-      if (rec && dealId && state?.deals.some((d) => d.id === dealId)) {
-        replay(rec, narrated ? 1600 : 600);
-      } else {
-        track(await api.judgeMode(narrated));
-      }
       setSiteId(null);
-      setSheet({ kind: "story" });
+      if (rec && dealId && state?.deals.some((d) => d.id === dealId)) {
+        setDemo({ recording: rec, n: Date.now() });
+      } else {
+        track(await api.judgeMode(voiceRepliesOn()));
+        setDemo({ recording: null, n: Date.now() });
+      }
     } catch (e) {
       alert(problemText((e as Error).message));
     }
@@ -88,7 +89,6 @@ export default function App() {
   };
 
   const skipDemo = async () => {
-    if (skipReplay()) return;
     if (job) await api.skip(job.id).catch(() => undefined);
   };
 
@@ -186,7 +186,7 @@ export default function App() {
                 personaId={personaId}
                 onJob={track}
                 onOpenItem={openItem}
-                onOpenAgents={() => setSheet(job?.kind === "judge_mode" ? { kind: "story" } : LIVE_KINDS.has(job?.kind ?? "") ? { kind: "live" } : { kind: "agents" })}
+                onOpenAgents={() => job?.kind === "judge_mode" ? setDemo({ recording: null, n: Date.now() }) : setSheet( LIVE_KINDS.has(job?.kind ?? "") ? { kind: "live" } : { kind: "agents" })}
                 onSkip={skipDemo}
                 onDealStarted={() => setTab("deals")}
                 onRunDemo={runDemo}
@@ -260,21 +260,21 @@ export default function App() {
           />
         </Sheet>
       )}
-      {sheet?.kind === "story" && job?.kind === "judge_mode" && (
-        <Sheet title="The one-minute story" onClose={() => setSheet(null)}>
-          <DemoStory
-            key={job.id}
-            job={job}
-            events={events}
-            state={state}
-            onSkip={skipDemo}
-            onShowSteps={() => setSheet({ kind: "agents" })}
-            onFinish={(t) => {
-              setSheet(null);
-              setTab(t);
-            }}
-          />
-        </Sheet>
+      {demo && (
+        <DemoStory
+          key={demo.n}
+          recording={demo.recording}
+          job={job}
+          events={events}
+          state={state}
+          onClose={() => setDemo(null)}
+          onShowSteps={() => setSheet({ kind: "agents" })}
+          onFinish={(t) => {
+            setDemo(null);
+            setTab(t);
+          }}
+          onRefresh={refresh}
+        />
       )}
       {sheet?.kind === "ask" && state && (
         <Sheet title="Ask Kintsugi" onClose={() => setSheet(null)}>
