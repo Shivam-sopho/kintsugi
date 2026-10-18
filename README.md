@@ -81,17 +81,236 @@ Firebase Hosting rewrites `/api/**` to the Cloud Run service, so the app and the
 
 ## How it works
 
+### Architecture
+
+```mermaid
+flowchart TB
+  subgraph Client["Phone or laptop"]
+    direction LR
+    PWA["React web app (PWA)<br/>Home · Map · Handovers · Ledger"]
+    APK["Android app (Capacitor)<br/>same screens"]
+  end
+
+  Hosting["Firebase Hosting<br/>the app, and rewrites /api/** and /a2a/** to Cloud Run"]
+
+  subgraph Run["Cloud Run: kintsugi-api (FastAPI)"]
+    direction LR
+    Agents["agents.py<br/>Oracle · Scout · Architect · Market · Ledger"]
+    Rules["Rules in code<br/>next-life ladder · price guardrails"]
+    A2A["Seller agent over A2A<br/>agent card + JSON-RPC"]
+    Out["Jobs and live events<br/>PDF reports and certificates"]
+  end
+
+  subgraph Vertex["Vertex AI Gemini"]
+    direction LR
+    Pro["2.5 Pro<br/>video, voice, notices, design"]
+    Flash["2.5 Flash<br/>prices, explain, translate, negotiate"]
+    Image["2.5 Flash Image<br/>design renders"]
+    TTS["2.5 Flash TTS<br/>spoken replies"]
+    Embed["Embedding 2<br/>search, dedup, matching"]
+  end
+
+  subgraph Data["Google Cloud data and maps"]
+    direction LR
+    FS[("Firestore<br/>items · deals · jobs · ledger<br/>vector index")]
+    GCS[("Cloud Storage<br/>uploads · blurred evidence<br/>cached voices")]
+    Maps["Google Maps Platform<br/>Maps JS · Places · Geocoding"]
+  end
+
+  Client --> Hosting --> Run
+  Agents --- Rules
+  Agents --- A2A
+  Agents --- Out
+  Run --> Vertex
+  Run --> Data
+  Client -. map tiles .-> Maps
 ```
-Phone web app ──▶ Cloud Run API (FastAPI) ──▶ agents.py
-                                              ├─ Oracle     documents → future supply/demand pins
-                                              ├─ Scout      video/photos/voice → item passports
-                                              │             (dedup with embeddings, prices, ladder, CO2)
-                                              ├─ Architect  Embedding 2 search → design → render
-                                              ├─ Market     seller ↔ buyer negotiation, guardrails, settlement
-                                              │             + Bundler for neighbourhood pickups
-                                              └─ Ledger     per-material CO2 and value, certificates
-                         Firestore (+ vector index) · Cloud Storage · Maps Platform · Vertex AI Gemini
+
+### Scan flow: from a video to a next life
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Owner
+  participant App as Web app
+  participant API as Cloud Run API
+  participant Pro as Gemini 2.5 Pro
+  participant Flash as Gemini 2.5 Flash
+  participant Emb as Gemini Embedding 2
+  participant Maps as Places API
+  participant Rules as Ladder and ledger (code)
+  participant DB as Firestore and Storage
+
+  Owner->>App: Films things, talks in any language
+  App->>API: POST /api/scan (video, photos, voice)
+  API-->>App: Job id, and the scan shows live under the mic
+  API->>Pro: Watch the video, hear the voice
+  Pro-->>API: Items, condition, parts, materials, hazards
+  API->>Emb: Embed each item
+  Emb-->>API: Vectors, so repeated sightings merge
+  API->>Flash: Price each item, with sources
+  API->>Maps: Nearby recyclers, repairers, buyers
+  API->>Rules: Pick each part's next life and taker, count CO2
+  API->>DB: Evidence frames, faces blurred first
+  API->>Flash: Take-apart steps in the owner's language
+  API->>DB: Save item passports
+  API-->>App: Done: the items to tap
+  API->>API: Market job: buyers' agents look for matches
+  API-->>App: Offers appear in Handovers
 ```
+
+### The next-life ladder (code decides, Gemini explains)
+
+```mermaid
+flowchart TD
+  Start(["Item from Scout"]) --> Hazard{"Suspected hazard?"}
+  Hazard -- yes --> Safe["Safe disposal<br/>licensed handler,<br/>professional testing required"]
+  Hazard -- no --> Cond{"Condition A or B<br/>and a taker nearby<br/>wants it as it is?"}
+  Cond -- yes --> Reuse["Reuse"]
+  Cond -- no --> Rep{"Repairer nearby and<br/>repair costs less<br/>than its value?"}
+  Rep -- yes --> Repair["Repair"]
+  Rep -- no --> Up{"Upcycler nearby<br/>takes this item?"}
+  Up -- yes --> Upcycle["Upcycle"]
+  Up -- no --> Apart["Take it apart:<br/>route each part"]
+
+  Apart --> P1{"Someone takes<br/>the part as a part?"}
+  P1 -- yes --> Harvest["Harvest parts"]
+  P1 -- no --> P2{"Recycler takes<br/>its material?"}
+  P2 -- yes --> Recycle["Recycle"]
+  P2 -- no --> P3{"Organic and a<br/>compost or biogas unit?"}
+  P3 -- yes --> Compost["Compost or biogas"]
+  P3 -- no --> P4{"Energy facility<br/>takes it?"}
+  P4 -- yes --> Energy["Recover energy"]
+  P4 -- no --> Disposal["Safe disposal"]
+```
+
+Only takers within the search radius count, and the nearest one wins at each step. Gemini then explains the decision in the owner's language, starting with what the thing can become.
+
+### Agent-to-agent deal
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Buyer
+  participant BA as Buyer agent<br/>(private budget cap)
+  participant SA as Seller agent over A2A<br/>(private floor price)
+  participant Flash as Gemini 2.5 Flash
+  actor Seller
+  participant Ledger
+
+  Note over BA,SA: Started by a buyer's standing request, Start a deal, or Autopilot
+  BA->>SA: Fetch the agent card, open a negotiation (JSON-RPC)
+  loop Up to 12 rounds
+    SA->>Flash: Write the offer in the seller's and buyer's languages
+    SA-->>BA: Offer or counter (never below the floor)
+    BA->>Flash: Write the reply in both languages
+    BA-->>SA: Counter or accept (never above the cap)
+  end
+  Note over BA,SA: Guardrails in code clamp any price past a limit,<br/>and the note never says the limit
+  SA-->>Seller: Agreed price: accept or decline (when a buyer's agent started it)
+  Seller->>SA: Accept
+  BA-->>Buyer: Approve? (or auto-approve within the cap)
+  Buyer->>BA: Approve
+  BA->>Ledger: Sandbox settlement shaped like AP2 (no money moves)
+  Ledger-->>Buyer: CO2 avoided, kg kept, certificate
+  Ledger-->>Seller: Certificate and standing
+```
+
+### Deal and item states
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  state "Deal" as D {
+    [*] --> negotiating
+    negotiating --> agreed: limits overlap
+    negotiating --> no_deal: limits don't overlap
+    agreed --> no_deal: seller declines
+    agreed --> approved: seller accepted, buyer approves
+    approved --> settled: sandbox settlement, ledger entries
+    [*] --> settled: free hand-over
+  }
+  state "Item" as I {
+    [*] --> available
+    available --> in_deal: a negotiation starts
+    in_deal --> available: no deal
+    in_deal --> sold: deal settled
+    available --> routed: handed over for free
+  }
+```
+
+### Data model
+
+```mermaid
+erDiagram
+  PARTICIPANT ||--o{ SITE : owns
+  SITE ||--o{ ITEM : "has"
+  PARTICIPANT ||--o{ ITEM : sells
+  ITEM ||--|{ COMPONENT : "made of"
+  PARTICIPANT ||--o{ STANDING_REQUEST : "looks for"
+  DEAL }o--|{ ITEM : covers
+  PARTICIPANT ||--o{ DEAL : "buys or sells in"
+  DEAL ||--o{ NEGOTIATION_TURN : transcript
+  DEAL ||--o| SETTLEMENT : "settled by"
+  ITEM ||--o{ LEDGER_ENTRY : "counted in"
+
+  PARTICIPANT {
+    string role "homeowner, dealer, repairer, recycler..."
+    string language
+    geo location
+    float floor_price_inr "private to the seller agent"
+    float budget_cap_inr "private to the buyer agent"
+  }
+  ITEM {
+    string type
+    string condition "A to D"
+    string next_life "a ladder rung"
+    float value_min_inr
+    float value_max_inr
+    string status "available, in_deal, sold, routed"
+    bool verified "a person confirmed it"
+    vector embedding
+  }
+  COMPONENT {
+    string material
+    float est_weight_kg
+    string next_life
+  }
+  DEAL {
+    string kind "sale or handover"
+    string status
+    float final_price_inr
+    bool seller_accepted
+  }
+  NEGOTIATION_TURN {
+    string speaker "seller or buyer"
+    string action "offer, counter, final, accept"
+    float price_inr
+    json messages "one per language"
+    bool guardrail_applied
+  }
+  LEDGER_ENTRY {
+    string material
+    string rung
+    float mass_kg
+    float co2_avoided_kg
+    float factor_kg_per_kg
+    string factor_source
+  }
+```
+
+### How CO2 is counted
+
+```mermaid
+flowchart LR
+  M["Mass of each part (kg)"] --> X(("×"))
+  F["Emission factor of its material<br/>(UK DESNZ 2026, kg CO2e per kg)"] --> X
+  R["Credit for the next life<br/>(reuse avoids more than recycling)"] --> X
+  P["Replacement share: 60% for reuse,<br/>repair, upcycle and parts<br/>(Farrant, Olsen and Wangel 2010)"] --> X
+  X --> C["CO2e avoided, recorded only<br/>when the hand-over or sale is done"]
+```
+
+### Code map
 
 | File | What it does |
 |---|---|
