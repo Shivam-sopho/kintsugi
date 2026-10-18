@@ -3,6 +3,7 @@ import { AGENT_LABEL, LANG_LABEL, RUNG_COLOR, RUNG_LABEL, TAKER_ROLE, inr, kg, k
 import Problem from "./Problem";
 import { journey } from "./Journey";
 import { RungIcon } from "./Icons";
+import JourneyTrail from "./JourneyTrail";
 import { beforeLandfill, headedForLandfill } from "../beforeLandfill";
 
 /**
@@ -108,6 +109,20 @@ export default function LifeStory({ item, state, onConfirm, onCorrect, onChoose 
   const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
   const hasTaker = Boolean(item.destination_id || item.components.some((c) => c.destination_id));
   const count = Math.max(item.count, 1);
+  const weight = item.components.reduce((a, c) => a + c.est_weight_kg, 0) * count;
+  const deal = [...state.deals].reverse().find((d) => d.item_ids.includes(item.id) && d.status !== "no_deal");
+  const takerIds = [...new Set([item.destination_id, ...item.components.map((c) => c.destination_id)].filter(Boolean) as string[])];
+  const first = people[takerIds[0] ?? ""];
+  // One short line per stop on the trail; the full story is in "Who did each step".
+  const short: Record<string, string> = {
+    scanned: `${item.components.length} ${item.components.length === 1 ? "part" : "parts"}, ${kg(weight)}`,
+    checked: item.verified ? "You confirmed it" : finished ? "On Scout's reading" : "Your turn",
+    valued: item.value_max_inr ? `${inr(item.value_min_inr)}–${inr(item.value_max_inr)} each` : item.hazards.length ? "Not for sale: hazard" : "Value is in its materials",
+    decided: item.next_life ? RUNG_LABEL[item.next_life] : "Being decided",
+    taker: first ? `${first.name.split(" (")[0]}${takerIds.length > 1 ? ` +${takerIds.length - 1}` : ""}, ${km(item.location, first.location).toFixed(1)} km` : "Still looking",
+    handed: !deal ? "Hand over or sell" : deal.kind === "handover" ? "Free hand-over" : deal.status === "settled" ? `Sold, ${inr(deal.final_price_inr)}` : deal.status === "negotiating" ? "Agents negotiating" : `Agreed ${inr(deal.final_price_inr)}`,
+    impact: finished ? `${kg(item.co2_avoided_kg)} CO2e avoided` : `Up to ${kg(item.co2_avoided_kg)} CO2e`,
+  };
 
   return (
     <section className="journey2" aria-label="Its journey to a second life">
@@ -115,12 +130,10 @@ export default function LifeStory({ item, state, onConfirm, onCorrect, onChoose 
         <h3>Its journey</h3>
         <span className={`status ${finished ? "ok" : ""}`}>{finished ? "Done" : `Stage ${now + 1} of ${STAGES.length}`}</span>
       </header>
-      <div className="story-progress" aria-hidden="true">
-        {told.map((t, i) => <span key={t.key} className={t.done ? "done" : i === now ? "now" : ""} />)}
-      </div>
+      <JourneyTrail item={item} stops={told.map((t, i) => ({ title: STAGES[i].title, caption: short[t.key], done: t.done }))} />
 
       <div className={`journey-now ${finished ? "done" : ""}`}>
-        <span className="small muted">{finished ? "Its next life is under way" : `Now: ${STAGES[now].title.toLowerCase()}`}</span>
+        <span className="small muted">{finished ? "Its next life is under way" : "Next"}</span>
         <p>{next}</p>
         {open && (
           <div className="row wrap">
@@ -161,7 +174,8 @@ export default function LifeStory({ item, state, onConfirm, onCorrect, onChoose 
         })}
       </ol>
 
-      <h4>Every stage</h4>
+      <details className="who-did">
+      <summary>Who did each step</summary>
       <ol className="life-stages">
         {told.map((t, i) => {
           const stage = STAGES[i];
@@ -178,6 +192,7 @@ export default function LifeStory({ item, state, onConfirm, onCorrect, onChoose 
           );
         })}
       </ol>
+      </details>
     </section>
   );
 }
