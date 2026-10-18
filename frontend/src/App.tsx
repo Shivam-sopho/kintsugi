@@ -268,7 +268,7 @@ export default function App() {
             ) : tab === "deals" ? (
               <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} onCelebrate={onCelebrate} focus={focusDeal} personaId={personaId} onJob={track} />
             ) : (
-              <LedgerPage state={state} personaId={personaId} onOpenItem={openItem} onOpenDeals={() => setTab("deals")} />
+              <LedgerPage state={state} personaId={personaId} onOpenItem={openItem} onOpenDeals={() => { setFocusDeal(null); setTab("deals"); }} onOpenDeal={openDeal} />
             )}
           </div>
         </section>
@@ -286,7 +286,7 @@ export default function App() {
 
       <nav className="bottom-nav" aria-label="Sections">
         {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
-          <button key={t} className={tab === t ? "on" : ""} aria-current={tab === t ? "page" : undefined} onClick={() => setTab(t)}>
+          <button key={t} className={tab === t ? "on" : ""} aria-current={tab === t ? "page" : undefined} onClick={() => { setFocusDeal(null); setTab(t); }}>
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
               {ICON[t]}
             </svg>
