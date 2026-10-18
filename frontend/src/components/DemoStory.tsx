@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AgentEvent, AppState, Job } from "../types";
 import { narrate, prefetchSpeech, setVoiceReplies, speak, stopNarration, stopSpeaking, voiceRepliesOn } from "../speak";
-import { LANGUAGES, replyLanguage } from "../language";
+import { LANGUAGES } from "../language";
 import { AGENT_LABEL, inr, kg, isBusy } from "../labels";
 import { Logo } from "./Icons";
 import Problem from "./Problem";
@@ -109,6 +109,9 @@ const CHAPTERS: Chapter[] = [
 /** What the narrator says for a chapter. */
 const spoken = (c: Chapter) => `${c.title}. ${c.says}`;
 
+/** Get the first chapter's English voice ready before anyone taps Run demo. */
+export const warmDemoVoice = () => prefetchSpeech(spoken(CHAPTERS[0]), "en", false);
+
 /** Which chapter each event belongs to, in order. */
 function chapters(events: Pick<AgentEvent, "agent" | "step">[]): number[] {
   let current = -1;
@@ -161,7 +164,7 @@ export default function DemoStory({ recording, job, events: liveEvents = [], sta
   const shownRef = useRef(0);
   const [playing, setPlaying] = useState(true);
   const [finished, setFinished] = useState(false);
-  const [lang, setLang] = useState(replyLanguage());
+  const [lang, setLang] = useState("en"); // the judging demo starts in English; the picker changes it
   const [voice, setVoice] = useState(voiceRepliesOn());
   const reveal = (n: number) => {
     shownRef.current = n;

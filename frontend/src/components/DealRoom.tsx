@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { AppState, Deal, NegotiationTurn } from "../types";
 import { LANG_LABEL, RUNG_LABEL, inr, kg } from "../labels";
@@ -18,19 +18,28 @@ interface Props {
   onChanged: () => void;
   onOpenItem?: (id: string) => void;
   onCelebrate?: (c: { dealId: string | null; personId: string; levelBefore: string | null } | null) => void;
+  focus?: string | null; // open this deal straight away (from a banner)
+  personaId?: string; // whose things can be offered from here
+  onJob?: (job: import("../types").Job, onDone?: (j: import("../types").Job) => void) => void;
 }
 
-export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate }: Props) {
+export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate, focus, personaId = "ppl_me", onJob }: Props) {
   // Offers waiting for the seller's yes come first, then the newest.
   const waiting = (d: Deal) => d.status === "agreed" && !d.seller_accepted;
   const deals = [...state.deals].sort((a, b) => Number(waiting(b)) - Number(waiting(a)) || b.created_at - a.created_at);
-  const [dealId, setDealId] = useState<string | null>(null);
+  const [dealId, setDealId] = useState<string | null>(focus ?? null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<"seller" | "buyer">("seller");
   const [error, setError] = useState<string | null>(null);
   const deal: Deal | undefined = deals.find((d) => d.id === dealId);
 
-  if (!deal) return <Connections state={state} deals={deals} onOpenDeal={setDealId} onOpenItem={onOpenItem} />;
+  if (!deal)
+    return (
+      <>
+        <StartDeal state={state} personaId={personaId} onJob={onJob} onChanged={onChanged} onOpenDeal={setDealId} />
+        <Connections state={state} deals={deals} onOpenDeal={setDealId} onOpenItem={onOpenItem} />
+      </>
+    );
   const back = <button type="button" className="secondary small-btn" onClick={() => setDealId(null)}>All handovers</button>;
 
   const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
@@ -77,7 +86,11 @@ export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate }: 
       setBusy(false);
     }
   };
-  const approve = act(api.approve);
+  // The buyer approves: when it settles, celebrate on their screen too.
+  const approve = act(async (id) => {
+    const out = await api.approve(id);
+    if (out.status === "settled") onCelebrate?.({ dealId: id, personId: deal.buyer_id, levelBefore: null });
+  });
 
   return (
     <section className="dealroom">
@@ -108,6 +121,17 @@ export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate }: 
             </div>
           </div>
         )}
+
+      <div className={`a2a-note ${deal.status === "negotiating" ? "live" : ""}`}>
+        <strong>
+          {deal.status === "negotiating" ? <><span className="dots" aria-hidden="true"><i /><i /><i /></span> Two agents are negotiating now</> : "Two agents negotiated this"}
+        </strong>
+        <span className="small">
+          {whose(seller?.name ?? "The seller")} agent ({LANG_LABEL[sellerLang] ?? sellerLang}) and {whose(buyer?.name ?? "the buyer").replace(/^Your/, "your")} agent ({LANG_LABEL[buyerLang] ?? buyerLang}) talk to each other
+          over the A2A protocol, each in its owner's language. Each keeps its owner's limit private, and code stops either from crossing it.
+          Switch phones below to see each side.
+        </span>
+      </div>
 
       <div className="mode-switch phone-switch" role="tablist" aria-label="Whose phone">
         <button role="tab" aria-selected={view === "seller"} className={view === "seller" ? "on" : ""} onClick={() => setView("seller")}>
@@ -182,8 +206,11 @@ function Phone({ title, lang, side, turns }: { title: string; lang: string; side
   );
 }
 
+/** "Ananya's", or "Your" for the person using the app. */
+const whose = (name: string) => (name === "You" ? "Your" : `${name}'s`);
+
 const STATUS: Record<Deal["status"], string> = {
-  negotiating: "Agents negotiating now",
+  negotiating: "Agents talking now: tap to watch",
   agreed: "Agreed, waiting for the buyer",
   approved: "Approved",
   settled: "Settled",
@@ -265,6 +292,92 @@ function Connections({ state, deals, onOpenDeal, onOpenItem }: {
         </>
       )}
       {noDeal > 0 && <p className="small muted">{noDeal} {noDeal === 1 ? "negotiation" : "negotiations"} ended without a deal; those items are listed again.</p>}
+    </section>
+  );
+}
+
+const BUYING = new Set(["buyer", "ngo", "dealer"]);
+
+/**
+ * Start a deal on purpose: each of this person's things that can be sold, with the buyer the rules
+ * chose ("Offer to …") or, failing that, any buyer whose agent is looking ("Ask buyers' agents").
+ * Either way the two agents negotiate over A2A, and the screen opens on the negotiation, live.
+ */
+function StartDeal({ state, personaId, onJob, onChanged, onOpenDeal }: {
+  state: AppState; personaId: string; onJob?: Props["onJob"]; onChanged: () => void; onOpenDeal: (id: string) => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [waitingFor, setWaitingFor] = useState<string | null>(null); // the item whose negotiation is starting
+  const [note, setNote] = useState<string | null>(null);
+  const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
+  const sellable = state.items.filter((i) => i.seller_id === personaId && i.status === "available" && !i.hazards.length && i.value_max_inr);
+
+  // Open the negotiation as soon as it exists.
+  const started = waitingFor ? state.deals.find((d) => d.item_ids.includes(waitingFor) && d.status !== "no_deal") : undefined;
+  useEffect(() => {
+    if (!started) return;
+    setWaitingFor(null);
+    onOpenDeal(started.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [started?.id]);
+
+  const start = async (itemId: string, how: "offer" | "ask") => {
+    setBusy(itemId);
+    setNote(null);
+    try {
+      const job = how === "offer" ? await api.offerItem(itemId) : await api.askBuyers(itemId);
+      setWaitingFor(itemId);
+      onJob?.(job, (done) => {
+        onChanged();
+        const deals = (done.result.deal_ids as string[] | undefined) ?? (done.result.deal_id ? [done.result.deal_id] : []);
+        if (done.status === "done" && !deals.length) {
+          setWaitingFor(null);
+          setNote("No buyer's agent wanted it this time. Try another, or hand it over for free.");
+        }
+      });
+      // Show the conversation while it's still going: refresh until the deal appears.
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 700));
+        onChanged();
+      }
+    } catch (e) {
+      setNote((e as Error).message);
+      setWaitingFor(null);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="start-deal">
+      <h2>Start a deal</h2>
+      <p className="small muted">
+        Your agent and a buyer's agent negotiate with each other over the A2A protocol, live, each within its owner's private limit.
+        Nothing is sold until a person says yes.
+      </p>
+      {!sellable.length ? (
+        <p className="small">Nothing of yours is ready to sell yet. Scan something on Home; things with a resale value show up here.</p>
+      ) : (
+        <ul className="conn-list">
+          {sellable.slice(0, 6).map((i) => {
+            const dest = i.destination_id ? people[i.destination_id] : undefined;
+            const offerTo = dest && BUYING.has(dest.role) ? dest : undefined;
+            return (
+              <li key={i.id} className="start-row">
+                <span className="conn-main">
+                  <strong>{i.type.charAt(0).toUpperCase() + i.type.slice(1)}{i.count > 1 ? ` × ${i.count}` : ""}</strong>
+                  <span className="small muted">worth {inr(i.value_min_inr)}–{inr(i.value_max_inr)} each</span>
+                </span>
+                <button type="button" className="primary small-btn" disabled={busy !== null || waitingFor !== null}
+                        onClick={() => void start(i.id, offerTo ? "offer" : "ask")}>
+                  {busy === i.id || waitingFor === i.id ? "Starting…" : offerTo ? `Offer to ${offerTo.name.split(" (")[0]}` : "Ask buyers' agents"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {note && <Problem text={note} />}
     </section>
   );
 }

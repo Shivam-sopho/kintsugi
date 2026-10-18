@@ -1,0 +1,31 @@
+{
+  "name": "kintsugi-video",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The Kintsugi demo video (3:00, 1920x1080, 30 fps), built with Remotion from docs/video/script.md",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render Main out/kintsugi.mp4",
+    "render:cut": "remotion render Cut out/kintsugi-cut.mp4",
+    "thumbnail": "remotion still Thumbnail out/thumbnail.png",
+    "still": "remotion still Main out/still.png",
+    "captions:script": "node scripts/script-captions.mjs",
+    "captions:voice": "node scripts/transcribe.mjs",
+    "captions:rec": "node scripts/transcribe-recordings.mjs",
+    "clips:prepare": "node scripts/prepare-clips.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/captions": "4.0.531",
+    "@remotion/cli": "4.0.531",
+    "@remotion/google-fonts": "4.0.531",
+    "@remotion/install-whisper-cpp": "4.0.531",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.531"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "typescript": "5.6.3"
+  }
+}

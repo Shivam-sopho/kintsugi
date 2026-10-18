@@ -135,12 +135,15 @@ export default function LifeStory({ item, state, onConfirm, onCorrect, onChoose 
       <div className={`journey-now ${finished ? "done" : ""}`}>
         <span className="small muted">{finished ? "Its next life is under way" : "Next"}</span>
         <p>{next}</p>
-        {open && (
+        {(open || !item.verified) && (
           <div className="row wrap">
             {!item.verified && onConfirm && <button type="button" className="primary small-btn" onClick={onConfirm}>Looks right</button>}
-            {!item.verified && onCorrect && <button type="button" className="secondary small-btn" onClick={onCorrect}>Correct it</button>}
-            {item.verified && hasTaker && onChoose && <button type="button" className="primary small-btn" onClick={onChoose}>Choose how it goes</button>}
+            {!item.verified && open && onCorrect && <button type="button" className="secondary small-btn" onClick={onCorrect}>Correct it</button>}
+            {item.verified && open && hasTaker && onChoose && <button type="button" className="primary small-btn" onClick={onChoose}>Choose how it goes</button>}
           </div>
+        )}
+        {!open && !item.verified && item.status === "in_deal" && (
+          <p className="small muted">An agent is negotiating for it now. You can still confirm it; to correct it, decline the offer in Handovers.</p>
         )}
       </div>
 

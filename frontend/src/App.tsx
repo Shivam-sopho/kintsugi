@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useJobs } from "./useJobs";
 import { setVoiceReplies, unlockAudio, voiceRepliesOn } from "./speak";
@@ -13,7 +13,7 @@ import Passport from "./components/Passport";
 import Sheet from "./components/Sheet";
 import { Logo } from "./components/Icons";
 import ProfilePanel from "./components/ProfilePanel";
-import DemoStory from "./components/DemoStory";
+import DemoStory, { warmDemoVoice } from "./components/DemoStory";
 import Celebration from "./components/Celebration";
 import NearbyList from "./components/NearbyList";
 import AskPanel from "./components/AskPanel";
@@ -54,6 +54,15 @@ export default function App() {
     if (c) setSheet(null);
     setCelebrate(c);
   };
+  // Fetched quietly after the page loads, with the first chapter's voice, so Run demo starts at once.
+  const demoRec = useRef<Promise<Awaited<ReturnType<typeof api.demoRecording>> | null> | null>(null);
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      demoRec.current = api.demoRecording().catch(() => null);
+      void warmDemoVoice();
+    }, 2500);
+    return () => clearTimeout(t);
+  }, []);
   const [demo, setDemo] = useState<{ recording: Awaited<ReturnType<typeof api.demoRecording>> | null; n: number } | null>(null);
   const [tab, setTab] = useState<Tab>("home");
   const [layers, setLayers] = useState<Layers>({ future: true, materials: true, destinations: true });
@@ -68,6 +77,15 @@ export default function App() {
   const negotiating = state?.deals.some((d) => d.status === "negotiating" || d.status === "agreed");
   // Prices buyers' agents agreed for this person's things, waiting for their yes.
   const offers = state?.deals.filter((d) => d.seller_id === personaId && d.status === "agreed" && !d.seller_accepted) ?? [];
+  // A negotiation over this person's things (or for them), happening now.
+  const talking = state?.deals.find((d) => d.status === "negotiating" && (d.seller_id === personaId || d.buyer_id === personaId));
+  const nameOf = (id: string) => state?.participants.find((p) => p.id === id)?.name ?? "A buyer";
+  const [focusDeal, setFocusDeal] = useState<string | null>(null);
+  const openDeal = (id: string) => {
+    setFocusDeal(id);
+    setSheet(null);
+    setTab("deals");
+  };
 
   const runDemo = async () => {
     try {
@@ -76,7 +94,7 @@ export default function App() {
       // this screen only, paced by its narration, so any number of viewers can watch at once without
       // touching each other. It runs for real only when no recording exists yet (once, ever); the
       // server lets only one real run happen at a time and later clicks join it.
-      const rec = await api.demoRecording().catch(() => null);
+      const rec = (await (demoRec.current ?? api.demoRecording())) ?? null;
       setSiteId(null);
       if (rec) {
         setDemo({ recording: rec, n: Date.now() });
@@ -163,12 +181,18 @@ export default function App() {
         </button>
       </header>
 
-      {offers.length > 0 && tab !== "deals" && (
-        <button className="banner offer-banner" onClick={() => setTab("deals")}>
-          <strong>{offers.length === 1 ? "An offer is waiting for you" : `${offers.length} offers are waiting for you`}.</strong>{" "}
-          {state?.participants.find((p) => p.id === offers[0].buyer_id)?.name}'s agent agreed {inr(offers[0].final_price_inr)} with yours. See it
+      {talking && tab !== "deals" ? (
+        <button className="banner offer-banner live" onClick={() => openDeal(talking.id)}>
+          <i className="live-dot" aria-hidden="true" />{" "}
+          <strong>{nameOf(talking.seller_id === personaId ? talking.buyer_id : talking.seller_id)}'s agent is negotiating with yours, live.</strong>{" "}
+          Two agents, over A2A. Watch
         </button>
-      )}
+      ) : offers.length > 0 && tab !== "deals" ? (
+        <button className="banner offer-banner" onClick={() => openDeal(offers[0].id)}>
+          <strong>{offers.length === 1 ? "An offer is waiting for you" : `${offers.length} offers are waiting for you`}.</strong>{" "}
+          {nameOf(offers[0].buyer_id)}'s agent agreed {inr(offers[0].final_price_inr)} with yours. See it
+        </button>
+      ) : null}
       {error && <p className={`banner ${isBusy(error) ? "busy-note" : "error"}`} role="status">{isBusy(error) ? "Reconnecting to Kintsugi… it picks up where it left off." : error}</p>}
 
       <main className={`layout tab-${tab === "map" && mapView === "list" ? "maplist" : tab === "impact" ? "ledger" : tab}`}>
@@ -242,9 +266,9 @@ export default function App() {
                 }}
               />
             ) : tab === "deals" ? (
-              <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} onCelebrate={onCelebrate} />
+              <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} onCelebrate={onCelebrate} focus={focusDeal} personaId={personaId} onJob={track} />
             ) : (
-              <LedgerPage state={state} personaId={personaId} onOpenItem={openItem} onOpenDeals={() => setTab("deals")} />
+              <LedgerPage state={state} personaId={personaId} onOpenItem={openItem} onOpenDeals={() => { setFocusDeal(null); setTab("deals"); }} onOpenDeal={openDeal} />
             )}
           </div>
         </section>
@@ -262,7 +286,7 @@ export default function App() {
 
       <nav className="bottom-nav" aria-label="Sections">
         {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
-          <button key={t} className={tab === t ? "on" : ""} aria-current={tab === t ? "page" : undefined} onClick={() => setTab(t)}>
+          <button key={t} className={tab === t ? "on" : ""} aria-current={tab === t ? "page" : undefined} onClick={() => { setFocusDeal(null); setTab(t); }}>
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
               {ICON[t]}
             </svg>

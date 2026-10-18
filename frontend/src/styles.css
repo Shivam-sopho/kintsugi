@@ -1053,3 +1053,18 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .celebrate-seal.pending .ring { stroke-dasharray: 80 250; animation: none; transform-origin: 60px 60px; }
 @media (prefers-reduced-motion: no-preference) { .celebrate-seal.pending .ring { animation: spin 0.9s linear infinite; } }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Who the scan is listed as */
+.listing-as { text-align: center; margin: 0.4rem 0 0; }
+
+/* The A2A agents, explained where they talk */
+.a2a-note { display: flex; flex-direction: column; gap: 0.25rem; background: var(--porcelain); border: 1px solid var(--line); border-left: 4px solid var(--ink); border-radius: var(--radius-s); padding: 0.6rem 0.75rem; margin: 0.4rem 0 0.8rem; }
+.a2a-note.live { border-left-color: var(--gold); background: #fdf8ec; }
+.a2a-note strong { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--ink); }
+.offer-banner.live { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+
+/* Handovers: start a deal on purpose */
+.start-deal { background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: var(--radius-m); padding: 0.85rem 0.9rem; margin-bottom: 1rem; }
+.start-deal h2 { margin: 0 0 0.3rem; font-family: var(--display); }
+.start-deal .start-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; border: 1px solid var(--line); border-radius: var(--radius-s); padding: 0.55rem 0.7rem; }
+.start-deal .start-row button { flex: none; }

@@ -24,7 +24,11 @@ interface Props {
 export default function HomePanel(p: Props) {
   const [mode, setMode] = useState<"have" | "need">("have");
   const [situation, setSituation] = useState<Situation>("moving");
-  const recent = [...p.state.items].filter((i) => i.seller_id === p.personaId).slice(-4).reverse();
+  // Newest first (by when their scan happened), for the person Kintsugi is being used as.
+  const listedAt = Object.fromEntries(p.state.sites.map((x) => [x.id, x.created_at ?? 0]));
+  const recent = p.state.items.filter((i) => i.seller_id === p.personaId)
+    .sort((a, b) => (listedAt[b.site_id] ?? 0) - (listedAt[a.site_id] ?? 0)).slice(0, 6);
+  const me = p.state.participants.find((x) => x.id === p.personaId);
 
   return (
     <section className="home">
@@ -43,7 +47,7 @@ export default function HomePanel(p: Props) {
         </button>
       </div>
 
-      <AgentStrip job={p.job} events={p.events} onOpen={p.onOpenAgents} onSkip={p.onSkip} />
+      <AgentStrip job={p.job} events={p.events} onOpen={p.onOpenAgents} onSkip={p.onSkip} onOpenDeals={p.onDealStarted} />
 
       {mode === "have" && (
         <div className="situations" role="group" aria-label="What's happening">
@@ -63,7 +67,7 @@ export default function HomePanel(p: Props) {
 
       {recent.length > 0 ? (
         <section className="recent">
-          <h3>Your recent items</h3>
+          <h3>Your recent items{me && me.id !== "ppl_me" ? <span className="muted small">, as {me.name}</span> : null}</h3>
           <ul className="cards">
             {recent.map((i) => <ItemCard key={i.id} item={i} onOpen={() => p.onOpenItem(i.id)} />)}
           </ul>

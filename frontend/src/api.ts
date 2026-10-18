@@ -77,6 +77,7 @@ export const api = {
   patchItem: (id: string, patch: Partial<{ count: number; condition: string; verified: boolean; floor_price_inr: number }>) =>
     call<Item>(`/api/items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }),
   offerItem: (id: string) => call<Job>(`/api/items/${id}/offer`, { method: "POST" }),
+  askBuyers: (id: string) => call<Job>(`/api/items/${id}/market`, { method: "POST" }),
   evidenceUrl: (id: string) => `${BASE}/api/evidence/${id}`,
   transcribe: (audio: Blob, hint: string) => {
     const form = new FormData();

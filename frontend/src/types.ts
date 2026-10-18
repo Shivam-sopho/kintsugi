@@ -79,6 +79,7 @@ export interface Site {
   kind: "home" | "building";
   name: string;
   location: GeoPoint;
+  created_at?: number; // when it was scanned (seconds)
 }
 
 export interface Participant {
