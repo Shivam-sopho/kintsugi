@@ -14,7 +14,9 @@ const ACTION: Record<NegotiationTurn["action"], string> = {
 };
 
 export default function DealRoom({ state, onChanged }: { state: AppState; onChanged: () => void }) {
-  const deals = [...state.deals].sort((a, b) => b.created_at - a.created_at);
+  // Offers waiting for the seller's yes come first, then the newest.
+  const waiting = (d: Deal) => d.status === "agreed" && !d.seller_accepted;
+  const deals = [...state.deals].sort((a, b) => Number(waiting(b)) - Number(waiting(a)) || b.created_at - a.created_at);
   const [dealId, setDealId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<"seller" | "buyer">("seller");
@@ -68,11 +70,11 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
     );
   }
 
-  const approve = async () => {
+  const act = (fn: (id: string) => Promise<unknown>) => async () => {
     setBusy(true);
     setError(null);
     try {
-      await api.approve(deal.id);
+      await fn(deal.id);
       onChanged();
     } catch (e) {
       setError((e as Error).message);
@@ -80,6 +82,7 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
       setBusy(false);
     }
   };
+  const approve = act(api.approve);
 
   return (
     <section className="dealroom">
@@ -96,8 +99,24 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
         )}
       </div>
       <p className="muted">
-        {deal.autopilot && <span className="status autopilot">Autopilot</span>} {items.map((i) => `${i!.count} × ${i!.type}`).join(", ")}
+        {deal.request_id ? <span className="status autopilot">Started by {buyer?.name ?? "the buyer"}'s agent</span>
+          : deal.autopilot && <span className="status autopilot">Autopilot</span>} {items.map((i) => `${i!.count} × ${i!.type}`).join(", ")}
       </p>
+
+      {waiting(deal) && (
+          <div className="offer-box">
+            <p>
+              Your agent and {buyer?.name ?? "the buyer"}'s agent agreed <strong>{inr(deal.final_price_inr)}</strong>, never below your
+              lowest price. Nothing is sold until you accept.
+            </p>
+            <div className="row wrap">
+              <button className="primary gold" onClick={act(api.accept)} disabled={busy}>
+                {busy ? "Working…" : `Accept ${inr(deal.final_price_inr)}`}
+              </button>
+              <button className="secondary" onClick={act(api.decline)} disabled={busy}>Decline</button>
+            </div>
+          </div>
+        )}
 
       <div className="mode-switch phone-switch" role="tablist" aria-label="Whose phone">
         <button role="tab" aria-selected={view === "seller"} className={view === "seller" ? "on" : ""} onClick={() => setView("seller")}>
@@ -115,7 +134,7 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
       <div className="deal-status">
         {deal.status === "negotiating" && <p>The agents are negotiating…</p>}
         {deal.status === "no_deal" && <p>No deal. The seller's floor is above the buyer's cap.</p>}
-        {deal.status === "agreed" && (
+        {deal.status === "agreed" && deal.seller_accepted && (
           <>
             <p>
               Agreed at <strong>{inr(deal.final_price_inr)}</strong>. Nothing is paid until {buyer?.name ?? "the buyer"} approves.

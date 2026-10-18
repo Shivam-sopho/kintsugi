@@ -190,12 +190,14 @@ const KIND_TITLE: Record<string, string> = {
   deal: "The agents are negotiating",
   autopilot: "Your agent is looking for buyers",
   request: "Looking for what you need",
+  market: "Buyers' agents are looking at what you listed",
 };
 
 const DONE_TITLE: Record<string, (n: number) => string> = {
   scan: (n) => `Scout listed ${n} ${n === 1 ? "item" : "items"}. Your turn: check, then choose how each goes`,
   handover: () => "Handed over, and the impact is recorded",
   deal: () => "The agents have finished: see Handovers",
+  market: () => "Buyers' agents have made their offers: see Handovers",
 };
 
 /** Which stage an event shows has been reached. */

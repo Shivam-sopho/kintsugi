@@ -109,6 +109,8 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
           setFiles([]);
           setNotes("");
           setResultSite(String(done.result.site_id));
+          const market = done.result.market_job_id as string | undefined;
+          if (market) void api.job(market).then((j) => onJob(j));
         } else setError(done.error ?? "The scan failed.");
       });
     } catch (err) {

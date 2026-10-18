@@ -13,6 +13,6 @@ gcloud run deploy kintsugi-api \
   --project "$PROJECT" --region "$REGION" --source backend \
   --allow-unauthenticated --min-instances 1 --max-instances 3 --no-cpu-throttling \
   --memory 1Gi --timeout 300 \
-  --set-env-vars "MOCK_MODE=${MOCK_MODE},STORE=firestore,GCP_PROJECT=${PROJECT},GCP_LOCATION=${REGION},GCS_BUCKET=${BUCKET},MAPS_API_KEY=${MAPS_API_KEY:-},DEMO_STEP_DELAY=0.6,PUBLIC_BASE_URL=${PUBLIC_BASE_URL}"
+  --set-env-vars "MOCK_MODE=${MOCK_MODE},STORE=firestore,GCP_PROJECT=${PROJECT},GCP_LOCATION=${REGION},GCS_BUCKET=${BUCKET},MAPS_API_KEY=${MAPS_API_KEY:-},DEMO_STEP_DELAY=0.6,LIVE_MARKET=${LIVE_MARKET:-true},PUBLIC_BASE_URL=${PUBLIC_BASE_URL}"
 
 gcloud run services describe kintsugi-api --project "$PROJECT" --region "$REGION" --format='value(status.url)'

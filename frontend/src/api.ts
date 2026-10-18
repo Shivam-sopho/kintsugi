@@ -64,6 +64,8 @@ export const api = {
     call<Job>("/api/deals", json({ item_ids, buyer_id, budget_cap_inr })),
   deal: (id: string) => call<Deal>(`/api/deals/${id}`),
   approve: (id: string) => call<Deal>(`/api/deals/${id}/approve`, { method: "POST" }),
+  accept: (id: string) => call<Deal>(`/api/deals/${id}/accept`, { method: "POST" }),
+  decline: (id: string) => call<Deal>(`/api/deals/${id}/decline`, { method: "POST" }),
   certificateUrl: (id: string, lang = "en") => `${BASE}/api/certificate/${id}?lang=${lang}`,
   certificatePdfUrl: (id: string, lang = "en") => `${FILES}/api/certificate/${id}.pdf?lang=${lang}`,
   standing: (personId: string) => call<Standing>(`/api/people/${encodeURIComponent(personId)}/standing`),

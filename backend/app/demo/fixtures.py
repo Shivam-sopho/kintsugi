@@ -369,3 +369,19 @@ TAKE_APART = {
         ],
     ),
 }
+
+
+# Sample buyers who are always looking (sample data): (buyer, what they want, private highest price,
+# approve automatically within it). Listing something they want starts a live negotiation.
+MARKET_REQUESTS = [
+    ("ppl_ananya", "wooden doors", 30000, True),
+    ("ppl_ananya", "pendant lights", 12000, True),
+    ("ppl_ananya", "floor tiles", 20000, True),
+    ("ppl_ananya", "wash basins", 8000, True),
+    ("ppl_habitat", "windows", 15000, True),
+    ("ppl_habitat", "wooden chairs", 6000, True),
+    ("ppl_habitat", "tables", 6000, True),
+    ("ppl_habitat", "cupboards and almirahs", 8000, True),
+    ("ppl_ramesh", "steel cabinets", 10000, True),
+    ("ppl_ramesh", "aluminium windows", 25000, True),
+]

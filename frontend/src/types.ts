@@ -128,6 +128,8 @@ export interface Deal {
   settlement: { label: string; payment_mandate: Record<string, unknown> } | null;
   autopilot: boolean;
   kind: "sale" | "handover";
+  seller_accepted: boolean; // false while a deal a buyer's agent started waits for the seller's yes
+  request_id: string | null;
   created_at: number;
 }
 

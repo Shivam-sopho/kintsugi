@@ -185,6 +185,8 @@ class Deal(BaseModel):
     settlement: Optional[Settlement] = None
     autopilot: bool = False  # started by Autopilot, not by a person's tap
     kind: Literal["sale", "handover"] = "sale"  # a handover completes the journey without money
+    seller_accepted: bool = True  # False while a deal a buyer's agent started waits for the seller's yes
+    request_id: Optional[str] = None  # the standing request that started it, if any
     created_at: float = Field(default_factory=time.time)
 
 
@@ -203,6 +205,7 @@ class StandingRequest(BaseModel):
     embedding: Optional[list[float]] = None
     matched_item_ids: list[str] = Field(default_factory=list)  # items Autopilot negotiated for
     notified_item_ids: list[str] = Field(default_factory=list)  # matches the buyer was told about
+    synthetic: bool = False  # a sample buyer's request (labelled as sample data)
     created_at: float = Field(default_factory=time.time)
 
 
