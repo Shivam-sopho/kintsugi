@@ -688,3 +688,28 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .schematic .you circle { fill: var(--ink); stroke: #fff; stroke-width: 3; }
 .schematic .you text { fill: var(--ink); font-weight: 700; font-size: 12px; }
 .chip.near-me { background: var(--paper); border-color: var(--ink); color: var(--ink); font-weight: 600; }
+
+/* The journey: where it is now, where each part goes, every stage */
+.journey2 { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 0.9rem; margin: 0.8rem 0 1rem; }
+.journey2 > header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.journey2 > header h3 { margin: 0; font-family: var(--display); }
+.journey2 h4 { margin: 1rem 0 0.45rem; font-size: 0.8rem; letter-spacing: 0.02em; color: var(--slate); }
+.journey-now { margin-top: 0.7rem; background: #fdf8ec; border: 1px solid rgba(184, 137, 43, 0.35); border-left: 4px solid var(--gold); border-radius: var(--radius-s); padding: 0.65rem 0.75rem; }
+.journey-now.done { background: var(--porcelain); border-color: var(--line); border-left-color: var(--celadon); }
+.journey-now p { margin: 0.2rem 0 0.5rem; font-weight: 600; color: var(--ink); }
+.journey-now .row { gap: 0.5rem; }
+.part-paths { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.part-paths > li { border: 1px solid var(--line); border-left: 4px solid var(--rung); border-radius: var(--radius-s); padding: 0.55rem 0.65rem; }
+.part-paths .path { display: grid; grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1.2fr); gap: 0.5rem; align-items: center; }
+.part-paths .from, .part-paths .to { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.part-paths .from strong { font-size: 0.92rem; }
+.part-paths .arrow { height: 2px; background: var(--rung); position: relative; }
+.part-paths .arrow::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid var(--rung); border-right: 0; }
+.part-paths .rung-tag { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; font-weight: 700; color: var(--rung); }
+.part-paths li.risk { background: var(--porcelain); }
+.before-landfill { margin-top: 0.55rem; padding-top: 0.5rem; border-top: 1px dashed var(--line); font-size: 0.86rem; }
+.before-landfill strong { color: var(--ink); }
+.before-landfill ul { margin: 0.3rem 0 0; padding-left: 1.1rem; color: var(--ink); }
+.before-landfill li + li { margin-top: 0.2rem; }
+.journey2 .life-stages li.done p { font-size: 0.82rem; }
+.journey2 .life-stages li.later { padding-bottom: 0.5rem; }

@@ -82,32 +82,13 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
       </h2>
       <p className="muted">{item.description}</p>
       <ExplainCard item={item} />
-      <LifeStory item={item} state={state} />
-
-      {item.evidence.length > 0 && (
-        <div className="evidence" aria-label="Evidence photos, faces blurred">
-          {item.evidence.map((id) => <img key={id} src={api.evidenceUrl(id)} alt={`${item.type} as filmed`} />)}
-        </div>
-      )}
-
-      {item.hazards.length > 0 && <p className="hazard-note">{item.hazards.join("; ")}. Never offered for reuse.</p>}
-
-      {/* People confirm what the AI saw */}
-      {open && !editing && (
-        <div className={`confirm ${item.verified ? "done" : item.needs_verification ? "warn" : ""}`}>
-          {item.verified ? (
-            <span>Confirmed by a person.</span>
-          ) : (
-            <span>{item.needs_verification ? "Low confidence: is this right?" : "Did Scout get this right?"}</span>
-          )}
-          {!item.verified && (
-            <button className="secondary small-btn" disabled={busy === "edit"} onClick={() => run("edit", () => api.patchItem(item.id, { verified: true }))}>
-              Looks right
-            </button>
-          )}
-          <button className="link" onClick={() => setEditing(true)}>Correct it</button>
-        </div>
-      )}
+      <LifeStory
+        item={item}
+        state={state}
+        onConfirm={() => run("edit", () => api.patchItem(item.id, { verified: true }))}
+        onCorrect={() => setEditing(true)}
+        onChoose={() => document.getElementById(`choose-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+      />
       {editing && (
         <div className="confirm edit">
           <label>
@@ -127,6 +108,15 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
         </div>
       )}
 
+
+      {item.evidence.length > 0 && (
+        <div className="evidence" aria-label="Evidence photos, faces blurred">
+          {item.evidence.map((id) => <img key={id} src={api.evidenceUrl(id)} alt={`${item.type} as filmed`} />)}
+        </div>
+      )}
+
+      {item.hazards.length > 0 && <p className="hazard-note">{item.hazards.join("; ")}. Never offered for reuse.</p>}
+
       <section className="next-life">
         <h3>Its next life, decided by the rules</h3>
         <ol className="ladder" aria-label="Next-life ladder">
@@ -140,7 +130,7 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
       </section>
 
       {open ? (
-        <section className="choose">
+        <section className="choose" id={`choose-${item.id}`}>
           <h3>Choose how it goes</h3>
           <div className="option handover-option">
             <div className="option-head">
@@ -252,25 +242,6 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
       <h3>Who can take it, nearest first</h3>
       <TakersList state={state} from={item.location} item={item} />
 
-      <h3>Parts and materials</h3>
-      <table className="parts">
-        <thead>
-          <tr><th>Part</th><th>Material</th><th>kg</th><th>Next life</th></tr>
-        </thead>
-        <tbody>
-          {item.components.map((c) => (
-            <tr key={c.name} title={c.reason}>
-              <td>{c.name}</td>
-              <td>{c.material}</td>
-              <td>{c.est_weight_kg}</td>
-              <td>
-                {c.next_life ? <span className="rung-tag" style={{ color: RUNG_COLOR[c.next_life] }}>{RUNG_LABEL[c.next_life]}</span> : "–"}
-                {c.destination_id && people[c.destination_id] && <div className="muted small">{people[c.destination_id].name}</div>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
       {item.price_sources.length > 0 && (
         <p className="small muted">
           Price sources:{" "}
