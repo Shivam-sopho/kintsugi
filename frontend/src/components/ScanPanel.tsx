@@ -18,6 +18,7 @@ interface Props {
   situation?: Situation;
   onJob: (job: Job, onDone?: (j: Job) => void) => void;
   onOpenItem: (id: string) => void;
+  onOpenDeals?: () => void;
   job?: Job | null; // the job being tracked, to show the scan live
   events?: AgentEvent[];
 }
@@ -36,7 +37,7 @@ export const SITUATIONS: Record<Situation, { label: string; kind: "home" | "buil
 
 /** Says why location failed: browsers give a numeric code, the Android plugin a message. */
 /** "I have something": talk, film or photograph it, and Scout lists it and finds each part's next life. */
-export default function ScanPanel({ state, sellerId, situation = "moving", onJob, onOpenItem, job = null, events = [] }: Props) {
+export default function ScanPanel({ state, sellerId, situation = "moving", onJob, onOpenItem, onOpenDeals, job = null, events = [] }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [kind, setKind] = useState<"home" | "building">("home");
   const [name, setName] = useState("");
@@ -49,6 +50,7 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
   const [resultSite, setResultSite] = useState<string | null>(null);
   const [spoken, setSpoken] = useState<string | null>(null);
   const announced = useRef<string | null>(null);
+  const resultsBox = useRef<HTMLElement>(null);
 
   // The situation chosen on Home sets what kind of scan this is.
   useEffect(() => {
@@ -62,6 +64,7 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
   useEffect(() => {
     if (!resultSite || announced.current === resultSite) return;
     announced.current = resultSite;
+    window.setTimeout(() => resultsBox.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
     const lang = preferredLanguage() ?? (results[0]?.language || "en");
     setSpoken(null);
     void say(scanSummary(results), lang, (t) => lang !== "en" && setSpoken(t));
@@ -144,10 +147,27 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
     <div className="flow">
       <BigMic label="Tap and tell Kintsugi what you have, in any language" busyLabel={busy} onAudio={onVoice} />
       <LiveScan
+        mode="scan"
         job={job}
         events={events}
         preparing={busy && !(job?.kind === "scan" && job.status === "running") ? (busy.startsWith("Scout") ? "Uploading to Scout…" : busy) : null}
       />
+      {resultSite && (
+        <section className="results done-card" aria-live="polite" ref={resultsBox}>
+          <div className="done-head">
+            <span className="done-tick" aria-hidden="true">✓</span>
+            <div>
+              <h3>{results.length ? `Done: Scout found ${results.length} ${results.length === 1 ? "thing" : "things"}` : "Done, but nothing was listed"}</h3>
+              <p className="small muted">{results.length ? "Tap one to see what it becomes, its journey and how to hand it over." : "Try again closer up, in good light, and say what it is."}</p>
+            </div>
+          </div>
+          {spoken && <p className="spoken">{spoken}</p>}
+          <ul className="cards">
+            {results.map((i) => <ItemCard key={i.id} item={i} onOpen={() => onOpenItem(i.id)} />)}
+          </ul>
+        </section>
+      )}
+      <LiveScan mode="market" job={job} events={events} preparing={null} onOpenDeals={onOpenDeals} />
       <p className="tip small">{SITUATIONS[situation].tip}</p>
 
       <div className="capture">
@@ -184,16 +204,7 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
       </p>
       <Problem text={error} />
 
-      {resultSite && (
-        <section className="results" aria-live="polite">
-          <h3>{results.length ? `Scout found ${results.length} ${results.length === 1 ? "item" : "items"}` : "Nothing listed"}</h3>
-          {spoken && <p className="spoken">{spoken}</p>}
-          {results.length > 0 && <p className="small muted">Tap each one to see what it becomes and where its parts go.</p>}
-          <ul className="cards">
-            {results.map((i) => <ItemCard key={i.id} item={i} onOpen={() => onOpenItem(i.id)} />)}
-          </ul>
-        </section>
-      )}
+
 
       <details className="more">
         <summary>More options</summary>
