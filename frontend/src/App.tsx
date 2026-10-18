@@ -266,7 +266,7 @@ export default function App() {
                 }}
               />
             ) : tab === "deals" ? (
-              <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} onCelebrate={onCelebrate} focus={focusDeal} />
+              <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} onCelebrate={onCelebrate} focus={focusDeal} personaId={personaId} onJob={track} />
             ) : (
               <LedgerPage state={state} personaId={personaId} onOpenItem={openItem} onOpenDeals={() => setTab("deals")} />
             )}
