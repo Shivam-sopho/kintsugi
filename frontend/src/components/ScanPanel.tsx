@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Geolocation } from "@capacitor/geolocation";
 import { preferredLanguage } from "../language";
 import { api, audioFileName } from "../api";
 import { compressForUpload, MAX_UPLOAD_BYTES, megabytes } from "../compress";
 import { say } from "../speak";
 import type { AppState, Job } from "../types";
-import { DEMO_CENTER, scanSummary } from "../labels";
+import { scanSummary } from "../labels";
+import { locateMe, useWhere } from "../where";
 import BigMic from "./BigMic";
 import Problem from "./Problem";
 import ItemCard from "./ItemCard";
@@ -31,24 +31,14 @@ export const SITUATIONS: Record<Situation, { label: string; kind: "home" | "buil
 };
 
 /** Says why location failed: browsers give a numeric code, the Android plugin a message. */
-function locationProblem(err: unknown): string {
-  const { code, message = "" } = (err ?? {}) as { code?: number | string; message?: string };
-  if (code === 1 || /denied|permission/i.test(message))
-    return "Location is blocked for this app. Allow it in your browser's or phone's settings, then try again.";
-  if (code === 2 || /disabled|unavailable|services/i.test(message))
-    return "Your phone couldn't find its location. Turn on location and try again.";
-  if (code === 3 || /timeout|timed out/i.test(message)) return "Finding your location took too long. Try again.";
-  return "Location isn't available here.";
-}
-
 /** "I have something": talk, film or photograph it, and Scout lists it and finds each part's next life. */
 export default function ScanPanel({ state, sellerId, situation = "moving", onJob, onOpenItem }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [kind, setKind] = useState<"home" | "building">("home");
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
-  const [where, setWhere] = useState(DEMO_CENTER);
-  const [locNote, setLocNote] = useState("Near the demo location in Bengaluru.");
+  const where = useWhere();
+  const [locNote, setLocNote] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -75,15 +65,13 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
 
   const add = (list: FileList | null) => list && setFiles((prev) => [...prev, ...Array.from(list)]);
 
-  // Network location is enough (homes are shown to about 500 m) and, unlike GPS, works indoors.
   const useMyLocation = async () => {
     setLocNote("Finding your location…");
     try {
-      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
-      setWhere({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      setLocNote("Near your current location.");
+      await locateMe();
+      setLocNote(null);
     } catch (err) {
-      setLocNote(`${locationProblem(err)} Using the demo location in Bengaluru for now.`);
+      setLocNote(`${(err as Error).message} Using the demo location in Bengaluru for now.`);
     }
   };
 
@@ -180,7 +168,7 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
       )}
 
       <p className="small muted where">
-        {locNote} <button type="button" className="link" onClick={useMyLocation}>Use my location</button>
+        {locNote ?? (where.mine ? "Near your current location." : "Near the demo location in Bengaluru.")} <button type="button" className="link" onClick={useMyLocation}>Use my location</button>
       </p>
       <Problem text={error} />
 

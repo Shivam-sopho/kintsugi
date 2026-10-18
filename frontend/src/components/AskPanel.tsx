@@ -3,7 +3,8 @@ import { api, audioFileName } from "../api";
 import { preferredLanguage } from "../language";
 import { speak, voiceRepliesOn } from "../speak";
 import type { AppState, AskReply, Job } from "../types";
-import { DEMO_CENTER, LANG_LABEL, problemText } from "../labels";
+import { LANG_LABEL, problemText } from "../labels";
+import { getWhere } from "../where";
 import BigMic from "./BigMic";
 
 interface Message {
@@ -45,6 +46,10 @@ export default function AskPanel({ state, personaId, onOpenItem, onJob, onGoToDe
     form.append("persona_id", personaId);
     form.append("question", question);
     form.append("lang", preferredLanguage() ?? persona?.language ?? "en");
+    if (getWhere().mine) {
+      form.append("lat", String(getWhere().lat));
+      form.append("lng", String(getWhere().lng));
+    }
     form.append("history", JSON.stringify(messages.slice(-6).map((m) => ({ role: m.from, text: m.en ?? m.text }))));
     if (audio) form.append("file", new File([audio], audioFileName(audio), { type: audio.type }));
     if (question) setMessages((prev) => [...prev, { from: "you", text: question }]);
@@ -105,7 +110,7 @@ export default function AskPanel({ state, personaId, onOpenItem, onJob, onGoToDe
         return setNote("Autopilot is on. Your agent will sell to matching buyers, never below your lowest price.");
       }
       if (a.type === "keep_looking" && a.query) {
-        onJob(await api.createRequest({ buyer_id: personaId, query: a.query, lat: DEMO_CENTER.lat, lng: DEMO_CENTER.lng, radius_km: 10, auto_approve: false }));
+        onJob(await api.createRequest({ buyer_id: personaId, query: a.query, lat: getWhere().lat, lng: getWhere().lng, radius_km: 10, auto_approve: false }));
         return setNote(`Saved. Kintsugi keeps looking for "${a.query}" and tells you about matches.`);
       }
     } catch (e) {

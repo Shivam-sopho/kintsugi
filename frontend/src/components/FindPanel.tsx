@@ -2,7 +2,8 @@ import { useState } from "react";
 import { api } from "../api";
 import { say } from "../speak";
 import type { AppState, DesignResult, Job, SearchResult } from "../types";
-import { DEMO_CENTER, inr, searchSummary } from "../labels";
+import { inr, searchSummary } from "../labels";
+import { getWhere } from "../where";
 import BigMic from "./BigMic";
 import ItemCard from "./ItemCard";
 import Problem from "./Problem";
@@ -69,7 +70,7 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
   const searchText = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!query.trim()) return setError("Say or type what you're looking for, in any language.");
-    run("Searching…", async () => show(await api.search(query, DEMO_CENTER), "en"));
+    run("Searching…", async () => show(await api.search(query, getWhere()), "en"));
   };
 
   const onVoice = (blob: Blob) =>
@@ -77,15 +78,15 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
       const t = await api.transcribe(blob, "search");
       setQuery(t.text);
       setBusy("Searching…");
-      show(await api.search(t.text, DEMO_CENTER), t.language || "en");
+      show(await api.search(t.text, getWhere()), t.language || "en");
     });
 
   const searchPhoto = (file: File | undefined) => {
     if (!file) return;
     const form = new FormData();
     form.append("file", file);
-    form.append("lat", String(DEMO_CENTER.lat));
-    form.append("lng", String(DEMO_CENTER.lng));
+    form.append("lat", String(getWhere().lat));
+    form.append("lng", String(getWhere().lng));
     run("Looking at your photo…", async () => show(await api.searchImage(form), "en"));
   };
 
@@ -118,7 +119,7 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
     setReqNote(null);
     run("request", async () => {
       const job = await api.createRequest({
-        buyer_id: buyerId, query: query.trim(), lat: DEMO_CENTER.lat, lng: DEMO_CENTER.lng,
+        buyer_id: buyerId, query: query.trim(), lat: getWhere().lat, lng: getWhere().lng,
         radius_km: Number(reqRadius), cap_inr: Number(reqCap) || undefined, auto_approve: reqAuto,
       });
       onJob(job, (done) => {
@@ -135,7 +136,7 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
     if (!brief.trim() || !Number(budget)) return setError("Describe the space and give a budget.");
     run("design", async () => {
       const image = inspiration ? await toBase64(inspiration) : undefined;
-      const job = await api.design(brief, Number(budget), DEMO_CENTER.lat, DEMO_CENTER.lng, image);
+      const job = await api.design(brief, Number(budget), getWhere().lat, getWhere().lng, image);
       await new Promise<void>((resolve) =>
         onJob(job, (done) => {
           if (done.status === "done") setDesign(done.result as unknown as DesignResult);
