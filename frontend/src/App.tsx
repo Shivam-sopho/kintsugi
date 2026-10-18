@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useJobs } from "./useJobs";
 import { setVoiceReplies, unlockAudio, voiceRepliesOn } from "./speak";
@@ -47,10 +47,12 @@ type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "p
 export default function App() {
   const { state, job, events, error, refresh, track } = useJobs();
   // The demo story, full screen: a recording to replay, or (recording: null) the live run being tracked.
-  const [celebrate, setCelebrate] = useState<{ dealId: string; personId: string; levelBefore: string | null } | null>(null);
-  const onCelebrate = (dealId: string, personId: string, levelBefore: string | null) => {
-    setSheet(null);
-    setCelebrate({ dealId, personId, levelBefore });
+  type Celebrating = { dealId: string | null; personId: string; levelBefore: string | null; figures?: { kg: number; co2e_kg: number } | null; what?: string; to?: string };
+  const [celebrate, setCelebrate] = useState<Celebrating | null>(null);
+  // Opens at once (dealId null: "Handing it over…"), then fills in when the hand-over is recorded.
+  const onCelebrate = (c: Celebrating | null) => {
+    if (c) setSheet(null);
+    setCelebrate(c);
   };
   const [demo, setDemo] = useState<{ recording: Awaited<ReturnType<typeof api.demoRecording>> | null; n: number } | null>(null);
   const [tab, setTab] = useState<Tab>("home");
@@ -96,6 +98,16 @@ export default function App() {
 
   const skipDemo = async () => {
     if (job) await api.skip(job.id).catch(() => undefined);
+  };
+
+  // The floating Ask button shrinks to its icon while scrolling down, so it doesn't cover the cards.
+  const [fabSmall, setFabSmall] = useState(false);
+  const lastTop = useRef(0);
+  const onPanelScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const top = e.currentTarget.scrollTop;
+    if (Math.abs(top - lastTop.current) < 8) return;
+    setFabSmall(top > lastTop.current && top > 80);
+    lastTop.current = top;
   };
 
   const goHome = () => {
@@ -193,7 +205,7 @@ export default function App() {
         </div>
 
         <section className={`panel ${tab === "map" && mapView === "map" && mapPanelEmpty ? "map-empty" : ""}`}>
-          <div className="panel-body" key={tab}>
+          <div className="panel-body" key={tab} onScroll={onPanelScroll}>
             {!state ? (
               <p className="muted">Loading…</p>
             ) : tab === "home" ? (
@@ -239,7 +251,7 @@ export default function App() {
       </main>
 
       {!sheet && state && (
-        <button className="ask-fab" onClick={() => setSheet({ kind: "ask" })} aria-label="Ask Kintsugi, by voice or text">
+        <button className={`ask-fab ${fabSmall ? "small" : ""}`} onClick={() => setSheet({ kind: "ask" })} aria-label="Ask Kintsugi, by voice or text">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
             <path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
@@ -280,7 +292,11 @@ export default function App() {
       )}
       {celebrate && state && (
         <Celebration
-          {...celebrate}
+          dealId={celebrate.dealId}
+          figures={celebrate.figures}
+          what={celebrate.what}
+          to={celebrate.to}
+          levelBefore={celebrate.levelBefore}
           personaId={celebrate.personId}
           state={state}
           onClose={() => setCelebrate(null)}

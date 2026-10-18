@@ -30,7 +30,8 @@ interface Props {
   onChanged: () => void;
   onOffer: (itemId: string) => Promise<void>;
   onJob?: (job: Job, onDone?: (j: Job) => void) => void;
-  onCelebrate?: (dealId: string, personId: string, levelBefore: string | null) => void; // a hand-over is done
+  // The celebration: opened at once with dealId null, then completed (or closed with null on failure)
+  onCelebrate?: (c: { dealId: string | null; personId: string; levelBefore: string | null; figures?: { kg: number; co2e_kg: number } | null; what?: string; to?: string } | null) => void;
 }
 
 export default function Passport({ item, state, onChanged, onOffer, onJob, onCelebrate }: Props) {
@@ -146,14 +147,20 @@ export default function Passport({ item, state, onChanged, onOffer, onJob, onCel
             <button className="primary wide" disabled={busy === "handover" || !routeNames.length}
                     onClick={() => run("handover", async () => {
                       const seller = item.seller_id ?? "ppl_me";
-                      const before = (await api.standing(seller).catch(() => null))?.level ?? null;
-                      const job = await api.handover(item.id);
-                      onJob?.(job, (done) => {
+                      const what = item.count > 1 ? `${item.count} × ${item.type}` : item.type;
+                      const to = routeNames.join(", ");
+                      onCelebrate?.({ dealId: null, personId: seller, levelBefore: null, what, to });
+                      try {
+                        const before = (await api.standing(seller).catch(() => null))?.level ?? null;
+                        const job = await api.handover(item.id);
                         onChanged();
-                        if (done.status !== "done") return;
                         void say(handedOverLine(item, routeNames), replyLanguage(item.language));
-                        if (done.result.deal_id) onCelebrate?.(String(done.result.deal_id), seller, before);
-                      });
+                        onCelebrate?.({ dealId: String(job.result.deal_id), personId: seller, levelBefore: before, what, to,
+                                        figures: { kg: Number(job.result.kg ?? 0), co2e_kg: Number(job.result.co2e_kg ?? 0) } });
+                      } catch (e) {
+                        onCelebrate?.(null);
+                        throw e;
+                      }
                     })}>
               {busy === "handover" ? "Arranging…" : item.hazards.length ? "Hand it to the licensed handler" : "Hand it over"}
             </button>

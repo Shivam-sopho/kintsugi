@@ -22,7 +22,10 @@ function Count({ to, format }: { to: number; format: (n: number) => string }) {
 }
 
 interface Props {
-  dealId: string;
+  dealId: string | null; // null while the hand-over is still being recorded (the card opens at once)
+  figures?: { kg: number; co2e_kg: number } | null; // what it saved, straight from the hand-over
+  what?: string; // the item, known before the deal reaches the app's state
+  to?: string; // where it goes
   personaId: string;
   levelBefore: string | null; // the person's level before this, to spot a new one
   state: AppState;
@@ -31,7 +34,7 @@ interface Props {
 }
 
 /** The moment a thing is handed over or sold: what it saved, the certificate, and the person's standing. */
-export default function Celebration({ dealId, personaId, levelBefore, state, onClose, onOpenLedger }: Props) {
+export default function Celebration({ dealId, figures, what: whatHint, to, personaId, levelBefore, state, onClose, onOpenLedger }: Props) {
   const [entry, setEntry] = useState<LedgerEvent | null>(null);
   const [standing, setStanding] = useState<Standing | null>(null);
   const closeBtn = useRef<HTMLButtonElement>(null);
@@ -39,13 +42,17 @@ export default function Celebration({ dealId, personaId, levelBefore, state, onC
   const items = (deal?.item_ids ?? []).map((id) => state.items.find((i) => i.id === id)).filter(Boolean);
   const taker = state.participants.find((p) => p.id === deal?.buyer_id);
   const sale = deal?.kind === "sale";
-  const what = items.map((i) => `${i!.count > 1 ? `${i!.count} × ` : ""}${i!.type}`).join(", ") || "Your item";
+  const what = items.map((i) => `${i!.count > 1 ? `${i!.count} × ` : ""}${i!.type}`).join(", ") || whatHint || "Your item";
+  const toName = taker?.name ?? to;
 
   useEffect(() => {
     closeBtn.current?.focus();
-    api.liveLedger().then((l) => setEntry(l.feed.find((f) => f.deal_id === dealId && (f.kind === "handover" || f.kind === "sale")) ?? null), () => undefined);
+    if (!dealId) return;
+    if (!figures) // a sale accepted in Handovers: look its figures up in the ledger
+      api.liveLedger().then((l) => setEntry(l.feed.find((f) => f.deal_id === dealId && (f.kind === "handover" || f.kind === "sale")) ?? null), () => undefined);
     api.standing(personaId).then(setStanding, () => undefined);
-  }, [dealId, personaId]);
+  }, [dealId, personaId, figures]);
+  const saved = figures ?? (entry ? { kg: entry.kg ?? 0, co2e_kg: entry.co2e_kg ?? 0 } : null);
 
   const newLevel = standing?.level && standing.level !== levelBefore ? standing.level : null;
   const next = standing?.next;
@@ -54,18 +61,18 @@ export default function Celebration({ dealId, personaId, levelBefore, state, onC
   return (
     <div className="celebrate" role="dialog" aria-modal="true" aria-labelledby="celebrate-title">
       <div className="celebrate-card">
-        <svg className="celebrate-seal" viewBox="0 0 120 120" aria-hidden="true">
+        <svg className={`celebrate-seal ${dealId ? "" : "pending"}`} viewBox="0 0 120 120" aria-hidden="true">
           <circle className="ring" cx="60" cy="60" r="52" />
           <circle className="ring2" cx="60" cy="60" r="44" />
-          <path className="tick" d="M40 62l14 14 28-30" />
+          {dealId && <path className="tick" d="M40 62l14 14 28-30" />}
         </svg>
         <p className="celebrate-eyebrow">{sale ? "Sold, and on to its next life" : "Handed over, no money involved"}</p>
-        <h2 id="celebrate-title">{sale ? `Sold for ${inr(deal?.final_price_inr)}` : "Handed over"}</h2>
-        <p className="celebrate-what">{sentence(what)} {taker ? <>goes to <strong>{taker.name}</strong>.</> : "is on its way."}</p>
+        <h2 id="celebrate-title">{!dealId ? "Handing it over…" : sale ? `Sold for ${inr(deal?.final_price_inr)}` : "Handed over"}</h2>
+        <p className="celebrate-what">{sentence(what)} {toName ? <>goes to <strong>{toName}</strong>.</> : "is on its way."}</p>
 
         <div className="celebrate-figures">
-          <div><b>{entry?.kg != null ? <Count to={entry.kg} format={kg} /> : "…"}</b><span>kept out of landfill</span></div>
-          <div><b>{entry?.co2e_kg != null ? <Count to={entry.co2e_kg} format={kg} /> : "…"}</b><span>CO2e avoided</span></div>
+          <div><b>{saved ? <Count to={saved.kg} format={kg} /> : <span className="dots"><i /><i /><i /></span>}</b><span>kept out of landfill</span></div>
+          <div><b>{saved ? <Count to={saved.co2e_kg} format={kg} /> : <span className="dots"><i /><i /><i /></span>}</b><span>CO2e avoided</span></div>
         </div>
         <p className="celebrate-note">Recorded in the ledger with its emission factors.</p>
 
@@ -83,13 +90,13 @@ export default function Celebration({ dealId, personaId, levelBefore, state, onC
           </div>
         )}
 
-        <div className="celebrate-actions">
+        {dealId && <div className="celebrate-actions">
           <a className="primary gold button" href={api.certificateUrl(dealId)} target="_blank" rel="noreferrer">View certificate</a>
           <a className="secondary button" href={api.certificatePdfUrl(dealId)} download target="_blank" rel="noreferrer">Download PDF</a>
           <button className="secondary" onClick={onOpenLedger}>See it in the ledger</button>
           <button className="link" ref={closeBtn} onClick={onClose}>Done</button>
-        </div>
-        <p className="small muted">Certificate KIN-{dealId.split("_").pop()?.toUpperCase()}</p>
+        </div>}
+        {dealId && <p className="small muted">Certificate KIN-{dealId.split("_").pop()?.toUpperCase()}</p>}
       </div>
     </div>
   );

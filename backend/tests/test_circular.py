@@ -19,15 +19,16 @@ def test_what_becomes_of_it_explains_the_decided_routes_and_is_cached(client):
 def test_hand_over_completes_the_journey_without_money(client):
     items = scan(client)
     it = next(i for i in items if not i["hazards"] and (i["destination_id"] or any(c["destination_id"] for c in i["components"])))
-    job = wait(client, client.post(f"/api/items/{it['id']}/handover").json()["id"])
+    job = client.post(f"/api/items/{it['id']}/handover").json()
+    assert job["status"] == "done" and job["result"]["kg"] > 0 and job["result"]["co2e_kg"] >= 0  # at once, no waiting
     deal = client.get(f"/api/deals/{job['result']['deal_id']}").json()
     assert deal["kind"] == "handover" and deal["status"] == "settled" and deal["final_price_inr"] == 0
     assert client.get(f"/api/items/{it['id']}").json()["status"] == "routed"
     assert client.get("/api/ledger").json()["totals"]["mass_diverted_kg"] > 0
     cert = client.get(f"/api/certificate/{deal['id']}").text
     assert "no money involved" in cert
-    again = wait_error(client, client.post(f"/api/items/{it['id']}/handover").json()["id"])
-    assert "already" in again
+    again = client.post(f"/api/items/{it['id']}/handover")
+    assert again.status_code == 400 and "already" in again.json()["detail"]
 
 
 def test_hazards_are_handed_to_a_licensed_handler(client):
