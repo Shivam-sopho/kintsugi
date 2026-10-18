@@ -63,3 +63,23 @@ def test_out_of_range_participants_ignored():
                 components=[Component(name="screws", material="steel", est_weight_kg=1)])
     d = decide(far, CTX)
     assert d.next_life == Rung.SAFE_DISPOSAL
+
+
+def test_organic_material_goes_to_compost_or_biogas():
+    ctx = LadderContext(fixtures.participants())
+    it = _item(type="garden waste", condition="D", components=[
+        Component(name="leaves and branches", material="garden waste", est_weight_kg=12),
+    ])
+    out = decide(it, ctx)
+    assert out.next_life == Rung.COMPOST
+    assert out.components[0].destination_id == "ppl_compost"
+    assert out.recovered_fraction == 1.0
+
+
+def test_municipal_centre_takes_recyclables_when_nearest():
+    ctx = LadderContext([p for p in fixtures.participants() if p.role in ("government", "energy_facility")])
+    it = _item(type="newspaper stack", condition="C", components=[
+        Component(name="newspapers", material="paper", est_weight_kg=6),
+    ])
+    out = decide(it, ctx)
+    assert out.next_life == Rung.RECYCLE and out.components[0].destination_id == "ppl_dwcc"

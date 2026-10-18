@@ -19,7 +19,7 @@ export function useJobs() {
       setState(await api.state());
       setError(null);
     } catch (e) {
-      setError(`Can't reach the Kintsugi API (${(e as Error).message}). Is the backend running?`);
+      setError(`Can't reach Kintsugi for a moment (${(e as Error).message}).`);
     }
   }, []);
 
@@ -27,24 +27,50 @@ export function useJobs() {
     refresh();
   }, [refresh]);
 
+  // A live market: buyers' agents can open negotiations at any time, so look again every few seconds.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 8000);
+    return () => clearInterval(t);
+  }, [refresh]);
+
   const track = useCallback((j: Job, onDone?: (j: Job) => void) => {
     lastTs.current = 0;
     setEvents([]);
     setJob(j);
     if (onDone) doneCallbacks.current.set(j.id, onDone);
-  }, []);
+    // Already finished (fast jobs can be done before anyone follows them): show what it did.
+    if (j.status === "done" || j.status === "error") {
+      void api.events(j.id, 0).then((evs) => setEvents(evs), () => undefined);
+      void refresh();
+    }
+  }, [refresh]);
 
   useEffect(() => {
     if (!job || job.status === "done" || job.status === "error") return;
     let stopped = false;
     let tick = 0;
+    // If the server restarts mid-job (a new deploy), the job can never finish: after a quiet spell,
+    // treat it as interrupted so nothing waits forever. The demo takes a step every second or two;
+    // a scan can wait on Scout watching a long video.
+    const quietLimit = job.kind === "judge_mode" ? 30_000 : 180_000;
+    let lastNews = Date.now();
     const poll = async () => {
       if (stopped) return;
       try {
         const fresh = await api.events(job.id, lastTs.current);
         if (fresh.length) {
           lastTs.current = fresh[fresh.length - 1].ts;
+          lastNews = Date.now();
           setEvents((prev) => [...prev, ...fresh]);
+        }
+        if (Date.now() - lastNews > quietLimit) {
+          const stalled: Job = { ...job, status: "error", error: "This run was interrupted (the server restarted). Nothing was lost: run it again." };
+          setJob(stalled);
+          doneCallbacks.current.get(job.id)?.(stalled);
+          doneCallbacks.current.delete(job.id);
+          return;
         }
         tick += 1;
         const status = await api.job(job.id);

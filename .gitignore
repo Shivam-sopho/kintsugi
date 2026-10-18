@@ -15,3 +15,7 @@ service-account*.json
 # OS
 .DS_Store
 *.tsbuildinfo
+
+# Firebase CLI cache and Android Studio project files
+.firebase/
+android/.idea/

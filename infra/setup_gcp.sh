@@ -31,9 +31,10 @@ echo "Creating the uploads bucket gs://${BUCKET}..."
 gcloud storage buckets describe "gs://${BUCKET}" >/dev/null 2>&1 || \
   gcloud storage buckets create "gs://${BUCKET}" --location="$REGION" --uniform-bucket-level-access
 
-echo "Deleting raw uploads after 1 day (privacy: only blurred evidence is kept)..."
-cat > /tmp/kintsugi-lifecycle.json <<'JSON'
-{"rule": [{"action": {"type": "Delete"}, "condition": {"age": 1, "matchesPrefix": ["uploads/"]}}]}
+UPLOAD_DAYS="${UPLOAD_DAYS:-30}"  # long enough for judging; only blurred evidence is kept beyond this
+echo "Deleting raw uploads after ${UPLOAD_DAYS} days (privacy: only blurred evidence is kept)..."
+cat > /tmp/kintsugi-lifecycle.json <<JSON
+{"rule": [{"action": {"type": "Delete"}, "condition": {"age": ${UPLOAD_DAYS}, "matchesPrefix": ["uploads/"]}}]}
 JSON
 gcloud storage buckets update "gs://${BUCKET}" --lifecycle-file=/tmp/kintsugi-lifecycle.json
 

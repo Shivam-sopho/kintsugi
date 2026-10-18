@@ -1,5 +1,6 @@
-import type { AppState, Item, Prediction } from "../types";
-import { LANG_LABEL, RUNG_COLOR, RUNG_LABEL, inr, kg } from "../labels";
+import type { AppState, Prediction } from "../types";
+import { LANG_LABEL, inr, kg } from "../labels";
+import ItemCard from "./ItemCard";
 import Passport from "./Passport";
 
 interface Props {
@@ -12,25 +13,28 @@ interface Props {
   demoRunning: boolean;
   onChanged: () => void;
   onOffer: (itemId: string) => Promise<void>;
+  onClose?: () => void; // clears the selection (the map sheet on phones)
 }
 
-export default function MapPanel({ state, siteId, predictionId, itemId, onSelectItem, onRunDemo, demoRunning, onChanged, onOffer }: Props) {
+export default function MapPanel({ state, siteId, predictionId, itemId, onSelectItem, onRunDemo, demoRunning, onChanged, onOffer, onClose }: Props) {
+  const close = onClose && <button type="button" className="link close" onClick={onClose}>Close</button>;
   const item = itemId ? state.items.find((i) => i.id === itemId) : undefined;
   if (item)
     return <Passport key={item.id} item={item} state={state} onBack={() => onSelectItem(null)} onChanged={onChanged} onOffer={onOffer} />;
 
   const prediction = predictionId ? state.predictions.find((p) => p.id === predictionId) : undefined;
-  if (prediction) return <PredictionCard p={prediction} />;
+  if (prediction) return <>{close}<PredictionCard p={prediction} /></>;
 
   const site = siteId ? state.sites.find((s) => s.id === siteId) : undefined;
   if (site) {
     const items = state.items.filter((i) => i.site_id === site.id);
     return (
       <section>
+        {close}
         <h2>{site.name}</h2>
         <p className="muted">{items.length} {items.length === 1 ? "kind" : "kinds"} of item. Tap one to open its passport.</p>
-        <ul className="item-list">
-          {items.map((i) => <ItemRow key={i.id} item={i} onClick={() => onSelectItem(i.id)} />)}
+        <ul className="cards">
+          {items.map((i) => <ItemCard key={i.id} item={i} onOpen={() => onSelectItem(i.id)} />)}
         </ul>
       </section>
     );
@@ -51,27 +55,6 @@ export default function MapPanel({ state, siteId, predictionId, itemId, onSelect
       </p>
       <Totals state={state} />
     </section>
-  );
-}
-
-function ItemRow({ item, onClick }: { item: Item; onClick: () => void }) {
-  const rung = item.next_life;
-  return (
-    <li>
-      <button className="item-row" onClick={onClick}>
-        <span className="swatch" style={{ background: rung ? RUNG_COLOR[rung] : "#B1B5BC" }} />
-        <span className="grow">
-          <strong>{item.type}</strong> × {item.count}
-          <span className="small muted block">
-            {rung ? RUNG_LABEL[rung] : "Not decided"}
-            {item.value_max_inr ? `, ${inr(item.value_min_inr)}–${inr(item.value_max_inr)} each` : ""}
-          </span>
-        </span>
-        {item.verified && <span className="status ok">confirmed</span>}
-        {item.status !== "available" && <span className="status">{item.status.replace("_", " ")}</span>}
-        {item.hazards.length > 0 && <span className="status hazard">hazard</span>}
-      </button>
-    </li>
   );
 }
 

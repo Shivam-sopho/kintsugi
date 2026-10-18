@@ -4,6 +4,7 @@ export type Rung =
   | "upcycle"
   | "harvest_parts"
   | "recycle"
+  | "compost"
   | "recover_energy"
   | "safe_disposal";
 
@@ -51,8 +52,25 @@ export interface Item {
   synthetic: boolean;
   verified: boolean;
   has_floor_price: boolean;
+  autopilot: boolean;
   evidence: string[];
   take_apart: Record<string, string[]>;
+  explanation: Record<string, Explanation>;
+}
+
+export interface Afterlife {
+  use: string;
+  next_life: Rung;
+  how: string;
+  best: boolean; // the next life the rules chose for this one
+}
+
+export interface Explanation {
+  afterlives?: Afterlife[];
+  headline: string;
+  parts: { part: string; goes_to?: string; happens: string }[];
+  you_can: string[];
+  why: string;
 }
 
 export interface Site {
@@ -70,6 +88,9 @@ export interface Participant {
   language: string;
   location: GeoPoint;
   synthetic: boolean;
+  accepts_types: string[];
+  accepts_materials: string[];
+  place_id: string | null;
 }
 
 export interface Prediction {
@@ -105,6 +126,10 @@ export interface Deal {
   transcript: NegotiationTurn[];
   final_price_inr: number | null;
   settlement: { label: string; payment_mandate: Record<string, unknown> } | null;
+  autopilot: boolean;
+  kind: "sale" | "handover";
+  seller_accepted: boolean; // false while a deal a buyer's agent started waits for the seller's yes
+  request_id: string | null;
   created_at: number;
 }
 
@@ -130,6 +155,27 @@ export interface Totals {
   factor_source: string;
 }
 
+export interface StandingRequest {
+  id: string;
+  buyer_id: string;
+  query: string;
+  radius_km: number;
+  has_cap: boolean; // the highest price itself stays with the buyer's agent
+  auto_approve: boolean;
+  active: boolean;
+  matched_item_ids: string[];
+  notified_item_ids: string[];
+}
+
+export interface AskReply {
+  answer: string;
+  answer_en: string;
+  language: string;
+  action: { type: "none" | "offer_item" | "autopilot_on" | "keep_looking" | "open_item"; item_id?: string; query?: string; label?: string };
+  used: { model: string; items: number; takers: number; deals: number; listed_nearby: number };
+  heard: Transcript | null;
+}
+
 export interface AppState {
   mock_mode: boolean;
   sites: Site[];
@@ -138,6 +184,7 @@ export interface AppState {
   predictions: Prediction[];
   deals: Deal[];
   bundles: Bundle[];
+  requests: StandingRequest[];
   totals: Totals;
 }
 
@@ -168,7 +215,7 @@ export interface DesignResult {
   concept: string;
   lines: { item_id: string; type: string; use: string; quantity: number; unit_price_inr: number | null; cost_inr: number }[];
   total_inr: number;
-  render_png_b64: string | null;
+  render_id: string | null; // the picture, stored on its own (see api.evidenceUrl)
   render_prompt: string;
 }
 
@@ -177,4 +224,53 @@ export interface Transcript {
   language: string;
   english: string;
   amount_inr?: number;
+}
+
+export interface Standing {
+  person_id: string;
+  name: string;
+  level: string | null;
+  next: { name: string; items: number; kg: number; to_go: string } | null;
+  gave: { items: number; kg: number; co2e_kg: number };
+  took: { items: number; kg: number; co2e_kg: number };
+  sales: number;
+  handovers: number;
+  earned_inr: number;
+  co2e_kg: number;
+  kg: number;
+  items: number;
+}
+
+export interface LedgerLine {
+  material: string;
+  next_life: Rung;
+  kg: number;
+  factor: number;
+  share: number;
+  co2e_kg: number;
+}
+
+export interface LedgerEvent {
+  kind: "listed" | "handover" | "offer" | "sale" | "pickup";
+  at: number;
+  who: string;
+  text: string;
+  kg?: number | null;
+  co2e_kg?: number | null;
+  inr?: number | null;
+  status?: string;
+  recorded: boolean;
+  lines?: LedgerLine[];
+  deal_id?: string;
+  item_ids?: string[];
+  sample?: boolean;
+}
+
+export interface LiveLedger {
+  totals: Totals;
+  waiting: { items: number; kg: number; co2e_kg: number };
+  counts: { listed: number; handovers: number; sales: number; negotiating: number; waiting_for_seller: number; people: number };
+  by_material: { material: string; kg: number; co2e_kg: number }[];
+  feed: LedgerEvent[];
+  method: { formula: string; reuse_replaces_new: number; source: string };
 }

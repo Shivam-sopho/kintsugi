@@ -82,6 +82,22 @@ def to_jpeg(img: np.ndarray) -> bytes:
     return buf.tobytes() if ok else b""
 
 
+def image_to_jpeg(image: bytes, quality: int = 80, max_side: int = 1280) -> bytes:
+    """Any encoded image (a PNG render, say) compressed for storing: at most max_side pixels on its
+    longest side, as a JPEG. A 1-2 MB render becomes about 100-200 KB and loads quickly on a phone."""
+    img = cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("Not an image")
+    h, w = img.shape[:2]
+    if max(h, w) > max_side:
+        k = max_side / max(h, w)
+        img = cv2.resize(img, (round(w * k), round(h * k)), interpolation=cv2.INTER_AREA)
+    ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if not ok:
+        raise ValueError("Could not encode the image")
+    return buf.tobytes()
+
+
 class EvidenceStore:
     """Memory in mock/local mode; Cloud Storage (private, served through the API) in live mode."""
 

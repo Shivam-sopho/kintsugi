@@ -17,7 +17,7 @@ CAFE_INDIRANAGAR = GeoPoint(lat=12.9719, lng=77.6412)
 def participants() -> list[Participant]:
     return [
         # The person using the app (scans default to them as the seller)
-        Participant(id="ppl_me", name="You", role="homeowner", language="en", location=CAFE_INDIRANAGAR),
+        Participant(id="ppl_me", name="You", role="homeowner", language="en", location=GeoPoint(lat=12.9205, lng=77.6390)),
         Participant(
             id="ppl_ramesh", name="Ramesh Scrap Traders", role="dealer", language="hi",
             location=GeoPoint(lat=12.9406, lng=77.6290),
@@ -66,6 +66,21 @@ def participants() -> list[Participant]:
             id="ppl_wte", name="City Waste-to-Energy Plant", role="energy_facility", language="kn",
             location=GeoPoint(lat=12.9900, lng=77.5600),
             accepts_materials=["foam", "plastic", "mixed", "textile", "paper"],
+        ),
+        Participant(
+            id="ppl_compost", name="Ward compost and biogas unit, HSR Layout", role="composter", language="kn",
+            location=GeoPoint(lat=12.9150, lng=77.6350),
+            accepts_materials=["organic"],
+        ),
+        Participant(
+            id="ppl_dwcc", name="Municipal dry waste collection centre, Koramangala", role="government", language="kn",
+            location=GeoPoint(lat=12.9330, lng=77.6200),
+            accepts_materials=["paper", "plastic", "glass", "textile", "aluminium", "steel"],
+        ),
+        Participant(
+            id="ppl_ewaste", name="Authorised e-waste collection point, Indiranagar", role="government", language="en",
+            location=GeoPoint(lat=12.9750, lng=77.6400),
+            accepts_materials=["electronics", "copper"],
         ),
         Participant(
             id="ppl_safehaz", name="SafeHaz Licensed Disposal", role="hazard_handler", language="en",
@@ -267,7 +282,7 @@ NEGOTIATION_TEMPLATES = {
 # Neighbours on the same street as the chair, used to show pickup bundling.
 NEIGHBOURS = [
     {
-        "name": "Home, HSR Layout Sector 2 (neighbour)",
+        "name": "Neighbour 1, HSR Layout Sector 2",
         "location": GeoPoint(lat=12.9124, lng=77.6481),
         "scan": {"items": [{
             "type": "pressure cooker", "description": "Old aluminium pressure cooker, lid seal gone",
@@ -277,7 +292,7 @@ NEIGHBOURS = [
         }]},
     },
     {
-        "name": "Home, HSR Layout Sector 2 (neighbour)",
+        "name": "Neighbour 2, HSR Layout Sector 2",
         "location": GeoPoint(lat=12.9109, lng=77.6466),
         "scan": {"items": [{
             "type": "steel bucket", "description": "Rusted steel bucket with a hole",
@@ -287,7 +302,7 @@ NEIGHBOURS = [
         }]},
     },
     {
-        "name": "Home, HSR Layout Sector 2 (neighbour)",
+        "name": "Neighbour 3, HSR Layout Sector 2",
         "location": GeoPoint(lat=12.9131, lng=77.6460),
         "scan": {"items": [{
             "type": "newspaper stack", "description": "About three months of newspapers",
@@ -296,6 +311,16 @@ NEIGHBOURS = [
             "hazards": [], "confidence": 0.95,
         }]},
     },
+    {
+        "name": "Neighbour 4, HSR Layout Sector 2",
+        "location": GeoPoint(lat=12.9131, lng=77.6459),
+        "scan": {"items": [{
+            "type": "garden waste", "description": "Two sacks of dry leaves and coconut fronds from a garden",
+            "count": 2, "condition": "D", "condition_reason": "Organic waste, cannot be reused",
+            "components": [{"name": "leaves and fronds", "material": "organic", "est_weight_kg": 9.0}],
+            "hazards": [], "confidence": 0.95,
+        }]},
+    }
 ]
 
 
@@ -344,3 +369,19 @@ TAKE_APART = {
         ],
     ),
 }
+
+
+# Sample buyers who are always looking (sample data): (buyer, what they want, private highest price,
+# approve automatically within it). Listing something they want starts a live negotiation.
+MARKET_REQUESTS = [
+    ("ppl_ananya", "wooden doors", 30000, True),
+    ("ppl_ananya", "pendant lights", 12000, True),
+    ("ppl_ananya", "floor tiles", 20000, True),
+    ("ppl_ananya", "wash basins", 8000, True),
+    ("ppl_habitat", "windows", 15000, True),
+    ("ppl_habitat", "wooden chairs", 6000, True),
+    ("ppl_habitat", "tables", 6000, True),
+    ("ppl_habitat", "cupboards and almirahs", 8000, True),
+    ("ppl_ramesh", "steel cabinets", 10000, True),
+    ("ppl_ramesh", "aluminium windows", 25000, True),
+]

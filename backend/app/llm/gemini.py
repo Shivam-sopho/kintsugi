@@ -6,18 +6,22 @@ Not yet exercised against the live API (written without credentials). On Day 1, 
 
 from __future__ import annotations
 
+import asyncio
+import io
 import json
 import logging
 import re
+import wave
 from typing import Any, Optional
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from ..config import Settings
 from . import prompts
 from .base import MediaRef
-from .schemas import DESIGN_SCHEMA, MESSAGES_SCHEMA, ORACLE_SCHEMA, SCOUT_SCHEMA, TAKE_APART_SCHEMA, TRANSCRIBE_SCHEMA
+from .schemas import DESIGN_SCHEMA, MESSAGES_SCHEMA, ORACLE_SCHEMA, SCOUT_SCHEMA, TAKE_APART_SCHEMA, TRANSCRIBE_SCHEMA, TRANSLATE_SCHEMA, ASK_SCHEMA, EXPLAIN_SCHEMA
 
 log = logging.getLogger(__name__)
 
@@ -46,19 +50,31 @@ def _json_from_text(text: str) -> Any:
 class GeminiLLM:
     def __init__(self, settings: Settings):
         self.s = settings
-        self.client = genai.Client(vertexai=True, project=settings.gcp_project, location=settings.gcp_location)
+        self.client = genai.Client(vertexai=True, project=settings.gcp_project, location=settings.genai_location)
+        # Gemini Embedding 2 is served only from regions, not the global endpoint.
+        self.embed_client = genai.Client(vertexai=True, project=settings.gcp_project, location=settings.gcp_location)
 
     async def _json(self, model: str, contents: list, system: str, schema: dict, temperature: float = 0.2) -> Any:
-        resp = await self.client.aio.models.generate_content(
-            model=model,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system,
-                response_mime_type="application/json",
-                response_json_schema=schema,
-                temperature=temperature,
-            ),
+        config = types.GenerateContentConfig(
+            system_instruction=system,
+            response_mime_type="application/json",
+            response_json_schema=schema,
+            temperature=temperature,
         )
+        # The client already retries with backoff. If Gemini's shared capacity for this model is still
+        # busy (429), a person's scan should not fail: Flash does the same job a little less well, and
+        # waiting a few seconds more usually gets a turn.
+        plan = [(model, 0)] + ([] if model == self.s.model_fast else [(self.s.model_fast, 0)])
+        plan += [(self.s.model_fast, w) for w in BUSY_WAITS_S]
+        for i, (use, wait) in enumerate(plan):
+            await asyncio.sleep(wait)
+            try:
+                resp = await self.client.aio.models.generate_content(model=use, contents=contents, config=config)
+                break
+            except genai_errors.APIError as exc:
+                if not is_busy(exc) or i == len(plan) - 1:
+                    raise
+                log.warning("%s is busy (%s); next try %s", use, exc.code, plan[i + 1][0])
         return _json_from_text(resp.text)
 
     async def scout_media(self, media: list[MediaRef], kind: str, narration_text: str | None) -> dict[str, Any]:
@@ -74,25 +90,42 @@ class GeminiLLM:
             f"{i}. {it['type']} (condition {it.get('condition', 'C')}, {it.get('description', '')})"
             for i, it in enumerate(items)
         )
-        # Search grounding is used without a response schema; the JSON is parsed from text.
-        resp = await self.client.aio.models.generate_content(
-            model=self.s.model_fast,
-            contents=[f"City: {city}. Items:\n{lines}"],
-            config=types.GenerateContentConfig(
-                system_instruction=prompts.PRICING_SYSTEM,
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.1,
-            ),
-        )
+        # Search grounding is used without a response schema; the JSON is parsed from text. Grounded
+        # replies are sometimes empty or prose only, so try twice, then leave the items unpriced
+        # rather than fail the whole scan.
+        parsed: list[dict[str, Any]] = []
         grounded_urls: list[str] = []
-        try:
-            meta = resp.candidates[0].grounding_metadata
-            for chunk in (meta.grounding_chunks or []) if meta else []:
-                if chunk.web and chunk.web.uri:
-                    grounded_urls.append(chunk.web.uri)
-        except (AttributeError, IndexError):
-            pass
-        parsed = _json_from_text(resp.text).get("prices", [])
+        for attempt in (1, 2):
+            try:
+                resp = await asyncio.wait_for(
+                    self.client.aio.models.generate_content(
+                        model=self.s.model_fast,
+                        contents=[f"City: {city}. Items:\n{lines}"],
+                        config=types.GenerateContentConfig(
+                            system_instruction=prompts.PRICING_SYSTEM,
+                            tools=[types.Tool(google_search=types.GoogleSearch())],
+                            temperature=0.1,
+                            thinking_config=types.ThinkingConfig(thinking_budget=PRICING_THINKING_BUDGET),
+                        ),
+                    ),
+                    timeout=PRICING_TIMEOUT_S,
+                )
+            except asyncio.TimeoutError:
+                log.warning("Pricing attempt %d took over %ds", attempt, PRICING_TIMEOUT_S)
+                continue
+            try:
+                parsed = _json_from_text(resp.text).get("prices", [])
+            except (ValueError, AttributeError) as exc:
+                log.warning("Pricing reply %d had no JSON (%s): %r", attempt, exc, (resp.text or "")[:300])
+                continue
+            try:
+                meta = resp.candidates[0].grounding_metadata
+                for chunk in (meta.grounding_chunks or []) if meta else []:
+                    if chunk.web and chunk.web.uri:
+                        grounded_urls.append(chunk.web.uri)
+            except (AttributeError, IndexError):
+                pass
+            break
         by_index = {p.get("index"): p for p in parsed}
         out = []
         for i in range(len(items)):
@@ -108,15 +141,34 @@ class GeminiLLM:
         return out
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        resp = await self.client.aio.models.embed_content(
-            model=self.s.model_embedding,
-            contents=texts,
-            config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),
-        )
-        return [list(e.values) for e in resp.embeddings]
+        # Gemini Embedding 2 is multimodal: a list of contents is embedded as ONE input, so each
+        # text gets its own call (a few at a time) to get one vector per text.
+        limit = asyncio.Semaphore(EMBED_CONCURRENCY)
+
+        async def one(text: str) -> list[float]:
+            async with limit:
+                for i, wait in enumerate((0, *BUSY_WAITS_S)):
+                    await asyncio.sleep(wait)
+                    try:
+                        resp = await self.embed_client.aio.models.embed_content(
+                            model=self.s.model_embedding,
+                            contents=text,
+                            config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),
+                        )
+                        return list(resp.embeddings[0].values)
+                    except genai_errors.APIError as exc:
+                        if not is_busy(exc) or i == len(BUSY_WAITS_S):
+                            raise
+                        log.warning("Embedding is busy (%s); trying again", exc.code)
+                raise RuntimeError("unreachable")
+
+        vectors = await asyncio.gather(*(one(t) for t in texts))
+        if len(vectors) != len(texts):
+            raise ValueError("Embedding count does not match the texts")
+        return list(vectors)
 
     async def embed_image(self, data: bytes, mime_type: str) -> list[float]:
-        resp = await self.client.aio.models.embed_content(
+        resp = await self.embed_client.aio.models.embed_content(
             model=self.s.model_embedding,
             contents=[types.Part.from_bytes(data=data, mime_type=mime_type)],
             config=types.EmbedContentConfig(output_dimensionality=self.s.embedding_dim),
@@ -170,3 +222,82 @@ class GeminiLLM:
         except Exception as exc:  # rendering is optional; never break the flow
             log.warning("Render failed: %s", exc)
         return None
+
+    async def explain(self, item: dict[str, Any], lang: str) -> dict[str, Any]:
+        prompt = (f"ITEM (JSON):\n{json.dumps(item, ensure_ascii=False)}\n\n"
+                  f"Write everything in {LANGUAGE_NAMES.get(lang, lang)} ({lang}).")
+        return await self._json(self.s.model_fast, [prompt], prompts.EXPLAIN_SYSTEM, EXPLAIN_SCHEMA, 0.3)
+
+    async def ask(self, question: str, history: list[dict[str, str]], context: dict[str, Any], lang: str) -> dict[str, Any]:
+        turns = "\n".join(f"{t.get('role', 'user')}: {t.get('text', '')}" for t in history[-6:])
+        name = LANGUAGE_NAMES.get(lang, lang)
+        prompt = (f"CONTEXT (JSON):\n{json.dumps(context, ensure_ascii=False)}\n\nEarlier in this conversation:\n"
+                  f"{turns or '(nothing yet)'}\n\n"
+                  f"Person says: {question.strip() or '(nothing yet: greet them and make one useful suggestion)'}\n\n"
+                  f"Write \"answer\" in {name} ({lang}), whatever language the context or profile uses.")
+        return await self._json(self.s.model_fast, [prompt], prompts.ASK_SYSTEM, ASK_SCHEMA, 0.4)
+
+    async def translate(self, text: str, lang: str) -> str:
+        if lang == "en":
+            return text
+        data = await self._json(self.s.model_fast, [prompts.translate_prompt(text, lang)], prompts.TRANSLATE_SYSTEM,
+                                TRANSLATE_SCHEMA)
+        return data.get("text") or text
+
+    async def speech(self, text: str, lang: str) -> Optional[bytes]:
+        try:
+            resp = await self.client.aio.models.generate_content(
+                model=self.s.model_tts,
+                contents=text,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        language_code=SPEECH_LOCALES.get(lang, lang),
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.s.tts_voice)
+                        ),
+                    ),
+                ),
+            )
+            for part in resp.candidates[0].content.parts:
+                if part.inline_data and part.inline_data.data:
+                    return pcm_to_wav(part.inline_data.data, _sample_rate(part.inline_data.mime_type))
+        except Exception as exc:  # speech is optional; the app falls back to the device's voice
+            log.warning("Speech failed: %s", exc)
+        return None
+
+
+BUSY_WAITS_S = (5, 10)  # extra waits after the client's own retries and the Flash fallback
+
+
+def is_busy(exc: Exception) -> bool:
+    """Gemini's shared capacity is momentarily full (429) or the service is overloaded (503)."""
+    return getattr(exc, "code", None) in (429, 503) or "RESOURCE_EXHAUSTED" in str(exc)
+
+
+EMBED_CONCURRENCY = 6
+PRICING_TIMEOUT_S = 45  # per attempt; a scan should never wait minutes on a price search
+PRICING_THINKING_BUDGET = 512
+
+LANGUAGE_NAMES = {"en": "English", "hi": "Hindi", "kn": "Kannada", "ta": "Tamil", "id": "Bahasa Indonesia",
+                  "ms": "Bahasa Melayu", "th": "Thai", "vi": "Vietnamese", "fil": "Filipino", "ja": "Japanese"}
+
+SPEECH_LOCALES = {"en": "en-IN", "hi": "hi-IN", "kn": "kn-IN", "ta": "ta-IN", "id": "id-ID", "ms": "ms-MY",
+                  "th": "th-TH", "vi": "vi-VN", "fil": "fil-PH", "ja": "ja-JP"}
+
+
+def _sample_rate(mime_type: str | None, default: int = 24000) -> int:
+    """Gemini TTS returns raw 16-bit PCM, e.g. "audio/L16;codec=pcm;rate=24000"."""
+    match = re.search(r"rate=(\d+)", mime_type or "")
+    return int(match.group(1)) if match else default
+
+
+def pcm_to_wav(pcm: bytes, sample_rate: int = 24000) -> bytes:
+    """Wrap mono 16-bit PCM in a WAV header so any browser can play it."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sample_rate)
+        w.writeframes(pcm)
+    return buf.getvalue()

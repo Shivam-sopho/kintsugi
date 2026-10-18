@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from typing import Optional
 
-from ..models import AgentEvent, Bundle, Deal, Item, Job, LedgerEntry, Participant, Prediction, Site
+from ..models import AgentEvent, Bundle, Deal, Item, Job, LedgerEntry, Participant, Prediction, Site, StandingRequest
 from ..vectors import cosine
 
 
@@ -23,8 +23,20 @@ class MemoryStore:
             self.deals: dict[str, Deal] = {}
             self.bundles: dict[str, Bundle] = {}
             self.ledger: list[LedgerEntry] = []
+            self.requests: dict[str, StandingRequest] = {}
             self.jobs: dict[str, Job] = {}
             self.events: dict[str, list[AgentEvent]] = {}
+
+    def delete_docs(self, collection: str, ids: list[str]) -> None:
+        """Remove some records (judge mode clears only its own sample data)."""
+        drop = set(ids)
+        with self._lock:
+            if collection == "ledger":
+                self.ledger = [e for e in self.ledger if e.id not in drop]
+                return
+            table = getattr(self, collection)
+            for i in drop:
+                table.pop(i, None)
 
     # participants
     def list_participants(self) -> list[Participant]:
@@ -93,6 +105,14 @@ class MemoryStore:
         return list(self.bundles.values())
 
     # ledger
+    # standing requests
+    def upsert_request(self, r: StandingRequest) -> None:
+        with self._lock:
+            self.requests[r.id] = r
+
+    def list_requests(self) -> list[StandingRequest]:
+        return list(self.requests.values())
+
     def add_ledger(self, entries: list[LedgerEntry]) -> None:
         with self._lock:
             self.ledger.extend(entries)
