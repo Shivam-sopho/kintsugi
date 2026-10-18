@@ -30,7 +30,7 @@ Live on Google Cloud at https://kintsugi-ai-builder-cup-2026.web.app: every Gemi
 | Web app (installable PWA) and Android app (Capacitor) | Web live; Android builds from the same screens |
 | AP2 settlement | Sandbox record shaped like AP2 mandates; no money moves |
 
-**What to do next is in [NEXT_STEPS.md](NEXT_STEPS.md)**, ordered and with "done when" checks. [CLAUDE.md](CLAUDE.md) tells a Claude session how the repo works and which rules keep it working.
+**What to do next is in [NEXT_STEPS.md](NEXT_STEPS.md)**, ordered and with "done when" checks.
 
 ## Run it locally (mock mode)
 
