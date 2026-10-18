@@ -19,3 +19,6 @@ service-account*.json
 # Firebase CLI cache and Android Studio project files
 .firebase/
 android/.idea/
+
+# Local assistant notes, not part of the project
+CLAUDE.md
