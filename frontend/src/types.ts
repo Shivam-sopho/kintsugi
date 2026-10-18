@@ -215,7 +215,7 @@ export interface DesignResult {
   concept: string;
   lines: { item_id: string; type: string; use: string; quantity: number; unit_price_inr: number | null; cost_inr: number }[];
   total_inr: number;
-  render_png_b64: string | null;
+  render_id: string | null; // the picture, stored on its own (see api.evidenceUrl)
   render_prompt: string;
 }
 

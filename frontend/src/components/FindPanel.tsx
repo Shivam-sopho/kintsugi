@@ -263,8 +263,8 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
         </form>
         {design && (
           <section className="design">
-            {design.render_png_b64 ? (
-              <img src={`data:image/png;base64,${design.render_png_b64}`} alt={design.render_prompt} />
+            {design.render_id ? (
+              <img src={api.evidenceUrl(design.render_id)} alt={design.render_prompt} />
             ) : (
               <div className="moodboard" aria-label="Materials board">
                 {design.lines.map((l) => <span key={l.item_id}>{l.type}</span>)}
@@ -279,7 +279,7 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
                 </li>
               ))}
             </ul>
-            <p className="small muted">Estimated {inr(design.total_inr)} in reclaimed materials{!design.render_png_b64 ? ". Photo render appears in live mode." : "."}</p>
+            <p className="small muted">Estimated {inr(design.total_inr)} in reclaimed materials{!design.render_id ? ". Photo render appears in live mode." : "."}</p>
           </section>
         )}
       </details>
