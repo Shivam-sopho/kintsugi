@@ -68,6 +68,15 @@ export default function App() {
   const negotiating = state?.deals.some((d) => d.status === "negotiating" || d.status === "agreed");
   // Prices buyers' agents agreed for this person's things, waiting for their yes.
   const offers = state?.deals.filter((d) => d.seller_id === personaId && d.status === "agreed" && !d.seller_accepted) ?? [];
+  // A negotiation over this person's things (or for them), happening now.
+  const talking = state?.deals.find((d) => d.status === "negotiating" && (d.seller_id === personaId || d.buyer_id === personaId));
+  const nameOf = (id: string) => state?.participants.find((p) => p.id === id)?.name ?? "A buyer";
+  const [focusDeal, setFocusDeal] = useState<string | null>(null);
+  const openDeal = (id: string) => {
+    setFocusDeal(id);
+    setSheet(null);
+    setTab("deals");
+  };
 
   const runDemo = async () => {
     try {
@@ -163,12 +172,18 @@ export default function App() {
         </button>
       </header>
 
-      {offers.length > 0 && tab !== "deals" && (
-        <button className="banner offer-banner" onClick={() => setTab("deals")}>
-          <strong>{offers.length === 1 ? "An offer is waiting for you" : `${offers.length} offers are waiting for you`}.</strong>{" "}
-          {state?.participants.find((p) => p.id === offers[0].buyer_id)?.name}'s agent agreed {inr(offers[0].final_price_inr)} with yours. See it
+      {talking && tab !== "deals" ? (
+        <button className="banner offer-banner live" onClick={() => openDeal(talking.id)}>
+          <i className="live-dot" aria-hidden="true" />{" "}
+          <strong>{nameOf(talking.seller_id === personaId ? talking.buyer_id : talking.seller_id)}'s agent is negotiating with yours, live.</strong>{" "}
+          Two agents, over A2A. Watch
         </button>
-      )}
+      ) : offers.length > 0 && tab !== "deals" ? (
+        <button className="banner offer-banner" onClick={() => openDeal(offers[0].id)}>
+          <strong>{offers.length === 1 ? "An offer is waiting for you" : `${offers.length} offers are waiting for you`}.</strong>{" "}
+          {nameOf(offers[0].buyer_id)}'s agent agreed {inr(offers[0].final_price_inr)} with yours. See it
+        </button>
+      ) : null}
       {error && <p className={`banner ${isBusy(error) ? "busy-note" : "error"}`} role="status">{isBusy(error) ? "Reconnecting to Kintsugi… it picks up where it left off." : error}</p>}
 
       <main className={`layout tab-${tab === "map" && mapView === "list" ? "maplist" : tab === "impact" ? "ledger" : tab}`}>
@@ -242,7 +257,7 @@ export default function App() {
                 }}
               />
             ) : tab === "deals" ? (
-              <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} onCelebrate={onCelebrate} />
+              <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} onCelebrate={onCelebrate} focus={focusDeal} />
             ) : (
               <LedgerPage state={state} personaId={personaId} onOpenItem={openItem} onOpenDeals={() => setTab("deals")} />
             )}

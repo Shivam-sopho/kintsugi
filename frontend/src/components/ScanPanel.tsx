@@ -158,6 +158,7 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
             <span className="done-tick" aria-hidden="true">✓</span>
             <div>
               <h3>{results.length ? `Done: Scout found ${results.length} ${results.length === 1 ? "thing" : "things"}` : "Done, but nothing was listed"}</h3>
+              {results.length > 0 && <p className="small">Listed as {state.participants.find((x) => x.id === sellerId)?.name ?? "you"}, in Your recent items below.</p>}
               <p className="small muted">{results.length ? "Tap one to see what it becomes, its journey and how to hand it over." : "Try again closer up, in good light, and say what it is."}</p>
             </div>
           </div>
@@ -198,6 +199,9 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
         </>
       )}
 
+      <p className="small muted listing-as">
+        Listing as <strong>{state.participants.find((x) => x.id === sellerId)?.name ?? "you"}</strong>. Change it in your profile.
+      </p>
       <p className="small muted where">
         {locNote ?? (where.mine ? "Near your current location." : `In ${where.label} (sample data).`)}{" "}
         <button type="button" className="link" onClick={useMyLocation}>Use my location</button> or <CityPicker />

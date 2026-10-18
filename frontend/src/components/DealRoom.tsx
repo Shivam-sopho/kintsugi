@@ -18,13 +18,14 @@ interface Props {
   onChanged: () => void;
   onOpenItem?: (id: string) => void;
   onCelebrate?: (c: { dealId: string | null; personId: string; levelBefore: string | null } | null) => void;
+  focus?: string | null; // open this deal straight away (from a banner)
 }
 
-export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate }: Props) {
+export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate, focus }: Props) {
   // Offers waiting for the seller's yes come first, then the newest.
   const waiting = (d: Deal) => d.status === "agreed" && !d.seller_accepted;
   const deals = [...state.deals].sort((a, b) => Number(waiting(b)) - Number(waiting(a)) || b.created_at - a.created_at);
-  const [dealId, setDealId] = useState<string | null>(null);
+  const [dealId, setDealId] = useState<string | null>(focus ?? null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<"seller" | "buyer">("seller");
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +114,17 @@ export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate }: 
           </div>
         )}
 
+      <div className={`a2a-note ${deal.status === "negotiating" ? "live" : ""}`}>
+        <strong>
+          {deal.status === "negotiating" ? <><span className="dots" aria-hidden="true"><i /><i /><i /></span> Two agents are negotiating now</> : "Two agents negotiated this"}
+        </strong>
+        <span className="small">
+          {whose(seller?.name ?? "The seller")} agent ({LANG_LABEL[sellerLang] ?? sellerLang}) and {whose(buyer?.name ?? "the buyer").replace(/^Your/, "your")} agent ({LANG_LABEL[buyerLang] ?? buyerLang}) talk to each other
+          over the A2A protocol, each in its owner's language. Each keeps its owner's limit private, and code stops either from crossing it.
+          Switch phones below to see each side.
+        </span>
+      </div>
+
       <div className="mode-switch phone-switch" role="tablist" aria-label="Whose phone">
         <button role="tab" aria-selected={view === "seller"} className={view === "seller" ? "on" : ""} onClick={() => setView("seller")}>
           {seller?.name ?? "Seller"}, {LANG_LABEL[sellerLang] ?? sellerLang}
@@ -186,8 +198,11 @@ function Phone({ title, lang, side, turns }: { title: string; lang: string; side
   );
 }
 
+/** "Ananya's", or "Your" for the person using the app. */
+const whose = (name: string) => (name === "You" ? "Your" : `${name}'s`);
+
 const STATUS: Record<Deal["status"], string> = {
-  negotiating: "Agents negotiating now",
+  negotiating: "Agents talking now: tap to watch",
   agreed: "Agreed, waiting for the buyer",
   approved: "Approved",
   settled: "Settled",

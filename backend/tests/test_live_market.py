@@ -39,3 +39,11 @@ def test_the_seller_can_decline_and_the_item_is_listed_again(client, monkeypatch
     out = client.post(f"/api/deals/{deal['id']}/decline").json()
     assert out["status"] == "no_deal"
     assert all(client.get(f"/api/items/{i}").json()["status"] == "available" for i in out["item_ids"])
+
+
+def test_an_item_in_a_negotiation_can_still_be_confirmed_but_not_changed(client, monkeypatch):
+    deal = _listed_with_offers(client, monkeypatch)[0]
+    item_id = deal["item_ids"][0]
+    assert client.patch(f"/api/items/{item_id}", json={"verified": True}).json()["verified"] is True
+    r = client.patch(f"/api/items/{item_id}", json={"count": 2})
+    assert r.status_code == 400 and "decline" in r.json()["detail"]
