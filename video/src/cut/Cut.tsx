@@ -127,7 +127,7 @@ function StoryLine({ children, from = 0, to = 9999 }: { children: ReactNode; fro
   if (frame < from || frame >= to) return null;
   const t = Math.min(1, (frame - from) / 8);
   return (
-    <div style={{ position: "absolute", left: 0, right: 0, bottom: 60, display: "flex", justifyContent: "center", opacity: t, transform: `translateY(${(1 - t) * 14}px)` }}>
+    <div style={{ position: "absolute", left: 0, right: 0, bottom: 40, display: "flex", justifyContent: "center", opacity: t, transform: `translateY(${(1 - t) * 14}px)` }}>
       <div style={{ maxWidth: 1280, textAlign: "center", fontFamily: FONT_SANS, fontSize: 46, fontWeight: 700, lineHeight: 1.25, color: "#fff", background: "rgba(12,17,32,0.72)", borderRadius: 18, padding: "16px 34px" }}>
         {children}
       </div>
@@ -164,8 +164,8 @@ function ProblemSlide() {
   const zoom = interpolate(frame, [0, frames(6.5)], [1, 1.05]);
   return (
     <Stage>
-      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 1720, borderRadius: 20, overflow: "hidden", boxShadow: "0 40px 90px rgba(5,8,18,0.55)", opacity: t, transform: `scale(${zoom * (0.96 + 0.04 * t)})` }}>
+      <AbsoluteFill style={{ alignItems: "center", paddingTop: 28 }}>
+        <div style={{ width: 1480, borderRadius: 20, overflow: "hidden", boxShadow: "0 40px 90px rgba(5,8,18,0.55)", opacity: t, transform: `scale(${zoom * (0.96 + 0.04 * t)})`, transformOrigin: "50% 0" }}>
           <Img src={staticFile("rec/problem.png")} style={{ width: "100%", display: "block" }} />
         </div>
       </AbsoluteFill>
@@ -223,7 +223,7 @@ const GEMINI: [string, string][] = [
 function GeminiChip({ model, job, delay }: { model: string; job: string; delay: number }) {
   const t = useIn(delay);
   return (
-    <span style={{ ...pill, fontSize: 26, opacity: t, transform: `translateY(${(1 - t) * 16}px)`, background: "rgba(20,29,51,0.9)", border: `1px solid ${C.gold}` }}>
+    <span style={{ ...pill, fontFamily: FONT_SANS, fontSize: 26, opacity: t, transform: `translateY(${(1 - t) * 16}px)`, background: "rgba(20,29,51,0.9)", border: `1px solid ${C.gold}` }}>
       <b style={{ color: C.goldLight, marginRight: 10 }}>{model}</b>{job}
     </span>
   );
