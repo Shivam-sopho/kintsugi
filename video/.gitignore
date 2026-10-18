@@ -1,0 +1,12 @@
+node_modules/
+out/
+whisper.cpp/
+# Footage and audio are large: keep them out of git (share them separately)
+public/clips/*
+!public/clips/.gitkeep
+public/audio/*
+!public/audio/.gitkeep
+public/voiceover.wav
+public/voiceover.captions.json
+public/rec/*
+!public/rec/.gitkeep

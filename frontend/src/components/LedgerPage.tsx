@@ -52,8 +52,8 @@ function CountUp({ value, format }: { value: number; format: (n: number) => stri
 }
 
 /** The live ledger: what Kintsugi has done, as it happens, with every figure traced to its source. */
-export default function LedgerPage({ state, personaId, onOpenItem, onOpenDeals }: {
-  state: AppState; personaId: string; onOpenItem: (id: string) => void; onOpenDeals: () => void;
+export default function LedgerPage({ state, personaId, onOpenItem, onOpenDeals, onOpenDeal }: {
+  state: AppState; personaId: string; onOpenItem: (id: string) => void; onOpenDeals: () => void; onOpenDeal: (id: string) => void;
 }) {
   const [data, setData] = useState<LiveLedger | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +189,7 @@ export default function LedgerPage({ state, personaId, onOpenItem, onOpenDeals }
                           {isOpen ? "Hide how it's counted" : "How it's counted"}
                         </button>
                       ) : null}
-                      {f.kind === "offer" && <button type="button" className="link" onClick={onOpenDeals}>See the conversation</button>}
+                      {f.kind === "offer" && f.deal_id && <button type="button" className="link" onClick={() => onOpenDeal(f.deal_id!)}>See the conversation</button>}
                       {f.kind === "listed" && f.item_ids?.[0] && <button type="button" className="link" onClick={() => onOpenItem(f.item_ids![0])}>Open</button>}
                     </div>
                     {isOpen && f.lines && (

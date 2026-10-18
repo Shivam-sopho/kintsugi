@@ -198,8 +198,14 @@ async def update_item(store: Store, settings: Settings, item_id: str, patch: dic
     it = store.get_item(item_id)
     if it is None:
         raise ValueError("Item not found")
-    if it.status != "available":
-        raise ValueError("This item is already in a deal")
+    changes = any(patch.get(k) is not None for k in ("count", "condition", "floor_price_inr"))
+    if it.status != "available" and changes:
+        raise ValueError("This item is in a negotiation: decline the offer in Handovers to correct it")
+    if it.status != "available":  # confirming what Scout saw is always fine; it changes no price or route
+        if patch.get("verified"):
+            it.verified, it.needs_verification = True, False
+            store.upsert_items([it])
+        return it
     for key in ("count", "condition", "floor_price_inr"):
         if patch.get(key) is not None:
             setattr(it, key, patch[key])

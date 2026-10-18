@@ -319,6 +319,25 @@ async def handover(item_id: str) -> dict[str, Any]:
     return job.model_dump(mode="json")
 
 
+@app.post("/api/items/{item_id}/market")
+async def ask_buyers(item_id: str) -> dict[str, Any]:
+    """Ask buyers' agents about this item now: any buyer whose standing request matches opens a
+    negotiation with the seller's agent, live (the seller then accepts or declines)."""
+    store = get_store()
+    it = store.get_item(item_id)
+    if not it:
+        raise HTTPException(404, "Item not found")
+    if it.status != "available" or it.hazards or not it.value_max_inr:
+        raise HTTPException(400, "Only available things with a resale value can be offered to buyers")
+    live = settings.model_copy(update={"live_market": True})
+
+    async def flow(job_id: str):
+        deals = await agents.run_autopilot(store, get_llm(), live, agents.Emitter(store, job_id, delay=settings.demo_step_delay), item_ids=[item_id])
+        return {"deal_ids": [d.id for d in deals]}
+
+    return _start_job("market", flow).model_dump(mode="json")
+
+
 @app.post("/api/items/{item_id}/offer")
 async def offer(item_id: str) -> dict[str, Any]:
     """Offer this item (and the rest of the lot the same taker wants) to the taker the ladder picked."""

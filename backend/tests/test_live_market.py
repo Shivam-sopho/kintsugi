@@ -39,3 +39,21 @@ def test_the_seller_can_decline_and_the_item_is_listed_again(client, monkeypatch
     out = client.post(f"/api/deals/{deal['id']}/decline").json()
     assert out["status"] == "no_deal"
     assert all(client.get(f"/api/items/{i}").json()["status"] == "available" for i in out["item_ids"])
+
+
+def test_an_item_in_a_negotiation_can_still_be_confirmed_but_not_changed(client, monkeypatch):
+    deal = _listed_with_offers(client, monkeypatch)[0]
+    item_id = deal["item_ids"][0]
+    assert client.patch(f"/api/items/{item_id}", json={"verified": True}).json()["verified"] is True
+    r = client.patch(f"/api/items/{item_id}", json={"count": 2})
+    assert r.status_code == 400 and "decline" in r.json()["detail"]
+
+
+def test_a_seller_can_ask_buyers_agents_about_one_thing(client, monkeypatch):
+    asyncio.run(agents.seed_market(get_store(), get_llm()))
+    data = {"kind": "building", "name": "Old office", "lat": 12.9352, "lng": 77.6245, "seller_id": "ppl_me"}
+    job = wait(client, client.post("/api/scan", data=data, files=[("files", ("walk.mp4", b"fake", "video/mp4"))]).json()["id"])
+    door = next(client.get(f"/api/items/{i}").json() for i in job["result"]["item_ids"] if "door" in client.get(f"/api/items/{i}").json()["type"])
+    market = wait(client, client.post(f"/api/items/{door['id']}/market").json()["id"], timeout=60)
+    assert market["result"]["deal_ids"]
+    assert client.post(f"/api/items/{door['id']}/market").status_code == 400  # now in a deal

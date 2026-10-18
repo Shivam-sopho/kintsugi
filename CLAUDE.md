@@ -8,7 +8,8 @@ Kintsugi is a hackathon entry (AI Builder Cup, Sustainability track, submission 
   - `app/llm/` model layer: `base.py` (interface), `gemini.py` (live, Vertex AI), `mock.py` (offline fixtures), `prompts.py`, `schemas.py`
   - `app/ladder.py` next-life decision rules; `app/negotiation.py` seller/buyer agents and guardrails; `app/a2a_seller.py` seller agent over A2A
   - `app/ledger.py`, `app/materials.py`, `app/certificate.py` impact accounting; `app/evidence.py` evidence frames with face blur
-  - `app/store/` memory and Firestore stores behind one interface; `app/demo/fixtures.py` sample data (Bengaluru)
+  - `app/store/` memory and Firestore stores behind one interface; `app/demo/fixtures.py` sample data (Bengaluru), `app/demo/cities.py` sample Asia-Pacific cities
+  - `app/live_ledger.py` the live ledger feed; `app/report_pdf.py` PDF report and certificates (fonts in `app/fonts/`); `app/standing.py` account standing; `app/speech_cache.py` cached Gemini voices
   - `kintsugi_adk/agent.py` the same tools as an ADK multi-agent app (`adk web`)
   - `tests/` pytest, all offline; `eval/` Scout accuracy harness; `scripts/smoke_live.py` checks live Gemini calls
 - `frontend/` React + TypeScript + Vite. `src/App.tsx` shell; screens in `src/components/`; API client `src/api.ts`; design tokens at the top of `src/styles.css`
@@ -49,4 +50,4 @@ npm run android:sync                            # rebuild and copy into the Andr
 
 ## Live mode status
 
-Live and deployed: https://kintsugi-ai-builder-cup-2026.web.app (project `kintsugi-ai-builder-cup-2026`, Cloud Run `kintsugi-api`, Firestore, Cloud Storage, Maps). Every Gemini call works live (`python -m scripts.smoke_live`). Locally, run the backend with `GRPC_DNS_RESOLVER=native` when using Firestore or live mode. When a live call fails, fix it in `app/llm/gemini.py` (or the store/maps module), keep the mock behaviour identical, and add an offline test with a fake client. Judge mode must only ever clear its own sample data (`agents.clear_demo_data`), never call `store.reset()` on a shared database.
+Live and deployed: https://kintsugi-ai-builder-cup-2026.web.app (project `kintsugi-ai-builder-cup-2026`, Cloud Run `kintsugi-api`, Firestore, Cloud Storage, Maps). Every Gemini call works live (`python -m scripts.smoke_live`). Locally, run the backend with `GRPC_DNS_RESOLVER=native` when using Firestore or live mode. When a live call fails, fix it in `app/llm/gemini.py` (or the store/maps module), keep the mock behaviour identical, and add an offline test with a fake client. Deploys restart the server and interrupt running jobs: avoid deploying while judges are using the app. Job results are saved in Firestore, so keep them under 1 MB (store images in Cloud Storage and reference them by id). Run the tests with `set -o pipefail` when piping their output, so a failure stops a deploy. Judge mode must only ever clear its own sample data (`agents.clear_demo_data`), never call `store.reset()` on a shared database.
