@@ -8,13 +8,23 @@ import { DEMO_CENTER } from "./labels";
 export interface Where {
   lat: number;
   lng: number;
-  mine: boolean; // false while it is the demo location
+  mine: boolean; // true once the person shared where they are
+  label: string; // "Bengaluru", "Tokyo", or "you"
+}
+
+/** Cities with sample data (from the API's /api/cities). */
+export interface City {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  lang: string;
 }
 
 const listeners = new Set<() => void>();
 const isNative = Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
 
-let current: Where = { ...DEMO_CENTER, mine: false };
+let current: Where = { ...DEMO_CENTER, mine: false, label: "Bengaluru" };
 
 export function getWhere(): Where {
   return current;
@@ -25,8 +35,8 @@ function set(next: Where): void {
   listeners.forEach((l) => l());
 }
 
-/** Back to the demo location in Bengaluru. */
-export const useDemoLocation = () => set({ ...DEMO_CENTER, mine: false });
+/** Look around one of the sample cities. */
+export const goToCity = (c: City) => set({ lat: c.lat, lng: c.lng, mine: false, label: c.name });
 
 /** Re-render when the location changes. */
 export function useWhere(): Where {
@@ -62,7 +72,7 @@ export async function locateMe(): Promise<Where> {
           if (!navigator.geolocation) return reject(new Error("Location isn't available here."));
           navigator.geolocation.getCurrentPosition(resolve, reject, options);
         });
-    const next = { lat: pos.coords.latitude, lng: pos.coords.longitude, mine: true };
+    const next = { lat: pos.coords.latitude, lng: pos.coords.longitude, mine: true, label: "you" };
     set(next);
     return next;
   } catch (err) {

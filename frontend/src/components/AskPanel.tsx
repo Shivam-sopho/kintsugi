@@ -46,10 +46,8 @@ export default function AskPanel({ state, personaId, onOpenItem, onJob, onGoToDe
     form.append("persona_id", personaId);
     form.append("question", question);
     form.append("lang", preferredLanguage() ?? persona?.language ?? "en");
-    if (getWhere().mine) {
-      form.append("lat", String(getWhere().lat));
-      form.append("lng", String(getWhere().lng));
-    }
+    form.append("lat", String(getWhere().lat)); // the chosen city, or where the person is
+    form.append("lng", String(getWhere().lng));
     form.append("history", JSON.stringify(messages.slice(-6).map((m) => ({ role: m.from, text: m.en ?? m.text }))));
     if (audio) form.append("file", new File([audio], audioFileName(audio), { type: audio.type }));
     if (question) setMessages((prev) => [...prev, { from: "you", text: question }]);

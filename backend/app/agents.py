@@ -742,6 +742,52 @@ async def decline_deal(store: Store, emit: Emitter, deal_id: str) -> Deal:
     return deal
 
 
+async def seed_cities(store: Store, llm: LLM, settings: Settings) -> int:
+    """Sample cities across Asia-Pacific (sample data): takers in each city's language and two homes
+    with things listed, routed by the same rules and counted by the same ledger as a real scan.
+    Runs once; cities already there are left alone. Returns how many items it listed."""
+    from .demo import cities
+
+    have = {s.id for s in store.list_sites()}
+    listed = 0
+    for c in cities.CITIES:
+        if f"site_{c['id']}_0" in have:
+            continue
+        lat, lng = c["center"]
+        takers = [
+            Participant(id=f"ppl_{c['id']}_{key}", name=c["takers"][key], role=role, language=c["lang"] if key not in ("energy_facility", "hazard_handler") else "en",
+                        location=GeoPoint(lat=lat + d[0], lng=lng + d[1]), accepts_types=types, accepts_materials=mats,
+                        budget_cap_inr=30000 if role == "buyer" else None)
+            for key, role, d, types, mats in cities.TAKERS
+        ]
+        for t in takers:
+            store.upsert_participant(t)
+        everyone = store.list_participants()
+        ctx = ladder.LadderContext(everyone, settings.search_radius_km)
+        for n, (label, d, templates) in enumerate(cities.HOMES):
+            owner = Participant(id=f"ppl_{c['id']}_home{n}", name=c["homes"][n], role="homeowner", language=c["lang"],
+                                location=GeoPoint(lat=lat + d[0], lng=lng + d[1]))
+            store.upsert_participant(owner)
+            site = Site(id=f"site_{c['id']}_{n}", owner_id=owner.id, kind="home", name=f"{label}, {c['name']}", location=owner.location)
+            store.upsert_site(site)
+            items = []
+            for t in templates:
+                value = t.get("value")
+                it = Item(site_id=site.id, type=t["type"], description=t["description"], count=t["count"], condition=t["condition"],
+                          confidence=0.85, location=site.location, language=c["lang"], seller_id=owner.id, synthetic=True,
+                          value_min_inr=value[0] if value else None, value_max_inr=value[1] if value else None,
+                          repair_cost_inr=t.get("repair"), price_sources=["sample data"] if value else [],
+                          components=[Component(name=nm, material=mat, est_weight_kg=kgs) for nm, mat, kgs in t["components"]])
+                decided = ladder.decide(it, ctx)
+                decided.co2_avoided_kg = ledger.co2_avoided_for_item(decided)
+                items.append(decided)
+            for it, vec in zip(items, await llm.embed_texts([item_text(i) for i in items])):
+                it.embedding = vec
+            store.upsert_items(items)
+            listed += len(items)
+    return listed
+
+
 async def seed_market(store: Store, llm: LLM) -> list[StandingRequest]:
     """Sample buyers who are always looking (sample data), so listing something starts a real
     negotiation. They react only to things listed from now on, never to what is already there."""

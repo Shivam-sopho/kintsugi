@@ -816,3 +816,7 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 }
 .ledger-feed, .ledger-side { min-width: 0; }
 .counted-wrap { overflow-x: auto; max-width: 100%; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.city-picker select { border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 999px; padding: 0.15rem 0.5rem; font: inherit; font-size: 0.85rem; width: auto; }
+.chip.city-picker { padding: 0; border: 0; background: none; }
+.chip.city-picker select { border: 1px solid var(--ink); font-weight: 600; padding: 0.3rem 0.6rem; }

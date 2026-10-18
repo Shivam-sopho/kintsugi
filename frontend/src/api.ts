@@ -71,6 +71,7 @@ export const api = {
   certificatePdfUrl: (id: string, lang = "en") => `${FILES}/api/certificate/${id}.pdf?lang=${lang}`,
   standing: (personId: string) => call<Standing>(`/api/people/${encodeURIComponent(personId)}/standing`),
   standingPdfUrl: (personId: string) => `${FILES}/api/people/${encodeURIComponent(personId)}/certificate.pdf`,
+  cities: () => call<{ id: string; name: string; lat: number; lng: number; lang: string }[]>("/api/cities"),
   liveLedger: () => call<LiveLedger>("/api/ledger/live"),
   reportPdfUrl: (personaId?: string) => `${FILES}/api/report.pdf${personaId ? `?persona_id=${encodeURIComponent(personaId)}` : ""}`,
   patchItem: (id: string, patch: Partial<{ count: number; condition: string; verified: boolean; floor_price_inr: number }>) =>
