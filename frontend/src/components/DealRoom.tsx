@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import type { AppState, Deal, NegotiationTurn } from "../types";
-import { LANG_LABEL, inr } from "../labels";
+import { LANG_LABEL, RUNG_LABEL, inr, kg } from "../labels";
 import Problem from "./Problem";
 import ListenButton from "./ListenButton";
 
@@ -13,7 +13,13 @@ const ACTION: Record<NegotiationTurn["action"], string> = {
   decline: "Declines",
 };
 
-export default function DealRoom({ state, onChanged }: { state: AppState; onChanged: () => void }) {
+interface Props {
+  state: AppState;
+  onChanged: () => void;
+  onOpenItem?: (id: string) => void;
+}
+
+export default function DealRoom({ state, onChanged, onOpenItem }: Props) {
   // Offers waiting for the seller's yes come first, then the newest.
   const waiting = (d: Deal) => d.status === "agreed" && !d.seller_accepted;
   const deals = [...state.deals].sort((a, b) => Number(waiting(b)) - Number(waiting(a)) || b.created_at - a.created_at);
@@ -21,16 +27,10 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<"seller" | "buyer">("seller");
   const [error, setError] = useState<string | null>(null);
-  const deal: Deal | undefined = deals.find((d) => d.id === dealId) ?? deals[0];
+  const deal: Deal | undefined = deals.find((d) => d.id === dealId);
 
-  if (!deal) {
-    return (
-      <section>
-        <h2>Handovers</h2>
-        <p className="muted">Nothing handed over yet. Open an item and choose how it goes: hand it over for free to a recycler, municipal centre, compost unit or charity, or sell it to a buyer.</p>
-      </section>
-    );
-  }
+  if (!deal) return <Connections state={state} deals={deals} onOpenDeal={setDealId} onOpenItem={onOpenItem} />;
+  const back = <button type="button" className="secondary small-btn" onClick={() => setDealId(null)}>All handovers</button>;
 
   const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
   const seller = people[deal.seller_id];
@@ -44,13 +44,7 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
     const routes = it ? [...new Set([it.destination_id, ...it.components.map((c) => c.destination_id)].filter(Boolean) as string[])] : [];
     return (
       <section className="dealroom">
-        <div className="row between"><h2>Handovers</h2>
-          {deals.length > 1 && (
-            <select value={deal.id} onChange={(e) => setDealId(e.target.value)} aria-label="Choose a handover">
-              {deals.map((d) => <option key={d.id} value={d.id}>{d.kind === "handover" ? "Handed over" : "Sale"}: {d.item_ids.map((id) => state.items.find((i) => i.id === id)?.type).filter(Boolean).join(", ")}</option>)}
-            </select>
-          )}
-        </div>
+        <div className="row between"><h2>Hand-over</h2>{back}</div>
         <article className="handover-card">
           <span className="status ok">Handed over, no money involved</span>
           <h3>{it ? `${it.count > 1 ? `${it.count} × ` : ""}${it.type}` : "Item"}</h3>
@@ -87,16 +81,8 @@ export default function DealRoom({ state, onChanged }: { state: AppState; onChan
   return (
     <section className="dealroom">
       <div className="row between">
-        <h2>Handovers</h2>
-        {deals.length > 1 && (
-          <select value={deal.id} onChange={(e) => setDealId(e.target.value)} aria-label="Choose a handover">
-            {deals.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.kind === "handover" ? "Handed over" : "Sale"}: {d.item_ids.map((id) => state.items.find((i) => i.id === id)?.type).filter(Boolean).join(", ") || d.id}
-              </option>
-            ))}
-          </select>
-        )}
+        <h2>Deal</h2>
+        {back}
       </div>
       <p className="muted">
         {deal.request_id ? <span className="status autopilot">Started by {buyer?.name ?? "the buyer"}'s agent</span>
@@ -188,5 +174,92 @@ function Phone({ title, lang, side, turns }: { title: string; lang: string; side
         })}
       </ol>
     </div>
+  );
+}
+
+const STATUS: Record<Deal["status"], string> = {
+  negotiating: "Agents negotiating now",
+  agreed: "Agreed, waiting for the buyer",
+  approved: "Approved",
+  settled: "Settled",
+  no_deal: "No deal",
+};
+
+/** Every connection in one list: offers waiting for a yes, what's under way, what's done, and the
+ *  listed things still to go with the taker each would go to. The map stays free of lines. */
+function Connections({ state, deals, onOpenDeal, onOpenItem }: {
+  state: AppState; deals: Deal[]; onOpenDeal: (id: string) => void; onOpenItem?: (id: string) => void;
+}) {
+  const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
+  const itemById = Object.fromEntries(state.items.map((i) => [i.id, i]));
+  const waitingForSeller = (d: Deal) => d.status === "agreed" && !d.seller_accepted;
+  const groups: [string, Deal[]][] = [
+    ["Waiting for you", deals.filter(waitingForSeller)],
+    ["Under way", deals.filter((d) => d.status === "negotiating" || (d.status === "agreed" && d.seller_accepted) || d.status === "approved")],
+    ["Done", deals.filter((d) => d.status === "settled")],
+  ];
+  const toGo = state.items.filter((i) => i.status === "available" && (i.destination_id || i.components.some((c) => c.destination_id)));
+  const noDeal = deals.filter((d) => d.status === "no_deal").length;
+
+  const row = (d: Deal) => {
+    const its = d.item_ids.map((id) => itemById[id]).filter(Boolean);
+    const what = its.map((i) => `${i.count > 1 ? `${i.count} × ` : ""}${i.type}`).join(", ") || "Items";
+    const co2 = its.reduce((s, i) => s + (i.co2_avoided_kg ?? 0), 0);
+    const price = d.kind === "handover" ? "Free hand-over" : d.final_price_inr ? inr(d.final_price_inr) : "Price being agreed";
+    const status = d.kind === "handover" ? "Handed over" : waitingForSeller(d) ? "Your yes needed" : STATUS[d.status];
+    return (
+      <li key={d.id}>
+        <button type="button" className={`conn ${waitingForSeller(d) ? "waiting" : ""} ${d.status === "negotiating" ? "live" : ""}`} onClick={() => onOpenDeal(d.id)}>
+          <span className="conn-main">
+            <strong>{what.charAt(0).toUpperCase() + what.slice(1)}</strong>
+            <span className="small muted">{people[d.seller_id]?.name ?? "Seller"} → {people[d.buyer_id]?.name ?? "Taker"}</span>
+          </span>
+          <span className="conn-side">
+            <span className="conn-price">{price}</span>
+            <span className={`status ${d.status === "settled" ? "ok" : ""}`}>{status}</span>
+            {co2 > 0 && <span className="small co2">{kg(co2)} CO2e</span>}
+          </span>
+        </button>
+      </li>
+    );
+  };
+
+  return (
+    <section className="connections">
+      <h2>Handovers</h2>
+      <p className="muted small">Every connection Kintsugi has made: hand-overs, sales and offers from buyers' agents. Tap one for the whole story.</p>
+      {groups.map(([title, list]) => list.length > 0 && (
+        <div key={title}>
+          <h3>{title} <span className="muted small">({list.length})</span></h3>
+          <ul className="conn-list">{list.map(row)}</ul>
+        </div>
+      ))}
+      {!deals.length && <p className="muted">Nothing handed over yet. Open an item and choose how it goes: hand it over for free, or sell it to a buyer.</p>}
+      {toGo.length > 0 && (
+        <>
+          <h3>Still to go <span className="muted small">({toGo.length})</span></h3>
+          <ul className="conn-list">
+            {toGo.slice(0, 20).map((i) => {
+              const ids = [...new Set([i.destination_id, ...i.components.map((c) => c.destination_id)].filter(Boolean) as string[])];
+              return (
+                <li key={i.id}>
+                  <button type="button" className="conn" onClick={() => onOpenItem?.(i.id)}>
+                    <span className="conn-main">
+                      <strong>{i.type.charAt(0).toUpperCase() + i.type.slice(1)}</strong>
+                      <span className="small muted">→ {people[ids[0]]?.name ?? "a taker"}{ids.length > 1 ? ` and ${ids.length - 1} more` : ""}</span>
+                    </span>
+                    <span className="conn-side">
+                      {i.next_life && <span className="small">{RUNG_LABEL[i.next_life]}</span>}
+                      {i.co2_avoided_kg ? <span className="small co2">{kg(i.co2_avoided_kg)} CO2e</span> : null}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+      {noDeal > 0 && <p className="small muted">{noDeal} {noDeal === 1 ? "negotiation" : "negotiations"} ended without a deal; those items are listed again.</p>}
+    </section>
   );
 }

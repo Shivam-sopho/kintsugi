@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AdvancedMarker, APIProvider, Map, Polyline, useMap } from "@vis.gl/react-google-maps";
+import { AdvancedMarker, APIProvider, Map, useMap } from "@vis.gl/react-google-maps";
 import ErrorBoundary from "./ErrorBoundary";
 import type { AppState, GeoPoint, Item, Participant, Prediction, Rung } from "../types";
 import { DEMO_CENTER, RUNG_COLOR, RUNG_LABEL, RUNG_ORDER, TAKER_ROLE } from "../labels";
 import { useWhere, type Where } from "../where";
 
-export type Layers = { flows: boolean; future: boolean; materials: boolean; destinations: boolean; deals: boolean };
+export type Layers = { future: boolean; materials: boolean; destinations: boolean };
 
 interface Props {
   state: AppState;
@@ -28,20 +28,7 @@ export interface SitePin {
   open: number;
 }
 
-export interface Seam {
-  id: string;
-  from: GeoPoint;
-  to: GeoPoint;
-  kind: "deal" | "route";
-}
 
-/** A line from a listed thing to a taker its parts go to, coloured by that next life. */
-export interface Flow {
-  id: string;
-  from: GeoPoint;
-  to: GeoPoint;
-  rung: Rung;
-}
 
 export function useMapModel(state: AppState) {
   return useMemo(() => {
@@ -61,43 +48,7 @@ export function useMapModel(state: AppState) {
         open: items.filter((i) => i.status === "available").length,
       };
     });
-    const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
-    const siteById = Object.fromEntries(state.sites.map((s) => [s.id, s]));
-    const itemById = Object.fromEntries(state.items.map((i) => [i.id, i]));
-    const seams: Seam[] = [];
-    for (const d of state.deals) {
-      if (!["agreed", "approved", "settled"].includes(d.status)) continue;
-      const it = itemById[d.item_ids[0]];
-      const buyer = people[d.buyer_id];
-      if (it && buyer) seams.push({ id: d.id, from: it.location, to: buyer.location, kind: "deal" });
-    }
-    for (const b of state.bundles) {
-      const dealer = people[b.dealer_id];
-      if (!dealer) continue;
-      let prev = dealer.location;
-      for (const sid of b.route) {
-        const s = siteById[sid];
-        if (!s) continue;
-        seams.push({ id: `${b.id}-${sid}`, from: prev, to: s.location, kind: "route" });
-        prev = s.location;
-      }
-    }
-    // The circular flows: every listed thing to each taker its parts go to.
-    const flows: Flow[] = [];
-    const seen = new Set<string>();
-    for (const it of state.items) {
-      const routes = it.destination_id && it.next_life
-        ? [{ dest: it.destination_id, rung: it.next_life }]
-        : it.components.filter((c) => c.destination_id && c.next_life).map((c) => ({ dest: c.destination_id!, rung: c.next_life! }));
-      for (const r of routes) {
-        const taker = people[r.dest];
-        const key = `${it.site_id}|${r.dest}|${r.rung}`;
-        if (!taker || seen.has(key)) continue;
-        seen.add(key);
-        flows.push({ id: key, from: it.location, to: taker.location, rung: r.rung });
-      }
-    }
-    return { sites, seams, flows };
+    return { sites };
   }, [state]);
 }
 
@@ -124,21 +75,21 @@ function predictionTitle(p: Prediction): string {
 export function MapKey() {
   return (
     <details className="map-key">
-      <summary>What the map shows</summary>
-      <ul>
-        <li><i className="k-site">3</i>A home or site with things listed. The number is how many kinds of things.</li>
-        <li><i className="k-hazard" />Red dot: a suspected hazard, sent to a licensed handler.</li>
-        <li><i className="k-dest" />A taker: recycler, buyer, charity, compost unit, municipal centre.</li>
-        <li><i className="k-future" />Coming up, from public notices: dark ring, things will be freed; gold ring, someone will need them.</li>
-        <li><i className="k-you" />You.</li>
-        <li><i className="k-seam" />A hand-over or deal that has been agreed.</li>
-        <li><i className="k-route" />A shared pickup route.</li>
-      </ul>
-      <p className="small">Ring and line colours are the next life, best first:</p>
-      <ul className="k-rungs">
-        {RUNG_ORDER.map((r) => <li key={r}><i style={{ background: RUNG_COLOR[r] }} />{RUNG_LABEL[r]}</li>)}
-      </ul>
-      <p className="small muted">Lines run from each listed thing to the place its parts go.</p>
+      <summary>Map key</summary>
+      <div className="map-key-panel">
+        <ul>
+          <li><i className="k-site">3</i>A home or site with things listed. The number is how many kinds of things.</li>
+          <li><i className="k-hazard" />Red dot: a suspected hazard, sent to a licensed handler.</li>
+          <li><i className="k-dest" />A taker: recycler, buyer, charity, compost unit, municipal centre.</li>
+          <li><i className="k-future" />Coming up, from public notices: dark ring, things will be freed; gold ring, someone will need them.</li>
+          <li><i className="k-you" />You.</li>
+        </ul>
+        <p className="small">Ring colours are the best next life there, best first:</p>
+        <ul className="k-rungs">
+          {RUNG_ORDER.map((r) => <li key={r}><i style={{ background: RUNG_COLOR[r] }} />{RUNG_LABEL[r]}</li>)}
+        </ul>
+        <p className="small muted">Where things are going, and every hand-over and deal, are listed in Handovers.</p>
+      </div>
     </details>
   );
 }
@@ -164,7 +115,7 @@ function pinStyle(p: SitePin, selected: boolean): React.CSSProperties {
 }
 
 function GoogleMapView({ state, layers, selectedSiteId, onSelectSite, onSelectPrediction }: Props) {
-  const { sites, seams, flows } = useMapModel(state);
+  const { sites } = useMapModel(state);
   const where = useWhere();
   return (
     <APIProvider apiKey={MAPS_KEY!}>
@@ -180,21 +131,6 @@ function GoogleMapView({ state, layers, selectedSiteId, onSelectSite, onSelectPr
         <AdvancedMarker position={{ lat: where.lat, lng: where.lng }} title={where.mine ? "You are here" : "Demo location (you, until you share your location)"} zIndex={10}>
           <span className="you-pin">You</span>
         </AdvancedMarker>
-        {layers.flows &&
-          flows.map((f) => (
-            <Polyline key={f.id} path={[f.from, f.to]} strokeColor={RUNG_COLOR[f.rung]} strokeWeight={4} strokeOpacity={0.9} geodesic />
-          ))}
-        {layers.deals &&
-          seams.map((s) => (
-            <Polyline
-              key={s.id}
-              path={[s.from, s.to]}
-              strokeColor={s.kind === "deal" ? "#B8892B" : "#6E9E8A"}
-              strokeWeight={s.kind === "deal" ? 5 : 2}
-              strokeOpacity={s.kind === "deal" ? 0.95 : 0.8}
-              geodesic
-            />
-          ))}
         {layers.future &&
           state.predictions.map((p) => (
             <AdvancedMarker key={p.id} position={p.location} onClick={() => onSelectPrediction(p.id)} title={predictionTitle(p)}>
@@ -217,7 +153,6 @@ function GoogleMapView({ state, layers, selectedSiteId, onSelectSite, onSelectPr
             </AdvancedMarker>
           ))}
       </Map>
-      <MapKey />
     </APIProvider>
   );
 }
@@ -234,7 +169,7 @@ const PLACES: { name: string; lat: number; lng: number }[] = [
 
 /** Offline map used when no Maps key is set: same layers, projected to fit the panel. */
 function SchematicMap({ state, layers, selectedSiteId, onSelectSite, onSelectPrediction }: Props) {
-  const { sites, seams, flows } = useMapModel(state);
+  const { sites } = useMapModel(state);
   const where = useWhere();
   const wrap = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
@@ -276,18 +211,6 @@ function SchematicMap({ state, layers, selectedSiteId, onSelectSite, onSelectPre
         {PLACES.map((p) => (
           <text key={p.name} className="place" x={x(p)} y={y(p) + 34} textAnchor="middle">{p.name}</text>
         ))}
-        {layers.flows &&
-          flows.map((f) => (
-            <line key={f.id} className="flow" stroke={RUNG_COLOR[f.rung]} x1={x(f.from)} y1={y(f.from)} x2={x(f.to)} y2={y(f.to)} />
-          ))}
-        {layers.deals &&
-          seams.map((s) => (
-            <line
-              key={s.id}
-              className={s.kind === "deal" ? "seam" : "route"}
-              x1={x(s.from)} y1={y(s.from)} x2={x(s.to)} y2={y(s.to)}
-            />
-          ))}
         {layers.future &&
           state.predictions.map((p) => (
             <g key={p.id} className={`future ${p.kind}`} onClick={() => onSelectPrediction(p.id)}
@@ -332,7 +255,6 @@ function SchematicMap({ state, layers, selectedSiteId, onSelectSite, onSelectPre
           <title>{where.mine ? "You are here" : "Demo location (you, until you share your location)"}</title>
         </g>
       </svg>
-      <MapKey />
       <p className="map-note">Schematic view. Add a Google Maps key to see the real map.</p>
     </div>
   );

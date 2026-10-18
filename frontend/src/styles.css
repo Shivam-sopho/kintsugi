@@ -668,9 +668,12 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .banner.busy-note { margin: 0; border-radius: 0; }
 
 /* The map key: what every shape, colour and number means */
-.map-key { position: absolute; left: 0.75rem; bottom: 0.75rem; z-index: 2; max-width: min(22rem, calc(100% - 1.5rem)); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); box-shadow: 0 2px 10px rgba(30, 43, 74, 0.12); font-size: 0.82rem; }
-.map-key summary { cursor: pointer; padding: 0.45rem 0.75rem; font-weight: 600; color: var(--ink); }
-.map-key[open] { padding-bottom: 0.6rem; max-height: 52vh; overflow: auto; }
+.map-key { position: static; font-size: 0.82rem; }
+.map-key summary { list-style: none; cursor: pointer; border: 1px solid var(--ink); background: var(--paper); color: var(--ink); border-radius: 999px; padding: 0.3rem 0.75rem; font-weight: 600; font-size: 0.85rem; }
+.map-key summary::-webkit-details-marker { display: none; }
+.map-key[open] summary { background: var(--ink); color: var(--porcelain); }
+.map-key-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 5; width: min(22rem, calc(100vw - 1.5rem)); max-height: 55vh; overflow: auto; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); box-shadow: 0 6px 18px rgba(30, 43, 74, 0.16); padding: 0.7rem 0; }
+.map-key-panel > p { margin: 0.5rem 0.75rem 0.3rem; }
 .map-key ul { list-style: none; margin: 0; padding: 0 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; }
 .map-key > p { margin: 0.5rem 0.75rem 0.3rem; }
 .map-key li { display: flex; gap: 0.55rem; align-items: center; color: var(--ink); }
@@ -719,3 +722,15 @@ label.check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight
 .offer-banner::after { content: " →"; color: var(--gold-ink); font-weight: 700; }
 .offer-box { background: #fdf8ec; border: 1px solid rgba(184, 137, 43, 0.4); border-left: 4px solid var(--gold); border-radius: var(--radius-s); padding: 0.75rem; }
 .offer-box p { margin: 0 0 0.6rem; }
+
+/* Handovers: every connection as a list (the map has no lines) */
+.connections h3 { margin: 1.1rem 0 0.45rem; }
+.conn-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.conn { width: 100%; display: flex; justify-content: space-between; gap: 0.75rem; text-align: left; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 0.65rem 0.8rem; cursor: pointer; font: inherit; color: var(--ink); }
+.conn:hover { border-color: var(--slate); }
+.conn.waiting { border-color: var(--gold); border-left: 4px solid var(--gold); background: #fdf8ec; }
+.conn.live { border-left: 4px solid var(--celadon); }
+.conn-main { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.conn-side { display: flex; flex-direction: column; align-items: flex-end; gap: 0.2rem; flex: none; text-align: right; }
+.conn-price { font-weight: 700; }
+.conn .co2 { color: var(--celadon); font-weight: 600; }
