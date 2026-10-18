@@ -4,8 +4,10 @@ export type Kind = "REAL" | "SCREEN" | "AI" | "STOCK" | "MOTION";
 
 /** Every clip in the shot list: what it is, so a placeholder can say exactly what to film. */
 export const CLIPS: Record<string, { kind: Kind; what: string; how?: string; ai?: boolean }> = {
-  "01a_landfill_aerial.mp4": { kind: "STOCK", what: "Aerial rising over a landfill", how: "6 s. Pexels 'landfill aerial', or Veo (prompt in the script)" },
-  "01b_street_dump.mp4": { kind: "REAL", what: "Furniture and rubble dumped on a Bengaluru street", how: "Steady, 3 s" },
+  // ai: true puts the "AI-generated" label on screen. 01a, 01b and 01g come from Veo (scripts/veo.py);
+  // set it to false if you replace one with your own or stock footage.
+  "01a_landfill_aerial.mp4": { kind: "AI", what: "Aerial rising over a landfill", how: "6 s. Veo: scripts/veo.py 01a", ai: true },
+  "01b_street_dump.mp4": { kind: "AI", what: "Furniture and rubble dumped on a Bengaluru street", how: "Veo: scripts/veo.py 01b (or film it: steady, 3 s)", ai: true },
   "01c_room_working.mp4": { kind: "REAL", what: "Me on the wooden chair, working on the laptop", how: "Side angle, natural light, 4 s" },
   "01d_chair_breaks.mp4": { kind: "REAL", what: "The leg gives way; I catch myself, stand and look at it", how: "Record the real sound" },
   "01e_search_phone.mp4": { kind: "REAL", what: "I search 'how to dispose of a broken chair', scroll, frown", how: "Close-up over the shoulder" },
