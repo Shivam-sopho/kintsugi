@@ -109,6 +109,9 @@ const CHAPTERS: Chapter[] = [
 /** What the narrator says for a chapter. */
 const spoken = (c: Chapter) => `${c.title}. ${c.says}`;
 
+/** Get the first chapter's English voice ready before anyone taps Run demo. */
+export const warmDemoVoice = () => prefetchSpeech(spoken(CHAPTERS[0]), "en", false);
+
 /** Which chapter each event belongs to, in order. */
 function chapters(events: Pick<AgentEvent, "agent" | "step">[]): number[] {
   let current = -1;

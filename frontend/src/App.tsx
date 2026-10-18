@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useJobs } from "./useJobs";
 import { setVoiceReplies, unlockAudio, voiceRepliesOn } from "./speak";
@@ -13,7 +13,7 @@ import Passport from "./components/Passport";
 import Sheet from "./components/Sheet";
 import { Logo } from "./components/Icons";
 import ProfilePanel from "./components/ProfilePanel";
-import DemoStory from "./components/DemoStory";
+import DemoStory, { warmDemoVoice } from "./components/DemoStory";
 import Celebration from "./components/Celebration";
 import NearbyList from "./components/NearbyList";
 import AskPanel from "./components/AskPanel";
@@ -54,6 +54,15 @@ export default function App() {
     if (c) setSheet(null);
     setCelebrate(c);
   };
+  // Fetched quietly after the page loads, with the first chapter's voice, so Run demo starts at once.
+  const demoRec = useRef<Promise<Awaited<ReturnType<typeof api.demoRecording>> | null> | null>(null);
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      demoRec.current = api.demoRecording().catch(() => null);
+      void warmDemoVoice();
+    }, 2500);
+    return () => clearTimeout(t);
+  }, []);
   const [demo, setDemo] = useState<{ recording: Awaited<ReturnType<typeof api.demoRecording>> | null; n: number } | null>(null);
   const [tab, setTab] = useState<Tab>("home");
   const [layers, setLayers] = useState<Layers>({ future: true, materials: true, destinations: true });
@@ -85,7 +94,7 @@ export default function App() {
       // this screen only, paced by its narration, so any number of viewers can watch at once without
       // touching each other. It runs for real only when no recording exists yet (once, ever); the
       // server lets only one real run happen at a time and later clicks join it.
-      const rec = await api.demoRecording().catch(() => null);
+      const rec = (await (demoRec.current ?? api.demoRecording())) ?? null;
       setSiteId(null);
       if (rec) {
         setDemo({ recording: rec, n: Date.now() });
