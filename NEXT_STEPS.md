@@ -4,13 +4,7 @@ Status on Sun 18 Oct 2026: the app is live in Gemini mode at **https://kintsugi-
 
 Deadline: submit by Sun 18 Oct 2026 (confirm the exact time and time zone on aibuildercup.com).
 
-## Handing a task to Claude
-
-Open the repo in Claude Code and say, for example:
-
-> Read CLAUDE.md and NEXT_STEPS.md, then do the next open task. Run the backend tests and the frontend build before committing.
-
-Keys go in `.env` files (git-ignored), never in chat if you can avoid it.
+Keys go in `.env` files (git-ignored), never in the repo.
 
 ## What's built
 
