@@ -14,6 +14,7 @@ import Sheet from "./components/Sheet";
 import { Logo } from "./components/Icons";
 import ProfilePanel from "./components/ProfilePanel";
 import DemoStory from "./components/DemoStory";
+import Celebration from "./components/Celebration";
 import NearbyList from "./components/NearbyList";
 import AskPanel from "./components/AskPanel";
 import { LiveJourney } from "./components/LifeStory";
@@ -46,6 +47,11 @@ type SheetState = { kind: "item"; id: string } | { kind: "agents" } | { kind: "p
 export default function App() {
   const { state, job, events, error, refresh, track } = useJobs();
   // The demo story, full screen: a recording to replay, or (recording: null) the live run being tracked.
+  const [celebrate, setCelebrate] = useState<{ dealId: string; personId: string; levelBefore: string | null } | null>(null);
+  const onCelebrate = (dealId: string, personId: string, levelBefore: string | null) => {
+    setSheet(null);
+    setCelebrate({ dealId, personId, levelBefore });
+  };
   const [demo, setDemo] = useState<{ recording: Awaited<ReturnType<typeof api.demoRecording>> | null; n: number } | null>(null);
   const [tab, setTab] = useState<Tab>("home");
   const [layers, setLayers] = useState<Layers>({ future: true, materials: true, destinations: true });
@@ -212,7 +218,7 @@ export default function App() {
                 }}
               />
             ) : tab === "deals" ? (
-              <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} />
+              <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} onCelebrate={onCelebrate} />
             ) : (
               <LedgerPage state={state} personaId={personaId} onOpenItem={openItem} onOpenDeals={() => setTab("deals")} />
             )}
@@ -244,7 +250,7 @@ export default function App() {
 
       {sheet?.kind === "item" && sheetItem && state && (
         <Sheet title={sentence(sheetItem.type)} onClose={() => setSheet(null)}>
-          <Passport key={sheetItem.id} item={sheetItem} state={state} onBack={() => setSheet(null)} onChanged={refresh} onOffer={offer} onJob={track} />
+          <Passport key={sheetItem.id} item={sheetItem} state={state} onBack={() => setSheet(null)} onChanged={refresh} onOffer={offer} onJob={track} onCelebrate={onCelebrate} />
         </Sheet>
       )}
       {sheet?.kind === "profile" && state && (
@@ -259,6 +265,18 @@ export default function App() {
             onOpenItem={openItem}
           />
         </Sheet>
+      )}
+      {celebrate && state && (
+        <Celebration
+          {...celebrate}
+          personaId={celebrate.personId}
+          state={state}
+          onClose={() => setCelebrate(null)}
+          onOpenLedger={() => {
+            setCelebrate(null);
+            setTab("impact");
+          }}
+        />
       )}
       {demo && (
         <DemoStory

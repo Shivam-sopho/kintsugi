@@ -30,9 +30,10 @@ interface Props {
   onChanged: () => void;
   onOffer: (itemId: string) => Promise<void>;
   onJob?: (job: Job, onDone?: (j: Job) => void) => void;
+  onCelebrate?: (dealId: string, personId: string, levelBefore: string | null) => void; // a hand-over is done
 }
 
-export default function Passport({ item, state, onChanged, onOffer, onJob }: Props) {
+export default function Passport({ item, state, onChanged, onOffer, onJob, onCelebrate }: Props) {
   const people = Object.fromEntries(state.participants.map((p) => [p.id, p]));
   const dest = item.destination_id ? people[item.destination_id] : undefined;
   const weight = item.components.reduce((s, c) => s + c.est_weight_kg, 0) * Math.max(item.count, 1);
@@ -144,10 +145,14 @@ export default function Passport({ item, state, onChanged, onOffer, onJob }: Pro
             </p>
             <button className="primary wide" disabled={busy === "handover" || !routeNames.length}
                     onClick={() => run("handover", async () => {
+                      const seller = item.seller_id ?? "ppl_me";
+                      const before = (await api.standing(seller).catch(() => null))?.level ?? null;
                       const job = await api.handover(item.id);
                       onJob?.(job, (done) => {
                         onChanged();
-                        if (done.status === "done") void say(handedOverLine(item, routeNames), preferredLanguage() ?? item.language);
+                        if (done.status !== "done") return;
+                        void say(handedOverLine(item, routeNames), preferredLanguage() ?? item.language);
+                        if (done.result.deal_id) onCelebrate?.(String(done.result.deal_id), seller, before);
                       });
                     })}>
               {busy === "handover" ? "Arranging…" : item.hazards.length ? "Hand it to the licensed handler" : "Hand it over"}
