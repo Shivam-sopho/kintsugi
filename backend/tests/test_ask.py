@@ -64,3 +64,10 @@ def test_southeast_asian_questions_are_answered_in_their_language():
     assert agents.reply_language("Saan ko po dadalhin ang mga lumang upuan?", "en") == "fil"
     assert agents.reply_language("Where can my old door go?", "id") == "en"
     assert agents.reply_language("古い椅子はどこに持っていけますか？", "en") == "ja"
+
+
+def test_kintsugi_answers_in_english_unless_another_language_is_chosen(client):
+    hindi = "मेरी कुर्सी का क्या होगा?"
+    assert client.post("/api/ask", data={"persona_id": "ppl_me", "question": hindi}).json()["language"] == "en"
+    assert client.post("/api/ask", data={"persona_id": "ppl_me", "question": hindi, "lang": "kn"}).json()["language"] == "kn"
+    assert client.post("/api/ask", data={"persona_id": "ppl_me", "question": hindi, "lang": "auto"}).json()["language"] == "hi"

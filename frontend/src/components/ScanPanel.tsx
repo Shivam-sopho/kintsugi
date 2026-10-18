@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { preferredLanguage } from "../language";
+import { replyLanguage } from "../language";
 import { api, audioFileName } from "../api";
 import { compressForUpload, MAX_UPLOAD_BYTES, megabytes } from "../compress";
 import { say } from "../speak";
@@ -65,7 +65,7 @@ export default function ScanPanel({ state, sellerId, situation = "moving", onJob
     if (!resultSite || announced.current === resultSite) return;
     announced.current = resultSite;
     window.setTimeout(() => resultsBox.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
-    const lang = preferredLanguage() ?? (results[0]?.language || "en");
+    const lang = replyLanguage(results[0]?.language);
     setSpoken(null);
     void say(scanSummary(results), lang, (t) => lang !== "en" && setSpoken(t));
   }, [resultSite, results]);

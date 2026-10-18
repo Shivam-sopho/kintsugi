@@ -16,7 +16,7 @@ export const languageName = (code: string) => LANGUAGES.find(([c]) => c === code
 
 const KEY = "kintsugi.language";
 
-/** The language this person picked in their profile, if any; otherwise Kintsugi follows their voice. */
+/** The language this person picked in their profile, if any (Kintsugi answers in English otherwise). */
 export function preferredLanguage(): string | null {
   try {
     return localStorage.getItem(KEY);
@@ -32,4 +32,17 @@ export function setPreferredLanguage(code: string | null): void {
   } catch {
     /* private mode: lasts for this visit only */
   }
+}
+
+/** "Answer in the language I speak": a profile choice, not the default. */
+export const FOLLOW_SPEECH = "auto";
+
+/**
+ * The language Kintsugi answers in: English unless the person chose another in their profile, or
+ * chose to be answered in whatever language they speak (then `spoken`, if known).
+ */
+export function replyLanguage(spoken?: string | null): string {
+  const pref = preferredLanguage();
+  if (pref === FOLLOW_SPEECH) return spoken || "en";
+  return pref || "en";
 }

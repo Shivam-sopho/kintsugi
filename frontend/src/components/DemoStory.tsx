@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AgentEvent, AppState, Job } from "../types";
 import { narrate, prefetchSpeech, setVoiceReplies, speak, stopNarration, stopSpeaking, voiceRepliesOn } from "../speak";
-import { LANGUAGES, preferredLanguage } from "../language";
+import { LANGUAGES, replyLanguage } from "../language";
 import { AGENT_LABEL, inr, kg, isBusy } from "../labels";
 import { Logo } from "./Icons";
 import Problem from "./Problem";
@@ -161,7 +161,7 @@ export default function DemoStory({ recording, job, events: liveEvents = [], sta
   const shownRef = useRef(0);
   const [playing, setPlaying] = useState(true);
   const [finished, setFinished] = useState(false);
-  const [lang, setLang] = useState(preferredLanguage() ?? "en");
+  const [lang, setLang] = useState(replyLanguage());
   const [voice, setVoice] = useState(voiceRepliesOn());
   const reveal = (n: number) => {
     shownRef.current = n;

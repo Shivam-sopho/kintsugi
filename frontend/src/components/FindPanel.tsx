@@ -1,3 +1,4 @@
+import { replyLanguage } from "../language";
 import { useState } from "react";
 import { api } from "../api";
 import { say } from "../speak";
@@ -78,7 +79,7 @@ export default function FindPanel({ state, buyerId: personaId, onJob, onDealStar
       const t = await api.transcribe(blob, "search");
       setQuery(t.text);
       setBusy("Searching…");
-      show(await api.search(t.text, getWhere()), t.language || "en");
+      show(await api.search(t.text, getWhere()), replyLanguage(t.language));
     });
 
   const searchPhoto = (file: File | undefined) => {

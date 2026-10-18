@@ -5,7 +5,7 @@ import { RUNG_COLOR, RUNG_LABEL, sentence } from "../labels";
 import { RungIcon } from "./Icons";
 import ListenButton from "./ListenButton";
 import Problem from "./Problem";
-import { LANGUAGES, languageName, preferredLanguage } from "../language";
+import { LANGUAGES, languageName, replyLanguage } from "../language";
 
 const EXPLAIN_VERSION = "v4"; // matches the backend's cache key
 const YOU_CAN: Record<string, string> = {
@@ -18,8 +18,8 @@ const KNOWN = new Set(LANGUAGES.map(([c]) => c));
 /** "What becomes of it": Gemini explains, in plain words and the person's language, where each
  *  part goes and what happens to it there. The routes themselves were decided by the rules. */
 export default function ExplainCard({ item }: { item: Item }) {
-  const preferred = preferredLanguage();
-  const first = preferred ?? (KNOWN.has(item.language) ? item.language : "en");
+  const chosen = replyLanguage(item.language);
+  const first = KNOWN.has(chosen) ? chosen : "en";
   // Quick choices: the person's language, the language the item was described in, and English.
   const quick = [...new Set([first, item.language, "en", "hi", "kn"].filter((c) => KNOWN.has(c)))].slice(0, 4);
   const [lang, setLang] = useState(first);

@@ -10,7 +10,7 @@ import TakersList from "./TakersList";
 import ExplainCard from "./ExplainCard";
 import { say } from "../speak";
 import Problem from "./Problem";
-import { preferredLanguage } from "../language";
+import { replyLanguage } from "../language";
 
 /** What Kintsugi says once something is handed over: where it went and what it saved. */
 function handedOverLine(item: Item, takers: string[]): string {
@@ -151,7 +151,7 @@ export default function Passport({ item, state, onChanged, onOffer, onJob, onCel
                       onJob?.(job, (done) => {
                         onChanged();
                         if (done.status !== "done") return;
-                        void say(handedOverLine(item, routeNames), preferredLanguage() ?? item.language);
+                        void say(handedOverLine(item, routeNames), replyLanguage(item.language));
                         if (done.result.deal_id) onCelebrate?.(String(done.result.deal_id), seller, before);
                       });
                     })}>
