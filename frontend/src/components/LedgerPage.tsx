@@ -59,6 +59,8 @@ export default function LedgerPage({ state, personaId, onOpenItem, onOpenDeals }
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState<string | null>(null);
+  const [pages, setPages] = useState(1); // 12 entries a page
+  const PAGE = 12;
   const seen = useRef<Set<string> | null>(null);
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const changes = `${state.deals.length}|${state.items.length}|${state.deals.filter((d) => d.status === "settled").length}`;
@@ -85,7 +87,8 @@ export default function LedgerPage({ state, personaId, onOpenItem, onOpenDeals }
   if (!data) return error ? <Problem text={error} /> : <p className="muted">Opening the ledger…</p>;
   const t = data.totals;
   const c = data.counts;
-  const feed = data.feed.filter((f) => filter === "all" || f.kind === filter);
+  const all = data.feed.filter((f) => filter === "all" || f.kind === filter);
+  const feed = all.slice(0, pages * PAGE);
   const maxMat = Math.max(1, ...data.by_material.map((m) => m.co2e_kg));
   const totalRung = Object.values(t.by_rung_kg).reduce((a, b) => a + (b ?? 0), 0) || 1;
   const settled = state.deals.filter((d) => d.status === "settled").sort((a, b) => b.created_at - a.created_at);
@@ -114,12 +117,53 @@ export default function LedgerPage({ state, personaId, onOpenItem, onOpenDeals }
       </header>
 
       <div className="ledger-grid">
+        <aside className="ledger-summary">
+          <div className="side-card">
+            <h4>Waiting for a next life</h4>
+            <p className="side-big">{data.waiting.items} <small>things, {kg(data.waiting.kg)}</small></p>
+            <p className="small muted">Up to {kg(data.waiting.co2e_kg)} CO2e is avoided when they reach their next life. It's recorded only once they're handed over or sold.</p>
+          </div>
+
+          {t.mass_total_kg > 0 && (
+            <div className="side-card">
+              <h4>Where it went</h4>
+              <div className="ladder-bar" role="img" aria-label="Weight by next life">
+                {RUNG_ORDER.filter((r) => t.by_rung_kg[r]).map((r) => (
+                  <span key={r} style={{ flexGrow: (t.by_rung_kg[r] ?? 0) / totalRung, background: RUNG_COLOR[r] }} title={`${RUNG_LABEL[r]}: ${kg(t.by_rung_kg[r])}`} />
+                ))}
+              </div>
+              <ul className="legend">
+                {RUNG_ORDER.filter((r) => t.by_rung_kg[r]).map((r) => (
+                  <li key={r} style={{ color: RUNG_COLOR[r] }}><RungIcon rung={r} /> <span className="ink">{RUNG_LABEL[r]} {kg(t.by_rung_kg[r])}</span></li>
+                ))}
+              </ul>
+              <p className="small muted">{Math.round(t.diverted_fraction * 100)}% of everything handled stayed out of landfill.</p>
+            </div>
+          )}
+
+          {data.by_material.length > 0 && (
+            <div className="side-card">
+              <h4>CO2e avoided, by material</h4>
+              <ul className="mat-bars">
+                {data.by_material.slice(0, 8).map((m) => (
+                  <li key={m.material}>
+                    <span className="mat-name">{sentence(m.material)}</span>
+                    <span className="mat-bar"><i style={{ width: `${(m.co2e_kg / maxMat) * 100}%` }} /></span>
+                    <span className="mat-val">{kg(m.co2e_kg)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+        </aside>
+
         <div className="ledger-feed">
           <div className="feed-head">
             <h3>What's happening</h3>
             <div className="filter-chips" role="group" aria-label="Show">
               {FILTERS.map(([f, label]) => (
-                <button key={f} type="button" className={filter === f ? "on" : ""} aria-pressed={filter === f} onClick={() => setFilter(f)}>{label}</button>
+                <button key={f} type="button" className={filter === f ? "on" : ""} aria-pressed={filter === f} onClick={() => { setFilter(f); setPages(1); }}>{label}</button>
               ))}
             </div>
           </div>
@@ -175,47 +219,15 @@ export default function LedgerPage({ state, personaId, onOpenItem, onOpenDeals }
               );
             })}
           </ol>
+          {all.length > feed.length && (
+            <div className="feed-more">
+              <span className="small muted">Showing {feed.length} of {all.length}</span>
+              <button type="button" className="secondary small-btn" onClick={() => setPages(pages + 1)}>Show {Math.min(PAGE, all.length - feed.length)} more</button>
+            </div>
+          )}
         </div>
 
-        <aside className="ledger-side">
-          <div className="side-card">
-            <h4>Waiting for a next life</h4>
-            <p className="side-big">{data.waiting.items} <small>things, {kg(data.waiting.kg)}</small></p>
-            <p className="small muted">Up to {kg(data.waiting.co2e_kg)} CO2e is avoided when they reach their next life. It's recorded only once they're handed over or sold.</p>
-          </div>
-
-          {t.mass_total_kg > 0 && (
-            <div className="side-card">
-              <h4>Where it went</h4>
-              <div className="ladder-bar" role="img" aria-label="Weight by next life">
-                {RUNG_ORDER.filter((r) => t.by_rung_kg[r]).map((r) => (
-                  <span key={r} style={{ flexGrow: (t.by_rung_kg[r] ?? 0) / totalRung, background: RUNG_COLOR[r] }} title={`${RUNG_LABEL[r]}: ${kg(t.by_rung_kg[r])}`} />
-                ))}
-              </div>
-              <ul className="legend">
-                {RUNG_ORDER.filter((r) => t.by_rung_kg[r]).map((r) => (
-                  <li key={r} style={{ color: RUNG_COLOR[r] }}><RungIcon rung={r} /> <span className="ink">{RUNG_LABEL[r]} {kg(t.by_rung_kg[r])}</span></li>
-                ))}
-              </ul>
-              <p className="small muted">{Math.round(t.diverted_fraction * 100)}% of everything handled stayed out of landfill.</p>
-            </div>
-          )}
-
-          {data.by_material.length > 0 && (
-            <div className="side-card">
-              <h4>CO2e avoided, by material</h4>
-              <ul className="mat-bars">
-                {data.by_material.slice(0, 8).map((m) => (
-                  <li key={m.material}>
-                    <span className="mat-name">{sentence(m.material)}</span>
-                    <span className="mat-bar"><i style={{ width: `${(m.co2e_kg / maxMat) * 100}%` }} /></span>
-                    <span className="mat-val">{kg(m.co2e_kg)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
+        <aside className="ledger-extras">
           <div className="side-card">
             <h4>Reports and certificates</h4>
             <div className="downloads">

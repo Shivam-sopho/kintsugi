@@ -17,9 +17,10 @@ interface Props {
   state: AppState;
   onChanged: () => void;
   onOpenItem?: (id: string) => void;
+  onCelebrate?: (dealId: string, personId: string, levelBefore: string | null) => void;
 }
 
-export default function DealRoom({ state, onChanged, onOpenItem }: Props) {
+export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate }: Props) {
   // Offers waiting for the seller's yes come first, then the newest.
   const waiting = (d: Deal) => d.status === "agreed" && !d.seller_accepted;
   const deals = [...state.deals].sort((a, b) => Number(waiting(b)) - Number(waiting(a)) || b.created_at - a.created_at);
@@ -96,7 +97,11 @@ export default function DealRoom({ state, onChanged, onOpenItem }: Props) {
               lowest price. Nothing is sold until you accept.
             </p>
             <div className="row wrap">
-              <button className="primary gold" onClick={act(api.accept)} disabled={busy}>
+              <button className="primary gold" onClick={act(async (id) => {
+                const before = (await api.standing(deal.seller_id).catch(() => null))?.level ?? null;
+                const out = await api.accept(id);
+                if (out.status === "settled") onCelebrate?.(id, deal.seller_id, before);
+              })} disabled={busy}>
                 {busy ? "Working…" : `Accept ${inr(deal.final_price_inr)}`}
               </button>
               <button className="secondary" onClick={act(api.decline)} disabled={busy}>Decline</button>
