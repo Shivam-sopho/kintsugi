@@ -3,8 +3,8 @@ import { AbsoluteFill, Audio, Easing, Img, OffthreadVideo, Sequence, continueRen
 import { createTikTokStyleCaptions, type Caption } from "@remotion/captions";
 import { C, FONT_SANS, FPS, W } from "../theme";
 import { CLIPS, has } from "../clips";
-import { Badge, Footage, Logo, PhoneFrame, Source, Stage, Title, useIn } from "../components/ui";
-import { CUT_TOTAL, FIXES, OPEN, OPEN_S, SCRIPT, REC_H, REC_W, TIMELINE, VOICE_RATE, frames, rateOf, voiceOf, type Cam, type Shot } from "./edl";
+import { Badge, Footage, Logo, PhoneFrame, Stage, Title, useIn } from "../components/ui";
+import { CHAIR_USE_S, CUT_TOTAL, FIXES, NARRATION, OPEN_S, REC_H, REC_W, TIMELINE, frames, openParts, rateOf, voiceOf, type Cam, type Shot } from "./edl";
 
 type Box = { x: number; y: number; w: number; h: number };
 const MOVE_S = 0.7; // how long a camera move takes
@@ -45,7 +45,7 @@ export default function Cut() {
           {shot.src === "phones" ? <Phones shot={shot} /> : shot.src === "certs" ? <Certs shot={shot} /> : shot.src === "close" ? <Close shot={shot} /> : <RecShot shot={shot} />}
         </Sequence>
       ))}
-      <CutCaptions beside={now?.shot.src === "phones"} />
+      <CutCaptions beside={now?.shot.src === "phones"} narrow={frame < frames(OPEN_S)} />
     </AbsoluteFill>
   );
 }
@@ -89,49 +89,24 @@ const pill: CSSProperties = {
   background: "rgba(110,158,138,0.22)", border: "1px solid rgba(110,158,138,0.6)", boxShadow: "0 6px 20px rgba(5,8,18,0.35)",
 };
 
-/** The opening: the problem at planet scale, your slide, the chair, where it ends up, then Kintsugi. Your
- *  story voice, with your face in a circle, plays over it when public/rec/intro.mp4 is there. */
+const partSeconds = (id: string) => openParts.find((p) => p.id === id)!.seconds;
+
+/** The opening: the problem at planet scale, your slide, the chair, where it ends up, then Kintsugi, all
+ *  timed to your narration, which plays with your face in a circle. */
 function Opening() {
-  let at = 0;
-  const parts = OPEN.map((o) => { const from = frames(at); at += o.seconds; return { ...o, from, dur: frames(o.seconds) }; });
-  const part = (id: (typeof OPEN)[number]["id"], node: ReactNode) => {
-    const p = parts.find((x) => x.id === id)!;
-    const lines = SCRIPT[id];
-    return (
-      <Sequence key={id} from={p.from} durationInFrames={p.dur} name={id}>
-        {node}
-        {lines.map((l, i) => <StoryLine key={i} from={frames(l.at)} to={i + 1 < lines.length ? frames(lines[i + 1].at) : undefined}>{l.text}</StoryLine>)}
-      </Sequence>
-    );
-  };
-  const face = has("rec/intro.mp4");
+  const narration = staticFile(`rec/${NARRATION.src}.mp4`);
+  const f = NARRATION.face, size = 260, k = size / f.size;
+  const views: Record<string, ReactNode> = { landfill: <Landfill />, problem: <ProblemSlide />, chair: <Chair />, dump: <Dump />, logo: <OpeningLogo /> };
   return (
     <AbsoluteFill style={{ background: "#000" }}>
-      {part("landfill", <Landfill />)}
-      {part("problem", <ProblemSlide />)}
-      {part("chair", <Chair />)}
-      {part("dump", <Dump />)}
-      {part("logo", <OpeningLogo />)}
-      {face && (
-        <div style={{ position: "absolute", right: 50, bottom: 50, width: 260, height: 260, borderRadius: "50%", overflow: "hidden", border: `4px solid ${C.goldLight}`, boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
-          <OffthreadVideo src={staticFile("rec/intro.mp4")} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        </div>
-      )}
-    </AbsoluteFill>
-  );
-}
-
-/** A line of the story, large, near the top. */
-function StoryLine({ children, from = 0, to = 9999 }: { children: ReactNode; from?: number; to?: number }) {
-  const frame = useCurrentFrame();
-  if (frame < from || frame >= to) return null;
-  const t = Math.min(1, (frame - from) / 8);
-  return (
-    <div style={{ position: "absolute", left: 0, right: 0, bottom: 40, display: "flex", justifyContent: "center", opacity: t, transform: `translateY(${(1 - t) * 14}px)` }}>
-      <div style={{ maxWidth: 1280, textAlign: "center", fontFamily: FONT_SANS, fontSize: 46, fontWeight: 700, lineHeight: 1.25, color: "#fff", background: "rgba(12,17,32,0.72)", borderRadius: 18, padding: "16px 34px" }}>
-        {children}
+      {openParts.map((p) => (
+        <Sequence key={p.id} from={frames(p.at)} durationInFrames={frames(p.seconds)} name={p.id}>{views[p.id]}</Sequence>
+      ))}
+      <div style={{ position: "absolute", right: 50, bottom: 50, width: size, height: size, borderRadius: "50%", overflow: "hidden", border: `4px solid ${C.goldLight}`, boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
+        <OffthreadVideo src={narration} trimBefore={frames(NARRATION.from)} playbackRate={NARRATION.rate}
+          style={{ position: "absolute", maxWidth: "none", width: REC_W * k, height: REC_H * k, left: -f.x * k, top: -f.y * k }} />
       </div>
-    </div>
+    </AbsoluteFill>
   );
 }
 
@@ -139,7 +114,7 @@ function Landfill() {
   const a = useIn(10), b = useIn(60);
   return (
     <AbsoluteFill>
-      <Footage file="01a_landfill_aerial.mp4" />
+      <Footage file="01a_landfill_aerial.mp4" playbackRate={6 / partSeconds("landfill")} />
       <AbsoluteFill style={{ justifyContent: "center", paddingLeft: 120, background: "linear-gradient(90deg, rgba(0,0,0,0.6), transparent 65%)" }}>
         <div style={{ fontFamily: FONT_SANS, color: "#fff", textShadow: "0 3px 12px rgba(0,0,0,0.5)" }}>
           <div style={{ opacity: a, transform: `translateY(${(1 - a) * 20}px)` }}>
@@ -149,10 +124,10 @@ function Landfill() {
           <div style={{ opacity: b, transform: `translateY(${(1 - b) * 20}px)`, marginTop: 36 }}>
             <span style={{ fontSize: 84, fontWeight: 700, color: C.goldLight }}>3.8 billion by 2050</span>
           </div>
+          <div style={{ fontSize: 22, opacity: 0.8, marginTop: 28 }}>Source: UNEP Global Waste Management Outlook 2024</div>
         </div>
       </AbsoluteFill>
       {CLIPS["01a_landfill_aerial.mp4"].ai && <Badge text="AI-generated" corner="tr" tone="ai" />}
-      <Source text="Source: UNEP Global Waste Management Outlook 2024" />
     </AbsoluteFill>
   );
 }
@@ -161,7 +136,7 @@ function Landfill() {
 function ProblemSlide() {
   const frame = useCurrentFrame();
   const t = useIn(0);
-  const zoom = interpolate(frame, [0, frames(6.5)], [1, 1.05]);
+  const zoom = interpolate(frame, [0, frames(partSeconds("problem"))], [1, 1.05]);
   return (
     <Stage>
       <AbsoluteFill style={{ alignItems: "center", paddingTop: 28 }}>
@@ -173,24 +148,29 @@ function ProblemSlide() {
   );
 }
 
-/** The chair clip, filmed upright: full height in the middle over a blurred copy, the story in captions. */
+/** The chair clip, filmed upright: full height in the middle over a blurred copy, stretched to your words. */
 function Chair() {
   const src = staticFile("rec/chair.mp4");
+  const rate = CHAIR_USE_S / partSeconds("chair");
   return (
     <AbsoluteFill style={{ background: "#000" }}>
-      <OffthreadVideo src={src} muted playbackRate={VOICE_RATE} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "blur(40px) brightness(0.55)", transform: "scale(1.15)" }} />
+      <OffthreadVideo src={src} muted playbackRate={rate} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "blur(40px) brightness(0.55)", transform: "scale(1.15)" }} />
       <AbsoluteFill style={{ alignItems: "center" }}>
-        <OffthreadVideo src={src} volume={0.4} playbackRate={VOICE_RATE} style={{ height: "100%", boxShadow: "0 0 80px rgba(0,0,0,0.6)" }} />
+        <OffthreadVideo src={src} muted playbackRate={rate} style={{ height: "100%", boxShadow: "0 0 80px rgba(0,0,0,0.6)" }} />
       </AbsoluteFill>
     </AbsoluteFill>
   );
 }
 
+/** Where it ends up: the chair on the landfill, then the street. */
 function Dump() {
+  const first = Math.min(6, partSeconds("dump") / 2 + 1);
+  const rest = partSeconds("dump") - first;
   return (
     <AbsoluteFill>
-      <Footage file="01g_chair_landfill.mp4" />
-      {CLIPS["01g_chair_landfill.mp4"].ai && <Badge text="AI-generated" corner="tr" tone="ai" />}
+      <Sequence durationInFrames={frames(first)}><Footage file="01g_chair_landfill.mp4" playbackRate={6 / first} /></Sequence>
+      <Sequence from={frames(first)}><Footage file="01b_street_dump.mp4" playbackRate={Math.min(1, 4 / rest)} /></Sequence>
+      <Badge text="AI-generated" corner="tr" tone="ai" />
     </AbsoluteFill>
   );
 }
@@ -204,7 +184,7 @@ function OpeningLogo() {
         <Title size={104} delay={6}>Kintsugi</Title>
         <Title size={40} delay={14} color={C.goldLight} style={{ fontFamily: FONT_SANS, fontWeight: 600 }}>Google Maps for the circular economy</Title>
         <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 14, maxWidth: 1500, marginTop: 34 }}>
-          {GEMINI.map(([model, job], i) => <GeminiChip key={model} model={model} job={job} delay={frames(3.2) + i * 6} />)}
+          {GEMINI.map(([model, job], i) => <GeminiChip key={model} model={model} job={job} delay={frames((NARRATION.gemini - NARRATION.from) / NARRATION.rate - openParts.find((p) => p.id === "logo")!.at) + i * 6} />)}
         </div>
       </AbsoluteFill>
     </Stage>
@@ -289,7 +269,7 @@ const fix = (text: string) => FIXES.reduce((t, [re, to]) => t.replace(re, to), t
 
 /** Your words on the final timeline: each kept sentence's words, moved (and sped up) to where the shot plays. */
 function useCutWords(): Word[] {
-  const sources = ["v1", "v2", "v3"].filter((n) => has(`rec/${n}.words.json`));
+  const sources = ["v1", "v2", "v3", "v4", NARRATION.src].filter((n) => has(`rec/${n}.words.json`));
   const [words, setWords] = useState<Record<string, Word[]>>({});
   const [handle] = useState(() => (sources.length ? delayRender("Loading the recordings' words") : null));
   useEffect(() => {
@@ -300,6 +280,11 @@ function useCutWords(): Word[] {
   }, []);
   return useMemo(() => {
     const out: Word[] = [];
+    for (const w of words[NARRATION.src] ?? [])
+      if (w.startMs >= NARRATION.from * 1000 && w.startMs < OPEN_S * NARRATION.rate * 1000 + NARRATION.from * 1000 && !/\[/.test(w.text)) {
+        const at = (ms: number) => (ms - NARRATION.from * 1000) / NARRATION.rate;
+        out.push({ ...w, text: fix(w.text), startMs: at(w.startMs), endMs: at(w.endMs), timestampMs: null });
+      }
     for (const { shot, start } of TIMELINE) {
       if (shot.muted) continue;
       const rate = rateOf(shot);
@@ -313,7 +298,7 @@ function useCutWords(): Word[] {
 }
 
 /** Captions a phrase at a time, the word being said in gold: in the band under the video, or beside the phones. */
-function CutCaptions({ beside }: { beside: boolean }) {
+function CutCaptions({ beside, narrow }: { beside: boolean; narrow: boolean }) {
   const words = useCutWords();
   const frame = useCurrentFrame();
   const ms = (frame / FPS) * 1000;
@@ -323,7 +308,7 @@ function CutCaptions({ beside }: { beside: boolean }) {
   const pos: CSSProperties = beside ? { left: 110, width: 820, bottom: 120, justifyContent: "flex-start" } : { left: 0, right: 0, bottom: 22, justifyContent: "center" };
   return (
     <div style={{ position: "absolute", ...pos, display: "flex", pointerEvents: "none" }}>
-      <div style={{ maxWidth: 1700, fontFamily: FONT_SANS, fontSize: 38, fontWeight: 600, lineHeight: 1.3, color: "#fff", background: "rgba(12, 17, 32, 0.7)", borderRadius: 14, padding: "10px 24px", whiteSpace: "pre-wrap" }}>
+      <div style={{ maxWidth: narrow ? 1260 : 1700, fontFamily: FONT_SANS, fontSize: narrow ? 42 : 38, fontWeight: 600, lineHeight: 1.3, color: "#fff", background: "rgba(12, 17, 32, 0.7)", borderRadius: 14, padding: "10px 24px", whiteSpace: "pre-wrap" }}>
         {page.tokens.map((t, i) => (
           <span key={i} style={{ color: ms >= t.fromMs && ms < t.toMs ? C.goldLight : "#fff" }}>{t.text}</span>
         ))}
