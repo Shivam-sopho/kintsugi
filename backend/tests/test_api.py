@@ -77,3 +77,21 @@ def test_a_finished_demo_is_kept_to_replay_from_the_start():
         assert rec["result"]["deal_id"] == job["result"]["deal_id"]
         assert rec["events"][0]["agent"] == "system" and len(rec["events"]) > 30
         assert {"oracle", "scout", "ledger"} <= {e["agent"] for e in rec["events"]}
+
+
+def test_a_second_click_joins_the_running_demo_instead_of_starting_another(monkeypatch):
+    import asyncio
+
+    from app import main
+
+    async def slow_judge(store, llm, settings, job_id):
+        await asyncio.sleep(1.0)
+        return {"deal_id": None}
+
+    monkeypatch.setattr(main.agents, "judge_mode", slow_judge)
+    with TestClient(app) as client:
+        first = client.post("/api/judge-mode").json()
+        main._running_demos.clear()  # as if the second click reached another server instance
+        second = client.post("/api/judge-mode").json()
+        assert second["id"] == first["id"]
+        _wait(client, first["id"])

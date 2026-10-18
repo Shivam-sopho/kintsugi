@@ -73,12 +73,12 @@ export default function App() {
     try {
       unlockAudio(); // the narration starts seconds later; this tap lets it play
       // The demo is the same sample story every time: replay the recorded run from the start, on
-      // this screen only, paced by its narration. Run it for real only when no recording exists yet
-      // or its sample data is gone.
+      // this screen only, paced by its narration, so any number of viewers can watch at once without
+      // touching each other. It runs for real only when no recording exists yet (once, ever); the
+      // server lets only one real run happen at a time and later clicks join it.
       const rec = await api.demoRecording().catch(() => null);
-      const dealId = rec?.result.deal_id as string | undefined;
       setSiteId(null);
-      if (rec && dealId && state?.deals.some((d) => d.id === dealId)) {
+      if (rec) {
         setDemo({ recording: rec, n: Date.now() });
       } else {
         track(await api.judgeMode(voiceRepliesOn()));

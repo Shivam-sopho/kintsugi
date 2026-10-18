@@ -606,6 +606,8 @@ def save_recording(store, job_id: str, result: dict[str, Any]) -> None:
     events = [{"agent": e.agent, "step": e.step, "message": e.message,
                "data": {k: v for k, v in e.data.items() if k in ("deal_id", "item_id", "rung")}}
               for e in store.list_events(job_id)]
+    deal = store.get_deal(str(result.get("deal_id", "")))
+    result = {**result, "deal_price_inr": deal.final_price_inr if deal else None}
     try:
         store.upsert_job(Job(id=RECORDING_ID, kind="demo_recording", status="done",
                              result={"events": events, "result": result, "job_id": job_id}))
@@ -625,22 +627,35 @@ def demo_recording() -> dict[str, Any]:
 NARRATED_PACE = 2.7  # read aloud, the story runs this much slower (0.6 s a step becomes 1.6 s) so the voice keeps up
 
 
+DEMO_LOCK_ID = "demo_running"
+DEMO_LOCK_TTL_S = 600  # a real run takes about a minute; a lock older than this belonged to a lost run
+
+
 @app.post("/api/judge-mode")
 async def judge_mode(narrated: bool = False) -> dict[str, Any]:
-    """Run the demo, or join the one already running so two viewers don't interfere. Narrated, it
-    runs slower so each chapter can be read aloud as it happens."""
+    """Run the demo, or join the one already running, so viewers who click at the same time never
+    interfere: one real run at a time, across every server instance (a lock kept in the store).
+    Usually the app replays the recording instead and never calls this. Narrated, it runs slower so
+    each chapter can be read aloud as it happens."""
     store, llm = get_store(), get_llm()
+    lock = store.get_job(DEMO_LOCK_ID)
+    if lock and time.time() - lock.created_at < DEMO_LOCK_TTL_S:
+        running = store.get_job(str(lock.result.get("job_id", "")))
+        if running and running.status in ("queued", "running"):
+            return running.model_dump(mode="json")
     running = next((j for j in _running_demos if (cur := store.get_job(j)) and cur.status == "running"), None)
     if running:
         return store.get_job(running).model_dump(mode="json")  # type: ignore[union-attr]
     _running_demos.clear()
     paced = settings.model_copy(update={"demo_step_delay": settings.demo_step_delay * NARRATED_PACE}) if narrated else settings
+
     async def run(job_id: str) -> dict[str, Any]:
         result = await agents.judge_mode(store, llm, paced, job_id)
         save_recording(store, job_id, result)
         return result
 
     job = _start_job("judge_mode", run)
+    store.upsert_job(Job(id=DEMO_LOCK_ID, kind="lock", status="running", result={"job_id": job.id}))
     _running_demos.append(job.id)
     return job.model_dump(mode="json")
 
