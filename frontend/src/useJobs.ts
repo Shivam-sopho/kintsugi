@@ -46,13 +46,26 @@ export function useJobs() {
     if (!job || job.status === "done" || job.status === "error") return;
     let stopped = false;
     let tick = 0;
+    // If the server restarts mid-job (a new deploy), the job can never finish: after a quiet spell,
+    // treat it as interrupted so nothing waits forever. The demo takes a step every second or two;
+    // a scan can wait on Scout watching a long video.
+    const quietLimit = job.kind === "judge_mode" ? 30_000 : 180_000;
+    let lastNews = Date.now();
     const poll = async () => {
       if (stopped) return;
       try {
         const fresh = await api.events(job.id, lastTs.current);
         if (fresh.length) {
           lastTs.current = fresh[fresh.length - 1].ts;
+          lastNews = Date.now();
           setEvents((prev) => [...prev, ...fresh]);
+        }
+        if (Date.now() - lastNews > quietLimit) {
+          const stalled: Job = { ...job, status: "error", error: "This run was interrupted (the server restarted). Nothing was lost: run it again." };
+          setJob(stalled);
+          doneCallbacks.current.get(job.id)?.(stalled);
+          doneCallbacks.current.delete(job.id);
+          return;
         }
         tick += 1;
         const status = await api.job(job.id);

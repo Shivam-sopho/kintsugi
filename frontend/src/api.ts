@@ -1,4 +1,4 @@
-import type { Standing, AgentEvent, AppState, AskReply, Deal, Explanation, Item, Job, SearchResult, Transcript } from "./types";
+import type { LiveLedger, Standing, AgentEvent, AppState, AskReply, Deal, Explanation, Item, Job, SearchResult, Transcript } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "";
 
@@ -70,6 +70,7 @@ export const api = {
   certificatePdfUrl: (id: string, lang = "en") => `${FILES}/api/certificate/${id}.pdf?lang=${lang}`,
   standing: (personId: string) => call<Standing>(`/api/people/${encodeURIComponent(personId)}/standing`),
   standingPdfUrl: (personId: string) => `${FILES}/api/people/${encodeURIComponent(personId)}/certificate.pdf`,
+  liveLedger: () => call<LiveLedger>("/api/ledger/live"),
   reportPdfUrl: (personaId?: string) => `${FILES}/api/report.pdf${personaId ? `?persona_id=${encodeURIComponent(personaId)}` : ""}`,
   patchItem: (id: string, patch: Partial<{ count: number; condition: string; verified: boolean; floor_price_inr: number }>) =>
     call<Item>(`/api/items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }),

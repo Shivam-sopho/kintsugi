@@ -8,7 +8,7 @@ import MapPanel from "./components/MapPanel";
 import HomePanel from "./components/HomePanel";
 import DealRoom from "./components/DealRoom";
 import MissionControl from "./components/MissionControl";
-import ImpactPanel from "./components/ImpactPanel";
+import LedgerPage from "./components/LedgerPage";
 import Passport from "./components/Passport";
 import Sheet from "./components/Sheet";
 import { Logo } from "./components/Icons";
@@ -33,9 +33,9 @@ const ICON: Record<Tab, ReactNode> = {
   home: <path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" />,
   map: <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14" />,
   deals: <path d="M4 5h16v10H9l-5 4zM8 9h8M8 12h5" />,
-  impact: <path d="M5 19V11M12 19V5M19 19v-6" />,
+  impact: <path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6zM6 3v18M10 8h5M10 12h5M10 16h3" />,
 };
-const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Handovers", impact: "Impact" };
+const TAB_LABEL: Record<Tab, string> = { home: "Home", map: "Map", deals: "Handovers", impact: "Ledger" };
 
 // Jobs that move someone's own things along their second life: shown live as its stages.
 const LIVE_KINDS = new Set(["scan", "handover", "deal", "autopilot", "request", "market"]);
@@ -130,7 +130,7 @@ export default function App() {
       )}
       {error && <p className={`banner ${isBusy(error) ? "busy-note" : "error"}`} role="status">{isBusy(error) ? "Reconnecting to Kintsugi… it picks up where it left off." : error}</p>}
 
-      <main className={`layout tab-${tab === "map" && mapView === "list" ? "maplist" : tab}`}>
+      <main className={`layout tab-${tab === "map" && mapView === "list" ? "maplist" : tab === "impact" ? "ledger" : tab}`}>
         <div className="map-wrap">
           {state && (
             <MapView
@@ -202,7 +202,7 @@ export default function App() {
             ) : tab === "deals" ? (
               <DealRoom state={state} onChanged={refresh} onOpenItem={openItem} />
             ) : (
-              <ImpactPanel state={state} personaId={personaId} />
+              <LedgerPage state={state} personaId={personaId} onOpenItem={openItem} onOpenDeals={() => setTab("deals")} />
             )}
           </div>
         </section>

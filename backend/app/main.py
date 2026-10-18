@@ -18,7 +18,7 @@ from google.genai import errors as genai_errors
 from pydantic import BaseModel, Field
 
 from . import agents
-from . import report_pdf, standing
+from . import live_ledger, report_pdf, standing
 from .certificate import render as render_certificate
 from .config import get_settings
 from .demo import fixtures
@@ -591,6 +591,12 @@ async def judge_mode(narrated: bool = False) -> dict[str, Any]:
 
 def _pdf(data: bytes, name: str) -> Response:
     return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.get("/api/ledger/live")
+def ledger_live(limit: int = 80) -> dict[str, Any]:
+    """The live ledger: totals, what's waiting, and everything that happened, newest first."""
+    return live_ledger.build(get_store(), min(max(limit, 1), 300))
 
 
 @app.get("/api/report.pdf")
