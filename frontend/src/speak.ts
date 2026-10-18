@@ -10,6 +10,26 @@ const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAI
 const VOICE_KEY = "kintsugi.voiceReplies";
 
 let player: HTMLAudioElement | null = null;
+
+// Voices shipped with the site (public/narration/, made by scripts/make-narration.mjs): small MP3s
+// from the CDN for lines that never change, like the demo's chapters. Used only when the words match.
+type Bundled = { lang: string; translate: boolean; text: string; spoken: string; file: string };
+let bundled: Promise<Map<string, Bundled>> | null = null;
+function bundledVoices(): Promise<Map<string, Bundled>> {
+  bundled ??= fetch("/narration/manifest.json")
+    .then((r) => (r.ok ? r.json() : []))
+    .then((list: Bundled[]) => new Map(list.map((b) => [`${b.lang}|${b.translate ? 1 : 0}|${b.text}`, b])))
+    .catch(() => new Map());
+  return bundled;
+}
+
+/** A voice for this line: a bundled file if there is one, else Gemini's from the API (null if neither). */
+async function voiceFor(text: string, lang: string, translate: boolean): Promise<{ url: string | null; spoken: string }> {
+  const b = (await bundledVoices()).get(`${lang}|${translate ? 1 : 0}|${text}`);
+  if (b) return { url: `/narration/${b.file}`, spoken: b.spoken };
+  const res = await api.speech(text, lang, translate).catch(() => null);
+  return { url: res?.audio ? URL.createObjectURL(res.audio) : null, spoken: res?.spoken ?? text };
+}
 let unlocked = false;
 let turn = 0; // each reading gets a number; a newer reading cancels older ones still loading
 const fetched = new Map<string, { url: string | null; spoken: string }>(); // Gemini audio already fetched
@@ -75,8 +95,7 @@ export async function speak(text: string, lang: string, opts: Options = {}): Pro
   const key = `${lang}|${opts.translate ? 1 : 0}|${text}`;
   let hit = fetched.get(key);
   if (!hit) {
-    const res = await api.speech(text, lang, opts.translate).catch(() => null);
-    hit = { url: res?.audio ? URL.createObjectURL(res.audio) : null, spoken: res?.spoken ?? text };
+    hit = await voiceFor(text, lang, Boolean(opts.translate));
     if (hit.url) fetched.set(key, hit);
   }
   if (mine !== turn) return; // another reading started while this one was loading
@@ -118,8 +137,10 @@ let queueTurn = 0;
 export async function prefetchSpeech(text: string, lang: string, translate = false): Promise<void> {
   const key = `${lang}|${translate ? 1 : 0}|${text}`;
   if (fetched.has(key)) return;
-  const res = await api.speech(text, lang, translate).catch(() => null);
-  if (res?.audio) fetched.set(key, { url: URL.createObjectURL(res.audio), spoken: res.spoken ?? text });
+  const hit = await voiceFor(text, lang, translate);
+  if (!hit.url) return;
+  if (hit.url.startsWith("/narration/")) await fetch(hit.url).catch(() => undefined); // warm the browser's cache
+  fetched.set(key, hit);
 }
 
 /** Read lines one after another (a story), never cutting the previous line off. */
