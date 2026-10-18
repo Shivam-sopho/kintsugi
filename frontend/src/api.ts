@@ -53,7 +53,7 @@ export const api = {
   cancelRequest: (id: string) => call<unknown>(`/api/requests/${id}/cancel`, { method: "POST" }),
   job: (id: string) => call<Job>(`/api/jobs/${id}`),
   events: (id: string, after: number) => call<AgentEvent[]>(`/api/jobs/${id}/events?after=${after}`),
-  judgeMode: () => call<Job>("/api/judge-mode", { method: "POST" }),
+  judgeMode: (narrated = false) => call<Job>(`/api/judge-mode${narrated ? "?narrated=true" : ""}`, { method: "POST" }),
   scan: (form: FormData) => call<Job>("/api/scan", { method: "POST", body: form }),
   search: (query: string, near?: { lat: number; lng: number }) =>
     call<SearchResult[]>("/api/search", json({ query, ...near })),

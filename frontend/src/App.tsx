@@ -60,7 +60,8 @@ export default function App() {
 
   const runDemo = async () => {
     try {
-      const j = await api.judgeMode();
+      unlockAudio(); // the narration starts seconds later; this tap lets it play
+      const j = await api.judgeMode(voiceRepliesOn());
       track(j);
       setSiteId(null);
       setSheet({ kind: "story" });

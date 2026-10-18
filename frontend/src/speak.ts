@@ -108,3 +108,36 @@ export async function say(textEn: string, lang: string, onSpoken?: (text: string
     /* no voice on this device: the summary is on screen */
   }
 }
+
+// ---------------------------------------------------------------- narration
+
+let queue: Promise<void> = Promise.resolve();
+let queueTurn = 0;
+
+/** Fetch Gemini's voice for a line now, so it plays at once when its moment comes. */
+export async function prefetchSpeech(text: string, lang: string, translate = false): Promise<void> {
+  const key = `${lang}|${translate ? 1 : 0}|${text}`;
+  if (fetched.has(key)) return;
+  const res = await api.speech(text, lang, translate).catch(() => null);
+  if (res?.audio) fetched.set(key, { url: URL.createObjectURL(res.audio), spoken: res.spoken ?? text });
+}
+
+/** Read lines one after another (a story), never cutting the previous line off. */
+export function narrate(text: string, lang: string): void {
+  const mine = queueTurn;
+  queue = queue.then(async () => {
+    if (mine !== queueTurn || !voiceRepliesOn()) return;
+    try {
+      await speak(text, lang, { translate: lang !== "en" });
+    } catch {
+      /* no voice: the words are on screen */
+    }
+  });
+}
+
+/** Stop the story's narration and drop what is still queued. */
+export function stopNarration(): void {
+  queueTurn += 1;
+  queue = Promise.resolve();
+  void stopSpeaking();
+}
