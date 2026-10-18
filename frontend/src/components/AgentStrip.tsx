@@ -6,11 +6,27 @@ interface Props {
   events: AgentEvent[];
   onOpen: () => void; // the full Mission control timeline
   onSkip: () => void;
+  onOpenDeals?: () => void; // Handovers, where the agents' negotiation shows live
 }
 
 /** What the agents are doing right now, in one line, with a way into every step. */
-export default function AgentStrip({ job, events, onOpen, onSkip }: Props) {
+export default function AgentStrip({ job, events, onOpen, onSkip, onOpenDeals }: Props) {
   if (!job) return null;
+  // After a scan the app follows the buyers' agents: say what they're doing, and open Handovers to watch.
+  if (job.kind === "market") {
+    const running = job.status === "running" || job.status === "queued";
+    const offers = ((job.result.deal_ids as string[] | undefined) ?? []).length || events.filter((e) => e.agent === "market" && e.step === "offer").length;
+    return (
+      <div className={`agent-line ${running ? "running" : job.status}`}>
+        <span className="agent-dot" aria-hidden="true" />
+        <span className="grow">
+          <strong>Market</strong>{" "}
+          {running ? "Buyers' agents are negotiating with yours over A2A, live" : offers ? "Buyers' agents agreed prices: your yes is needed" : "No buyer wanted these yet"}
+        </span>
+        {(running || offers > 0) && onOpenDeals && <button type="button" className="link" onClick={onOpenDeals}>{running ? "Watch" : "See offers"}</button>}
+      </div>
+    );
+  }
   const last = events[events.length - 1];
   const running = job.status === "running" || job.status === "queued";
   const text = running
