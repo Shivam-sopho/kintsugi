@@ -56,7 +56,7 @@ export default function HomePanel(p: Props) {
       )}
 
       {mode === "have" ? (
-        <ScanPanel state={p.state} sellerId={p.personaId} situation={situation} onJob={p.onJob} onOpenItem={p.onOpenItem} job={p.job} events={p.events} />
+        <ScanPanel state={p.state} sellerId={p.personaId} situation={situation} onJob={p.onJob} onOpenItem={p.onOpenItem} onOpenDeals={p.onDealStarted} job={p.job} events={p.events} />
       ) : (
         <FindPanel state={p.state} buyerId={p.personaId} onJob={p.onJob} onDealStarted={p.onDealStarted} onOpenItem={p.onOpenItem} onChanged={p.onChanged} />
       )}

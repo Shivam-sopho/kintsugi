@@ -40,7 +40,12 @@ export function useJobs() {
     setEvents([]);
     setJob(j);
     if (onDone) doneCallbacks.current.set(j.id, onDone);
-  }, []);
+    // Already finished (fast jobs can be done before anyone follows them): show what it did.
+    if (j.status === "done" || j.status === "error") {
+      void api.events(j.id, 0).then((evs) => setEvents(evs), () => undefined);
+      void refresh();
+    }
+  }, [refresh]);
 
   useEffect(() => {
     if (!job || job.status === "done" || job.status === "error") return;

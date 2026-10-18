@@ -32,9 +32,12 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, 
  * A scan, live, right where the person started it: the steps ticking off, a timer, and the agents'
  * latest messages. Then, if buyers' agents want something, their offers starting.
  */
-export default function LiveScan({ job, events, preparing }: { job: Job | null; events: AgentEvent[]; preparing: string | null }) {
-  const scanning = job?.kind === "scan" && (job.status === "running" || job.status === "queued");
-  const market = job?.kind === "market";
+export default function LiveScan({ mode, job, events, preparing, onOpenDeals }: {
+  mode: "scan" | "market"; job: Job | null; events: AgentEvent[]; preparing: string | null; onOpenDeals?: () => void;
+}) {
+  const scanning = mode === "scan" && job?.kind === "scan" && (job.status === "running" || job.status === "queued");
+  const market = mode === "market" && job?.kind === "market";
+  if (mode === "market") preparing = null;
   const show = Boolean(preparing) || scanning || market;
   const [started, setStarted] = useState<number | null>(null);
   const [, tick] = useState(0);
@@ -57,14 +60,17 @@ export default function LiveScan({ job, events, preparing }: { job: Job | null; 
     return (
       <div className="live-scan market" ref={box} aria-live="polite">
         <div className="live-scan-head">
-          <strong>{running ? "Buyers' agents are looking at what you listed" : offers ? "Offers are in: see Handovers" : "No buyer wanted these yet"}</strong>
+          <strong>{running ? "Buyers' agents are looking at what you listed" : offers ? "Offers are in" : "No buyer wanted these yet"}</strong>
+          {!running && offers > 0 && onOpenDeals && <button type="button" className="primary small-btn" onClick={onOpenDeals}>See the offers</button>}
           {running && <span className="live-pill-light"><i className="live-dot" /> Live</span>}
         </div>
-        <ol className="live-scan-feed">
-          {events.filter((e) => e.agent !== "system").slice(-4).map((e, i) => (
-            <li key={`${e.ts}-${i}`}><strong>{AGENT_LABEL[e.agent] ?? e.agent}</strong> {e.message}</li>
-          ))}
-        </ol>
+        {events.length > 0 && (
+          <ol className="live-scan-feed">
+            {events.filter((e) => e.agent !== "system").slice(-4).map((e, i) => (
+              <li key={`${e.ts}-${i}`}><strong>{AGENT_LABEL[e.agent] ?? e.agent}</strong> {e.message}</li>
+            ))}
+          </ol>
+        )}
       </div>
     );
   }

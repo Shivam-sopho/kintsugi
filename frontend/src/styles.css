@@ -1031,3 +1031,10 @@ a.button.primary.gold { background: var(--gold); color: #fff; }
   .ledger-summary { grid-area: summary; }
   .ledger-extras { grid-area: extras; }
 }
+.home-link { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; }
+.done-card { background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--celadon); border-radius: var(--radius-m); padding: 0.85rem 0.9rem; margin: 0.6rem 0 1rem; box-shadow: 0 4px 16px rgba(30, 43, 74, 0.08); }
+@media (prefers-reduced-motion: no-preference) { .done-card { animation: rise 0.4s ease-out; } }
+.done-head { display: flex; gap: 0.7rem; align-items: flex-start; margin-bottom: 0.6rem; }
+.done-head h3 { margin: 0; }
+.done-head p { margin: 0.15rem 0 0; }
+.done-tick { flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--celadon); color: #fff; display: grid; place-items: center; font-weight: 800; }

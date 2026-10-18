@@ -98,6 +98,14 @@ export default function App() {
     if (job) await api.skip(job.id).catch(() => undefined);
   };
 
+  const goHome = () => {
+    setSheet(null);
+    setDemo(null);
+    setCelebrate(null);
+    setTab("home");
+    document.querySelector(".panel-body")?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const openItem = (id: string) => setSheet({ kind: "item", id });
   const openSite = (id: string) => {
     setSiteId(id);
@@ -117,8 +125,12 @@ export default function App() {
     <div className="app" onPointerDownCapture={unlockAudio}>
       <header className="topbar">
         <div className="brand">
-          <Logo size={30} />
-          <h1>Kintsugi</h1>
+          <h1>
+            <button type="button" className="home-link" aria-label="Kintsugi: go to Home" onClick={goHome}>
+              <Logo size={30} />
+              <span>Kintsugi</span>
+            </button>
+          </h1>
           <p>Google Maps for the circular economy</p>
         </div>
         {state?.mock_mode && <span className="badge" title="Running on sample data with no live AI calls">Sample data</span>}
