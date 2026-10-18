@@ -82,6 +82,17 @@ def to_jpeg(img: np.ndarray) -> bytes:
     return buf.tobytes() if ok else b""
 
 
+def to_jpeg(image: bytes, quality: int = 85) -> bytes:
+    """Any image (a PNG render, say) as a JPEG, small enough to store and quick to load."""
+    img = cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("Not an image")
+    ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if not ok:
+        raise ValueError("Could not encode the image")
+    return buf.tobytes()
+
+
 class EvidenceStore:
     """Memory in mock/local mode; Cloud Storage (private, served through the API) in live mode."""
 

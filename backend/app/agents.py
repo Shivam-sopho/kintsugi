@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import base64
 from typing import Any, Optional
 
 from . import ladder, ledger, maps
@@ -17,7 +16,7 @@ from .bundler import propose_bundles, scrap_value
 from .config import Settings
 from .dedup import dedup_items
 from .demo import fixtures
-from .evidence import attach_evidence, get_evidence_store
+from .evidence import attach_evidence, get_evidence_store, to_jpeg
 from .geo import haversine_km
 from .llm.base import LLM, MediaRef
 from .materials import canonical_material
@@ -621,11 +620,18 @@ async def architect_design(
         lines.append({**s, "type": c["type"], "unit_price_inr": c["unit_price_inr"], "cost_inr": cost})
         await emit("architect", "select", f"{s['quantity']} × {c['type']}: {s['use']}", item_id=c["id"])
     image = await llm.render(plan.get("render_prompt", brief))
-    render_b64 = base64.b64encode(image).decode() if image else None
+    # The picture is stored on its own and referenced by id: a rendered image is larger than a
+    # Firestore document may be, so it can't travel inside the job's result.
+    render_id = None
+    if image:
+        try:
+            render_id = get_evidence_store().put(await asyncio.to_thread(to_jpeg, image))
+        except Exception:  # a design without its picture is still a design
+            log.exception("Could not store the design render")
     await emit("architect", "done", f"Concept ready, estimated ₹{total:,.0f} in reclaimed materials"
-               + ("" if render_b64 else " (render needs live mode)"))
+               + ("" if render_id else " (render needs live mode)"))
     return {"concept": plan.get("concept", ""), "lines": lines, "total_inr": round(total, 2),
-            "render_png_b64": render_b64, "render_prompt": plan.get("render_prompt", "")}
+            "render_id": render_id, "render_prompt": plan.get("render_prompt", "")}
 
 
 # ---------------------------------------------------------------- Market

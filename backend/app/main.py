@@ -104,7 +104,18 @@ def _start_job(kind: str, coro_factory) -> Job:
         except Exception as exc:  # surface the error to the UI instead of failing silently
             log.exception("Job %s failed", job.id)
             job.status, job.error = "error", friendly_error(exc)
-        store.upsert_job(job)
+        try:
+            store.upsert_job(job)
+        except Exception:
+            # The job finished, but its result couldn't be saved (too large, say). Save it without
+            # the oversized parts, so the person's screen still sees it finish.
+            log.exception("Could not save job %s's result; saving a smaller one", job.id)
+            job.result = {k: v for k, v in job.result.items() if len(json.dumps(v, default=str)) < 50_000}
+            try:
+                store.upsert_job(job)
+            except Exception:
+                job.result = {}
+                store.upsert_job(job)
 
     task = asyncio.create_task(runner())
     _tasks.add(task)
