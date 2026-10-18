@@ -49,7 +49,7 @@ async function connect() {
 }
 
 /** Runs `steps` while capturing frames for `seconds`, then encodes them at their real timing. */
-async function record(cdp, name, viewport, url, seconds, steps) {
+async function record(cdp, name, viewport, url, seconds, steps, prep) {
   const ev = (expression) => cdp.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
   await cdp.send("Emulation.setDeviceMetricsOverride", viewport);
   if (process.env.DEBUG) console.log(name, "navigating");
@@ -57,6 +57,7 @@ async function record(cdp, name, viewport, url, seconds, steps) {
   if (process.env.DEBUG) console.log(name, "navigated");
   await wait(5000);
   await ev("try { localStorage.setItem('kintsugi.voiceReplies','off') } catch {}");
+  if (prep) await prep(ev, cdp); // set up the screen first, unrecorded
   const dir = mkdtempSync(path.join(os.tmpdir(), `kintsugi-${name}-`));
   const frames = [];
   let stop = false;
@@ -91,7 +92,37 @@ const tab = (label) => `[...document.querySelectorAll('.bottom-nav button')].fin
 const scrollBy = (sel, y) => `document.querySelector('${sel}')?.scrollBy({ top: ${y}, behavior: 'smooth' })`;
 const pick = (city) => `(() => { const s = document.querySelector('.layer-toggles .city-picker select'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, '${city}'); s.dispatchEvent(new Event('change', { bubbles: true })); })()`;
 
+// Open a sample person's item in its sheet (the demo's broken chair belongs to Priya).
+const openItem = (persona, type) => async (ev, cdp) => {
+  await ev(`localStorage.setItem('kintsugi.persona','${persona}')`);
+  await cdp.send("Page.reload");
+  await wait(5000);
+  await ev(`document.querySelector('.avatar').click()`); await wait(1200);
+  await ev(`[...document.querySelectorAll('.sheet button')].find(b => b.textContent.toLowerCase().includes('${type}'))?.click()`);
+  await wait(2500);
+};
+const slowScroll = async (ev, sel, steps, px, gap) => { for (let i = 0; i < steps; i++) { await ev(scrollBy(sel, px)); await wait(gap); } };
+// The demo's settled deal between Ramesh (Hindi) and Ananya (English).
+const openDeal = (side) => async (ev) => {
+  await ev(tab("Handovers")); await wait(1500);
+  await ev(`[...document.querySelectorAll('.conn')].find(b => b.textContent.includes('Ramesh') && b.textContent.toLowerCase().includes('teak'))?.click()`);
+  await wait(1500);
+  if (side === "buyer") { await ev(`document.querySelectorAll('.phone-switch button')[1]?.click()`); await wait(800); }
+};
+
 const SHOTS = {
+  "02d_passport": [PHONE, SITE, 11, async (ev) => { await wait(1200); await slowScroll(ev, ".sheet-body", 6, 260, 1500); }, openItem("ppl_home_priya", "chair")],
+  "03a_takers": [PHONE, SITE, 6, async (ev) => { await wait(800); await slowScroll(ev, ".sheet-body", 3, 200, 1500); },
+    async (ev, cdp) => { await openItem("ppl_home_priya", "chair")(ev, cdp); await ev(`[...document.querySelectorAll('.sheet h3')].find(h => h.textContent.includes('Who can take it'))?.scrollIntoView({ block: 'start' })`); await wait(1000); }],
+  "04b_search_result": [PHONE, SITE, 8, async (ev, cdp) => {
+    await ev(`document.querySelector('.search-row input').focus()`);
+    for (const ch of "wooden chairs") { await cdp.send("Input.insertText", { text: ch }); await wait(90); }
+    await wait(400);
+    await ev(`document.querySelector('.search-row button').click()`); await wait(3500);
+    await ev(`document.querySelector('.panel-body').scrollBy({ top: 420, behavior: 'smooth' })`);
+  }, async (ev) => { await ev(`[...document.querySelectorAll('.mode-switch button')].find(b => b.textContent.includes('I need something'))?.click()`); await wait(1200); }],
+  "05b_deal_hi": [PHONE, SITE, 26, async (ev) => { await wait(1500); await slowScroll(ev, ".panel-body", 10, 160, 2300); }, openDeal("seller")],
+  "05c_deal_en": [PHONE, SITE, 26, async (ev) => { await wait(1500); await slowScroll(ev, ".panel-body", 10, 160, 2300); }, openDeal("buyer")],
   "02a_home": [PHONE, SITE, 4, async (ev) => { await wait(1500); await ev(scrollBy(".panel-body", 160)); }],
   "06a_ledger": [LAPTOP, SITE, 11, async (ev) => {
     await ev(tab("Ledger")); await wait(2500);
@@ -123,7 +154,7 @@ try {
       });
       continue;
     }
-    await record(cdp, name, viewport, url, seconds, steps);
+    await record(cdp, name, viewport, url, seconds, steps, SHOTS[name][4]);
   }
 } finally {
   await cdp.close();
