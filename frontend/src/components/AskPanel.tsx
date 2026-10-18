@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, audioFileName } from "../api";
-import { preferredLanguage } from "../language";
+import { preferredLanguage, replyLanguage, FOLLOW_SPEECH } from "../language";
 import { speak, voiceRepliesOn } from "../speak";
 import type { AppState, AskReply, Job } from "../types";
 import { LANG_LABEL, problemText } from "../labels";
@@ -45,7 +45,7 @@ export default function AskPanel({ state, personaId, onOpenItem, onJob, onGoToDe
     const form = new FormData();
     form.append("persona_id", personaId);
     form.append("question", question);
-    form.append("lang", preferredLanguage() ?? persona?.language ?? "en");
+    form.append("lang", preferredLanguage() === FOLLOW_SPEECH ? "auto" : replyLanguage()); // English unless chosen otherwise
     form.append("lat", String(getWhere().lat)); // the chosen city, or where the person is
     form.append("lng", String(getWhere().lng));
     form.append("history", JSON.stringify(messages.slice(-6).map((m) => ({ role: m.from, text: m.en ?? m.text }))));

@@ -346,7 +346,7 @@ async def ask(
     persona_id: str = Form("ppl_me"),
     question: str = Form(""),
     history: str = Form("[]"),
-    lang: str = Form("en"),
+    lang: str = Form("en"),  # the answer's language: English by default, any code, or "auto" (the question's)
     lat: Optional[float] = Form(None),
     lng: Optional[float] = Form(None),
     file: Optional[UploadFile] = File(None),
@@ -358,7 +358,9 @@ async def ask(
     if file is not None:
         audio = to_media_ref(file.filename or "ask.webm", await file.read(), file.content_type or "audio/webm", settings)
         heard = await llm.transcribe(audio, "ask")
-        question, lang = heard.get("text", ""), heard.get("language") or lang
+        question = heard.get("text", "")  # answered in `lang` (English unless chosen), not the language heard
+        if lang == "auto":
+            lang = heard.get("language") or "en"
     try:
         turns = [t for t in json.loads(history) if isinstance(t, dict)][-6:]
     except ValueError:

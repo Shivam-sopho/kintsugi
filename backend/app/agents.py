@@ -512,7 +512,8 @@ async def ask_kintsugi(
     """One turn of Ask Kintsugi. Gemini answers from the context and suggests one action; code
     keeps the action to things this person can actually do."""
     ctx = ask_context(store, persona_id, GeoPoint(lat=12.95, lng=77.63), near)
-    lang = reply_language(question, lang)
+    # Kintsugi answers in English, or the language the person chose; "auto" follows the question.
+    lang = reply_language(question, "en") if lang == "auto" else (lang or "en")
     out = await llm.ask(question, history, ctx, lang)
     if lang == "en" and reply_language(out.get("answer", ""), "en") != "en" and out.get("answer_en"):
         out["answer"] = out["answer_en"]  # asked in English: answer in English
