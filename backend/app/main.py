@@ -17,7 +17,7 @@ from google.genai import errors as genai_errors
 from pydantic import BaseModel, Field
 
 from . import agents
-from . import live_ledger, report_pdf, speech_cache, standing
+from . import ledger, live_ledger, report_pdf, speech_cache, standing
 from .certificate import render as render_certificate
 from .config import get_settings
 from .demo import fixtures
@@ -297,17 +297,26 @@ async def explain(item_id: str, lang: str = "en") -> dict[str, Any]:
 
 @app.post("/api/items/{item_id}/handover")
 async def handover(item_id: str) -> dict[str, Any]:
-    """Hand the item over to the takers the rules chose: no money, impact recorded."""
+    """Hand the item over to the takers the rules chose: no money, impact recorded. It needs no model
+    call, so it runs at once and answers with the finished job and what it saved (the app celebrates
+    straight away instead of waiting for a background job)."""
     store = get_store()
     it = store.get_item(item_id)
     if not it:
         raise HTTPException(404, "Item not found")
-
-    async def flow(job_id: str):
-        deal = await agents.handover_item(store, agents.Emitter(store, job_id, delay=0.3), item_id)
-        return {"deal_id": deal.id}
-
-    return _start_job("handover", flow).model_dump(mode="json")
+    job = Job(kind="handover", status="running")
+    store.upsert_job(job)
+    try:
+        deal = await agents.handover_item(store, agents.Emitter(store, job.id), item_id)
+    except ValueError as exc:
+        job.status, job.error = "error", str(exc)
+        store.upsert_job(job)
+        raise HTTPException(400, str(exc)) from exc
+    t = ledger.totals([e for e in store.list_ledger() if e.source_id == deal.id])
+    job.status = "done"
+    job.result = {"deal_id": deal.id, "kg": t["mass_diverted_kg"], "co2e_kg": t["co2_avoided_kg"]}
+    store.upsert_job(job)
+    return job.model_dump(mode="json")
 
 
 @app.post("/api/items/{item_id}/offer")

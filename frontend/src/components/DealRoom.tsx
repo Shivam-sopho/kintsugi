@@ -17,7 +17,7 @@ interface Props {
   state: AppState;
   onChanged: () => void;
   onOpenItem?: (id: string) => void;
-  onCelebrate?: (dealId: string, personId: string, levelBefore: string | null) => void;
+  onCelebrate?: (c: { dealId: string | null; personId: string; levelBefore: string | null } | null) => void;
 }
 
 export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate }: Props) {
@@ -100,7 +100,7 @@ export default function DealRoom({ state, onChanged, onOpenItem, onCelebrate }: 
               <button className="primary gold" onClick={act(async (id) => {
                 const before = (await api.standing(deal.seller_id).catch(() => null))?.level ?? null;
                 const out = await api.accept(id);
-                if (out.status === "settled") onCelebrate?.(id, deal.seller_id, before);
+                if (out.status === "settled") onCelebrate?.({ dealId: id, personId: deal.seller_id, levelBefore: before });
               })} disabled={busy}>
                 {busy ? "Working…" : `Accept ${inr(deal.final_price_inr)}`}
               </button>
